@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html data-i18n-title="page.title.editor">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>SnipeIT</title>
+  <link rel="icon" type="image/png" href="/images/tab/tab-icon.png">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/i18n.js"></script>
+  <script src="/js/icons.js"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <header class="app-header" id="appHeader" data-active="strategies"></header>
+
+    <main class="app-main">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h1 id="pageTitle" data-i18n="editor.title.new"></h1>
+          <p data-i18n="editor.subtitle"></p>
+        </div>
+        <div class="page-header-actions">
+          <a href="/strategies.html" class="btn btn-ghost" data-i18n="editor.cancel"></a>
+          <button class="btn btn-surface" id="saveBtn">
+            <i data-icon="save"></i> <span data-i18n="editor.save"></span>
+          </button>
+          <button class="btn btn-primary" id="saveAndRunBtn">
+            <i data-icon="play"></i> <span data-i18n="editor.save_and_run"></span>
+          </button>
+        </div>
+      </div>
+
+      <p class="form-error global-error" id="globalError"></p>
+
+      <!-- Mobile step nav -->
+      <nav class="edit-mobile-nav" id="editMobileNav">
+        <div class="mnav-item active" data-step="0">
+          <i data-icon="clock"></i>
+          <span data-i18n="editor.section.general"></span>
+        </div>
+        <div class="mnav-item" data-step="1">
+          <i data-icon="shield"></i>
+          <span data-i18n="editor.section.risk"></span>
+        </div>
+        <div class="mnav-item" data-step="2">
+          <i data-icon="layers"></i>
+          <span data-i18n="editor.section.conditions"></span>
+        </div>
+        <div class="mnav-item" data-step="3">
+          <i data-icon="code"></i>
+          <span data-i18n="editor.sidebar.json_title"></span>
+        </div>
+      </nav>
+
+      <div class="editor-layout" id="editorLayout">
+
+        <!-- Step 0: General + Market -->
+        <div class="mobile-step" data-step="0">
+          <div class="card">
+            <div class="section-title" data-i18n="editor.section.general"></div>
+            <div class="form-group">
+              <label data-i18n="editor.field.name"></label>
+              <input type="text" id="fName" data-i18n-attr="placeholder" data-i18n="editor.field.name_ph" maxlength="80">
+            </div>
+            <div class="form-group">
+              <label data-i18n="editor.field.description"></label>
+              <textarea id="fDescription" data-i18n-attr="placeholder" data-i18n="editor.field.description_ph"></textarea>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-title" data-i18n="editor.section.market"></div>
+            <div class="form-row">
+              <div class="form-group">
+                <label data-i18n="editor.field.pair"></label>
+                <select id="fPair">
+                  <option>BTC/USDT</option><option>ETH/USDT</option><option>SOL/USDT</option>
+                  <option>BNB/USDT</option><option>XRP/USDT</option><option>ADA/USDT</option>
+                  <option>DOGE/USDT</option><option>AVAX/USDT</option><option>TAO/USDT</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label data-i18n="editor.field.timeframe"></label>
+                <select id="fTimeframe">
+                  <option value="1m">1m</option><option value="5m">5m</option>
+                  <option value="15m">15m</option><option value="30m">30m</option>
+                  <option value="1h" selected>1h</option><option value="2h">2h</option>
+                  <option value="4h">4h</option><option value="6h">6h</option>
+                  <option value="12h">12h</option><option value="1d">1d</option>
+                  <option value="3d">3d</option><option value="1w">1w</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label data-i18n="editor.field.start_date"></label>
+                <input type="date" id="fStartDate">
+              </div>
+              <div class="form-group">
+                <label data-i18n="editor.field.end_date"></label>
+                <input type="date" id="fEndDate">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 1: Risk -->
+        <div class="mobile-step" data-step="1">
+          <div class="card sidebar-panel">
+            <div class="section-title" data-i18n="editor.section.risk"></div>
+            <div class="form-row">
+              <div class="form-group">
+                <label data-i18n="editor.field.capital"></label>
+                <input type="number" id="fCapital" value="1000" min="1" step="1">
+              </div>
+              <div class="form-group">
+                <label data-i18n="editor.field.position_size"></label>
+                <input type="number" id="fPositionSize" value="10" min="1" max="100" step="1">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group fee-group">
+                <label><span data-i18n="editor.field.fee_taker"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
+                <div class="input-with-select">
+                  <input type="number" id="fFeeTaker" value="0.1" min="0" max="10" step="0.01" placeholder="0.1">
+                  <span class="input-addon">%</span>
+                </div>
+              </div>
+              <div class="form-group fee-group">
+                <label><span data-i18n="editor.field.fee_maker"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
+                <div class="input-with-select">
+                  <input type="number" id="fFeeMaker" value="0.1" min="0" max="10" step="0.01" placeholder="0.1">
+                  <span class="input-addon">%</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="divider mt-md mb-md"></div>
+
+            <div class="form-row">
+              <div class="form-group risk-group">
+                <label><span data-i18n="editor.field.stop_loss"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
+                <div class="input-with-select">
+                  <input type="number" id="fStopLoss" data-i18n-attr="placeholder" data-i18n="editor.field.sl_ph" min="0.01" step="0.01">
+                  <select id="fSlType">
+                    <option value="percent">%</option>
+                    <option value="atr">× ATR</option>
+                  </select>
+                </div>
+                <label class="checkbox-label sl-trailing-label">
+                  <input type="checkbox" id="fSlTrailing">
+                  <span class="text-muted" data-i18n="editor.field.sl_trailing"></span>
+                </label>
+              </div>
+              <div class="form-group risk-group">
+                <label><span data-i18n="editor.field.take_profit"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
+                <div class="input-with-select">
+                  <input type="number" id="fTakeProfit" data-i18n-attr="placeholder" data-i18n="editor.field.tp_ph" min="0.01" step="0.01">
+                  <select id="fTpType">
+                    <option value="percent">%</option>
+                    <option value="atr">× ATR</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="form-row" id="atrPeriodGroup" style="display:none">
+              <div class="form-group">
+                <label data-i18n="editor.field.atr_period"></label>
+                <input type="number" id="fAtrPeriod" value="14" min="1" max="200" step="1">
+              </div>
+            </div>
+
+            <div class="divider mt-md mb-md"></div>
+
+            <div class="form-group">
+              <label data-i18n="editor.field.trading_hours"></label>
+              <div id="tradingHoursContainer"></div>
+              <button type="button" class="btn btn-ghost btn-sm mt-sm" onclick="addTradingHourSlot()" data-i18n="editor.field.trading_hours_add"></button>
+              <p class="text-muted text-sm mt-sm" data-i18n="editor.field.trading_hours_hint"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Conditions -->
+        <div class="mobile-step" data-step="2">
+          <div class="card condition-card">
+            <div class="section-title" data-i18n="editor.section.conditions"></div>
+            <div class="conditions-block">
+              <div class="condition-tabs">
+                <button class="btn btn-ghost condition-tab active-entry" id="tabEntry" onclick="showTab('entry')">
+                  <i data-icon="enter"></i>
+                  <span data-i18n="editor.cond.tab_entry"></span>
+                </button>
+                <button class="btn btn-ghost condition-tab" id="tabExit"  onclick="showTab('exit')">
+                  <i data-icon="exit"></i>
+                  <span data-i18n="editor.cond.tab_exit"></span>
+                </button>
+              </div>
+              <div id="entryConditions" class="conditions-panel"></div>
+              <div id="exitConditions"  class="conditions-panel conditions-panel--hidden"></div>
+              <div class="conditions-actions">
+                <button class="add-condition-btn" id="addGroupBtn">
+                  <i data-icon="plus"></i>
+                  <span data-i18n="editor.cond.add_group"></span>
+                </button>
+              </div>
+            </div>
+            <p class="text-muted text-sm mt-md" data-i18n="editor.cond.hint"></p>
+          </div>
+        </div>
+
+        <!-- Step 3: Preview + indicators legend -->
+        <div class="mobile-step" data-step="3">
+          <div class="card sidebar-panel">
+            <div class="card-header">
+              <div class="section-title" data-i18n="editor.sidebar.json_title"></div>
+              <span class="text-muted text-sm" data-i18n="editor.sidebar.json_sub"></span>
+            </div>
+            <pre class="preview-json" id="jsonPreview">{}</pre>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+  <script src="/js/api.js"></script>
+  <script src="/js/toast.js"></script>
+  <script src="/js/header.js"></script>
+  <script src="/js/indicator-config.js"></script>
+  <script src="/js/indicator-picker.js"></script>
+  <script src="/js/condition-renderer.js"></script>
+  <script src="/js/condition-settings.js"></script>
+  <script src="/js/strategy-form.js"></script>
+  <script>
+    const urlParams = new URLSearchParams(location.search)
+    window._editId  = urlParams.get('id') ? parseInt(urlParams.get('id')) : null
+
+    document.addEventListener('header:ready', async () => {
+      applyToDOM()
+      const today = new Date()
+      const oneYearAgo = new Date(today); oneYearAgo.setFullYear(today.getFullYear() - 1)
+      document.getElementById('fStartDate').value = oneYearAgo.toISOString().slice(0, 10)
+      document.getElementById('fEndDate').value   = today.toISOString().slice(0, 10)
+
+      if (window._editId) {
+        document.getElementById('pageTitle').textContent = t('editor.title.edit')
+        await loadStrategy(window._editId)
+      } else {
+        conditions.entry = [[{ indicator: 'RSI', period: INDICATOR_DEFAULT_PERIOD['RSI'], operator: '<', value: 30 }]]
+        conditions.exit  = [[{ indicator: 'RSI', period: INDICATOR_DEFAULT_PERIOD['RSI'], operator: '>', value: 70 }]]
+        renderConditions(); updatePreview()
+      }
+    })
+    initI18n()
+  </script>
+</body>
+</html>

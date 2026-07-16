@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html data-i18n-title="page.title.jobs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SnipeIT</title>
+  <link rel="icon" type="image/png" href="/images/tab/tab-icon.png">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/i18n.js"></script>
+  <script src="/js/icons.js"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <header class="app-header" id="appHeader" data-active="jobs"></header>
+
+    <main class="app-main" id="jobsMain">
+      <div class="jobs-page-header">
+        <div class="page-header-left">
+          <h1 data-i18n="jobs.title"></h1>
+          <p data-i18n="jobs.subtitle"></p>
+        </div>
+        <div class="jobs-toolbar">
+          <div id="workerStatus" class="status-badge status-error">
+            <span class="status-dot"></span><span id="workerStatusLabel"></span>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="manageTagsBtn">
+            <i data-icon="tag"></i>
+            <span data-i18n="jobs.btn.tags"></span>
+          </button>
+          <button class="btn btn-ghost btn-sm" id="refreshBtn">
+            <i data-icon="replay"></i>
+            <span data-i18n="jobs.btn.refresh"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="jobs-controls card">
+        <div class="jobs-controls-row">
+          <div class="jobs-control-group">
+            <span class="jobs-control-label" data-i18n="jobs.sort.label"></span>
+            <div class="toggle-group" id="sortGroup">
+              <button class="toggle-btn active" data-sort="date" data-i18n="jobs.sort.date"></button>
+              <button class="toggle-btn" data-sort="pnl"      data-i18n="jobs.sort.pnl"></button>
+              <button class="toggle-btn" data-sort="sharpe"   data-i18n="jobs.sort.sharpe"></button>
+              <button class="toggle-btn" data-sort="winrate"  data-i18n="jobs.sort.winrate"></button>
+              <button class="toggle-btn" data-sort="drawdown" data-i18n="jobs.sort.drawdown"></button>
+              <button class="toggle-btn" data-sort="trades"   data-i18n="jobs.sort.trades"></button>
+            </div>
+          </div>
+          <div class="jobs-control-sep"></div>
+          <div class="jobs-control-group">
+            <span class="jobs-control-label" data-i18n="jobs.group.label"></span>
+            <div class="toggle-group" id="groupGroup">
+              <button class="toggle-btn active" data-group="none"   data-i18n="jobs.group.none"></button>
+              <button class="toggle-btn" data-group="pair"          data-i18n="jobs.group.pair"></button>
+              <button class="toggle-btn" data-group="tag"           data-i18n="jobs.group.tag"></button>
+              <button class="toggle-btn" data-group="profit"        data-i18n="jobs.group.profit"></button>
+              <button class="toggle-btn" data-group="status"        data-i18n="jobs.group.status"></button>
+              <button class="toggle-btn" data-group="strategy"      data-i18n="jobs.group.strategy"></button>
+            </div>
+          </div>
+          <div class="jobs-control-sep"></div>
+          <div class="jobs-control-group">
+            <span class="jobs-control-label" data-i18n="jobs.filter.label"></span>
+            <div class="toggle-group" id="filterGroup">
+              <button class="toggle-btn active" data-filter="all"     data-i18n="jobs.filter.all"></button>
+              <button class="toggle-btn" data-filter="pending"        data-i18n="jobs.filter.pending"></button>
+              <button class="toggle-btn" data-filter="running"        data-i18n="jobs.filter.running"></button>
+              <button class="toggle-btn" data-filter="done"           data-i18n="jobs.filter.done"></button>
+              <button class="toggle-btn" data-filter="error"          data-i18n="jobs.filter.error"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="loadingState" class="loading-spinner"><div class="spinner"></div></div>
+      <div id="emptyState" class="empty-state hidden">
+        <div class="empty-state-icon"><i data-icon="gear"></i></div>
+        <h3 id="emptyTitle" data-i18n="jobs.empty.title"></h3>
+        <p id="emptyDesc" data-i18n="jobs.empty.desc"></p>
+        <a href="/strategies.html" class="btn btn-primary" id="emptyCreateBtn" data-i18n="jobs.empty.btn"></a>
+        <button class="btn btn-ghost hidden" id="emptyResetBtn" data-i18n="jobs.empty.reset_btn"></button>
+      </div>
+      <div id="jobsContent" class="hidden"></div>
+      <div id="paginationBar" class="pagination-bar hidden">
+        <button class="btn btn-ghost btn-sm hidden" id="firstPageBtn"><i data-icon="chevron_first"></i></button>
+        <button class="btn btn-ghost btn-sm" id="prevPageBtn"><i data-icon="chevron_left"></i></button>
+        <span id="pageIndicator" class="text-muted text-sm"></span>
+        <button class="btn btn-ghost btn-sm" id="nextPageBtn"><i data-icon="chevron_right"></i></button>
+        <button class="btn btn-ghost btn-sm hidden" id="lastPageBtn"><i data-icon="chevron_last"></i></button>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal gestion tags -->
+  <div id="tagsModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i data-icon="tag"></i>
+          <span data-i18n="jobs.tags.modal_title"></span>
+        </div>
+        <button class="modal-close" id="tagsModalClose"><i data-icon="cross"></i></button>
+      </div>
+      <div class="tag-create-form">
+        <input type="text" id="tagNameInput" data-i18n-attr="placeholder" data-i18n="jobs.tags.name_ph" maxlength="32">
+        <input type="color" id="tagColorInput" value="#6c8eff">
+        <button class="btn btn-primary btn-sm" id="createTagBtn" data-i18n="jobs.tags.create_btn"></button>
+      </div>
+      <p class="form-error" id="tagCreateError"></p>
+      <div class="divider"></div>
+      <div id="tagsList" class="tags-manage-list"></div>
+    </div>
+  </div>
+
+  <!-- Popover contextuel assigner tags -->
+  <div id="tagPopover" class="tag-popover hidden">
+    <div class="tag-popover-header">
+      <span class="tag-popover-title" id="popoverTitle"></span>
+      <button class="modal-close" id="popoverClose"><i data-icon="cross"></i></button>
+    </div>
+    <div id="popoverTagList" class="tag-popover-list"></div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+  <script src="/js/api.js"></script>
+  <script src="/js/toast.js"></script>
+  <script src="/js/header.js"></script>
+  <script src="/js/overlay-a11y.js"></script>
+  <script>
+    let allJobs      = []
+    let allTags      = []
+    let currentPage  = 1
+    let totalPages   = 1
+    const _pref = JSON.parse(localStorage.getItem('jobs_prefs') || '{}')
+    let sortBy     = _pref.sortBy     || 'date'
+    let sortAsc    = _pref.sortAsc    ?? false
+    let groupBy    = _pref.groupBy    || 'none'
+    let filterStat = _pref.filterStat || 'all'
+    let popoverJobId = null
+    let popoverSelected = []
+    let collapsedGroups = new Set()
+    let autoRefreshTimer = null
+
+    const _tooltip = (() => {
+      const el = document.createElement('div')
+      el.className = 'error-tooltip'
+      document.body.appendChild(el)
+      return el
+    })()
+
+    function _showTooltip(e, html) {
+      _tooltip.innerHTML = html
+      _tooltip.classList.add('visible')
+      const tx = e.clientX + 14
+      const ty = e.clientY - 10
+      let left = tx
+      if (left + _tooltip.offsetWidth > window.innerWidth - 8) left = e.clientX - _tooltip.offsetWidth - 14
+      if (left < 8) left = 8
+      _tooltip.style.left = left + 'px'
+      // _tooltip.style.left = (tx + _tooltip.offsetWidth > window.innerWidth
+      //   ? e.clientX - _tooltip.offsetWidth - 14
+      //   : tx) + 'px'
+      _tooltip.style.top = ty + 'px'
+    }
+
+    function _hideTooltip() { _tooltip.classList.remove('visible') }
+
+
+    function savePrefs() {
+      localStorage.setItem('jobs_prefs', JSON.stringify({ sortBy, sortAsc, groupBy, filterStat }))
+    }
+
+    document.addEventListener('header:ready', async () => {
+      applyToDOM()
+      updateSortIndicators()
+      await Promise.all([loadJobs(), loadTags()])
+      pollWorkerStatus()
+      autoRefreshTimer = setInterval(async () => { await loadJobs(); pollWorkerStatus() }, 5000)
+    })
+    initI18n()
+    restoreControlsUI()
+
+    document.getElementById('refreshBtn').addEventListener('click', () => { loadJobs(); pollWorkerStatus() })
+
+    // Worker status
+    async function pollWorkerStatus() {
+      try {
+        const { connected, worker } = await api('/worker/status')
+        const el    = document.getElementById('workerStatus')
+        const label = document.getElementById('workerStatusLabel')
+        if (connected) {
+          el.className = 'status-badge status-running'
+          label.textContent = t('jobs.worker.connected') + (worker?.name ? ' - ' + worker.name : '')
+        } else {
+          el.className = 'status-badge status-error'
+          label.textContent = t('jobs.worker.disconnected')
+        }
+      } catch (_) {}
+    }
+
+    let _lastJobsHash = null
+    async function loadJobs(page = currentPage) {
+      try {
+        const sortField = { date: 'createdAt', pnl: 'pnlPercent', sharpe: 'sharpeRatio', winrate: 'winRate', drawdown: 'maxDrawdown', trades: 'totalTrades' }[sortBy] || 'createdAt'
+        const params = new URLSearchParams({
+          page,
+          limit: groupBy !== 'none' ? 9999 : 20,
+          sort:  sortField,
+          order: sortAsc ? 'asc' : 'desc',
+          ...(filterStat !== 'all' ? { status: filterStat } : {}),
+        })
+        const { jobs, total, totalPages: tp } = await api(`/jobs?${params}`)
+        const hash = params.toString() + '|' + JSON.stringify(jobs) + '|' + total + '|' + tp
+        if (hash === _lastJobsHash) {
+          document.getElementById('loadingState').classList.add('hidden')
+          return
+        }
+        _lastJobsHash = hash
+
+        allJobs      = jobs
+        currentPage  = page
+        totalPages   = tp
+        renderJobs()
+        document.getElementById('loadingState').classList.add('hidden')
+      } catch (e) {
+        toast(t('jobs.load_error'), 'error')
+      }
+    }
+
+    async function loadTags() {
+      try { const { tags } = await api('/tags'); allTags = tags } catch (_) {}
+    }
+
+    // Controls
+    function restoreControlsUI() {
+      document.querySelectorAll('#sortGroup .toggle-btn')
+        .forEach(b => b.classList.toggle('active', b.dataset.sort === sortBy))
+      document.querySelectorAll('#groupGroup .toggle-btn')
+        .forEach(b => b.classList.toggle('active', b.dataset.group === groupBy))
+      document.querySelectorAll('#filterGroup .toggle-btn')
+        .forEach(b => b.classList.toggle('active', b.dataset.filter === filterStat))
+      updateSortIndicators()
+    }
+
+    document.getElementById('sortGroup').addEventListener('click', e => {
+      const btn = e.target.closest('[data-sort]')
+      if (!btn) return
+      if (sortBy === btn.dataset.sort) {
+        sortAsc = !sortAsc
+      } else {
+        sortBy = btn.dataset.sort
+        sortAsc = false
+      }
+      document.querySelectorAll('#sortGroup .toggle-btn')
+        .forEach(b => b.classList.toggle('active', b === btn))
+      updateSortIndicators()
+      savePrefs()
+      loadJobs(1)
+    })
+    function updateSortIndicators() {
+      document.querySelectorAll('#sortGroup .toggle-btn').forEach(btn => {
+        const label = btn.dataset.originalLabel || btn.textContent
+        btn.dataset.originalLabel = label
+        if (btn.dataset.sort === sortBy) {
+          btn.innerHTML = `${sortAsc ? ICONS.sort_arrow_up : ICONS.sort_arrow_down} ${label}`
+        } else {
+          btn.textContent = label
+        }
+      })
+    }
+
+    document.getElementById('groupGroup').addEventListener('click', e => {
+      const btn = e.target.closest('[data-group]'); if (!btn) return
+      groupBy = btn.dataset.group
+      collapsedGroups.clear()
+      document.querySelectorAll('#groupGroup .toggle-btn').forEach(b => b.classList.toggle('active', b === btn))
+      savePrefs()
+      loadJobs(1)
+    })
+
+    document.getElementById('filterGroup').addEventListener('click', e => {
+      const btn = e.target.closest('[data-filter]'); if (!btn) return
+      filterStat = btn.dataset.filter
+      document.querySelectorAll('#filterGroup .toggle-btn').forEach(b => b.classList.toggle('active', b === btn))
+      savePrefs()
+      loadJobs(1)
+    })
+
+    // Render
+    function getJobTags(job) { return (job.jobTags || []).map(jt => jt.tag) }
+
+    function getSortValue(job) {
+      switch (sortBy) {
+        case 'date':     return new Date(job.createdAt).getTime()
+        case 'pnl':      return job.pnlPercent   ?? -Infinity
+        case 'sharpe':   return job.sharpeRatio  ?? -Infinity
+        case 'winrate':  return job.winRate       ?? -Infinity
+        case 'drawdown': return job.maxDrawdown   ?? -Infinity
+        case 'trades':   return job.totalTrades   ?? -Infinity
+        default:         return 0
+      }
+    }
+
+    function groupJobs(jobs) {
+      if (groupBy === 'none') return { '': jobs }
+      const groups = {}
+      for (const job of jobs) {
+        let keys = []
+        if (groupBy === 'pair')   keys = [job.strategy.pair]
+        if (groupBy === 'status') keys = [job.status]
+        if (groupBy === 'profit') {
+          const p = job.pnlPercent ?? null
+          keys = [p === null ? t('jobs.group.no_result') : p >= 0 ? t('jobs.group.profitable') : t('jobs.group.loss')]
+        }
+        if (groupBy === 'tag') {
+          const tags = getJobTags(job)
+          keys = tags.length ? tags.map(t2 => t2.name + '|||' + t2.color) : [t('jobs.group.no_tag')]
+        }
+        if (groupBy === 'strategy') {
+          keys = [job.strategy.id + '|||' + job.strategy.name]
+        }
+        keys.forEach(k => { (groups[k] = groups[k] || []).push(job) })
+        
+      }
+      return groups
+    }
+
+    function renderJobs() {
+      const grouped = groupJobs(allJobs)
+      const content  = document.getElementById('jobsContent')
+
+      if (!allJobs.length) {
+        const isFiltered = filterStat !== 'all'
+        document.getElementById('emptyState').classList.remove('hidden')
+        content.classList.add('hidden')
+        document.getElementById('paginationBar').classList.add('hidden')
+
+        document.getElementById('emptyTitle').textContent = isFiltered ? t('jobs.empty.filtered_title') : t('jobs.empty.title')
+        document.getElementById('emptyDesc').textContent = isFiltered ? t('jobs.empty.filtered_desc')  : t('jobs.empty.desc')
+        document.getElementById('emptyCreateBtn').classList.toggle('hidden', isFiltered)
+        document.getElementById('emptyResetBtn').classList.toggle('hidden', !isFiltered)
+        return
+      }
+      document.getElementById('emptyState').classList.add('hidden')
+      document.querySelector(".jobs-controls").classList.remove('hidden')
+      content.classList.remove('hidden')
+
+      const hasGroups = groupBy !== 'none'
+
+      const html = Object.entries(grouped).map(([groupKey, jobs]) => {
+        const rows = jobs.map(renderJobRow).join('')
+        if (!hasGroups) return `<div class="jobs-group">${rows}</div>`
+
+        const isCollapsed = collapsedGroups.has(groupKey)
+        const header = renderGroupHeader(groupKey, isCollapsed, jobs.length)
+        return `
+          <div class="jobs-group-block" data-group-key="${escAttr(groupKey)}">
+            ${header}
+            <div class="jobs-group-wrap${isCollapsed ? ' collapsed' : ''}">
+              <div class="jobs-group">${rows}</div>
+            </div>
+          </div>`
+      }).join('')
+
+      content.innerHTML = html || `<div class="empty-state"><p class="text-muted">${t('jobs.empty.filter')}</p></div>`
+      bindJobActions()
+      bindGroupToggles()
+      renderPagination()
+    }
+
+    function renderPagination() {
+      const bar  = document.getElementById('paginationBar')
+      const prev = document.getElementById('prevPageBtn')
+      const next = document.getElementById('nextPageBtn')
+      const first = document.getElementById('firstPageBtn')
+      const last = document.getElementById('lastPageBtn')
+      document.getElementById('pageIndicator').textContent = `${currentPage} / ${totalPages}`
+      prev.disabled = currentPage <= 1
+      first.disabled = currentPage <= 1
+      next.disabled = currentPage >= totalPages
+      last.disabled = currentPage >= totalPages
+      bar.classList.toggle('hidden', totalPages <= 1 || groupBy !== 'none')
+      first.classList.toggle('hidden', totalPages <= 2)
+      last.classList.toggle('hidden', totalPages <= 2)
+    }
+
+    function loadAndScrollTop(idx) {
+      loadJobs(idx)
+      window.scrollTo(0, 0)
+    }
+
+    document.getElementById('prevPageBtn').addEventListener('click', () => loadAndScrollTop(currentPage - 1))
+    document.getElementById('nextPageBtn').addEventListener('click', () => loadAndScrollTop(currentPage + 1))
+    document.getElementById('firstPageBtn').addEventListener('click', () => loadAndScrollTop(1))
+    document.getElementById('lastPageBtn').addEventListener('click', () => loadAndScrollTop(totalPages))
+    document.getElementById('emptyResetBtn').addEventListener('click', () => {
+      filterStat = 'all'
+      document.querySelectorAll('#filterGroup .toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === 'all'))
+      savePrefs()
+      loadJobs(1)
+    })
+
+    function renderGroupHeader(key, isCollapsed, count) {
+      const parts = key.split('|||')
+      let labelHtml
+      if (parts.length === 2) {
+        const [first, second] = parts
+        if (second.match(/^#[0-9a-fA-F]{3,6}$/)) {
+          // tag: name|||#color
+          labelHtml = `<span class="tag-chip" style="background:${second}20;color:${second};border-color:${second}40">${escHtml(first)}</span>`
+        } else {
+          // strategy: id|||name
+          labelHtml = `<span class="group-header-label">${escHtml(second)}</span>`
+        }
+      } else {
+        const statusLabels = { pending: t('status.pending'), running: t('status.running'), done: t('status.done'), error: t('status.error') }
+        labelHtml = `<span class="group-header-label">${escHtml(statusLabels[key] || key)}</span>`
+      }
+      return `
+        <div class="group-header group-header--toggle" data-toggle-group="${escAttr(key)}">
+          <span class="group-toggle-arrow${isCollapsed ? '' : ' open'}">${ICONS.chevron_right}</span>
+          ${labelHtml}
+          <span class="group-count">${count}</span>
+        </div>`
+    }
+
+    function bindGroupToggles() {
+      document.querySelectorAll('.group-header--toggle').forEach(header => {
+        header.addEventListener('click', () => {
+          const key = header.dataset.toggleGroup
+          const block = document.querySelector(`.jobs-group-block[data-group-key="${CSS.escape(key)}"]`)
+          const wrap  = block?.querySelector('.jobs-group-wrap')
+          const arrow = header.querySelector('.group-toggle-arrow')
+          if (!wrap) return
+          if (collapsedGroups.has(key)) {
+            collapsedGroups.delete(key)
+            wrap.classList.remove('collapsed')
+            arrow?.classList.add('open')
+          } else {
+            collapsedGroups.add(key)
+            wrap.classList.add('collapsed')
+            arrow?.classList.remove('open')
+          }
+        })
+      })
+    }
+
+    function renderJobRow(j) {
+      const tags = getJobTags(j)
+
+      const pnlHtml    = j.pnlPercent != null
+        ? `<div class="text-sm ${j.pnlPercent >= 0 ? 'pnl-positive' : 'pnl-negative'}">${j.pnlPercent >= 0 ? '+' : ''}${j.pnlPercent.toFixed(2)}%</div>`
+        : `<div class="text-sm text-muted">-</div>`
+      const sharpeHtml = j.sharpeRatio != null ? j.sharpeRatio.toFixed(2) : '-'
+      const winHtml    = j.winRate     != null ? j.winRate.toFixed(1) + '%' : '-'
+      const ddHtml     = j.maxDrawdown != null ? '-' + j.maxDrawdown.toFixed(2) + '%' : '-'
+      const tagsHtml   = tags.map(tg =>
+        `<span class="tag-chip" style="background:${tg.color}20;color:${tg.color};border-color:${tg.color}40">${escHtml(tg.name)}</span>`
+      ).join('')
+
+      return `<div class="job-row" data-id="${j.id}">
+        <div class="job-row-main">
+          <div class="job-row-left">
+            <span class="status-badge status-${j.status} ${j.status === 'error' && j.errorMessage ? 'has-error-msg' : ''}"
+              data-error-msg="${j.status === 'error' && j.errorMessage ? escAttr(j.errorMessage) : ''}">
+              <span class="status-dot"></span>${t('status.' + j.status)}
+            </span>
+            <div class="job-row-meta">
+              <a href="/strategy-editor.html?id=${j.strategy.id}" class="job-strategy-name">${escHtml(j.strategy.name)}</a>
+              <div class="job-row-sub">
+                <span class="tag tag-primary">${j.strategySnapshot?.pair ?? j.strategy.pair}</span>
+                <span class="tag">${j.strategySnapshot?.timeframe ?? j.strategy.timeframe}</span>
+                <span class="text-muted text-sm">${fmtDateTime(j.createdAt)}</span>
+              </div>
+            </div>
+          </div>
+          <div class="job-row-metrics">
+            <div class="job-metric"><div class="job-metric-label">${t('jobs.metric.pnl')}</div>${pnlHtml}</div>
+            <div class="job-metric"><div class="job-metric-label">${t('jobs.metric.sharpe')}</div><div class="text-sm">${sharpeHtml}</div></div>
+            <div class="job-metric"><div class="job-metric-label">${t('jobs.metric.winrate')}</div><div class="text-sm">${winHtml}</div></div>
+            <div class="job-metric"><div class="job-metric-label">${t('jobs.metric.maxdd')}</div><div class="text-sm" style="color:var(--danger)">${ddHtml}</div></div>
+          </div>
+          <div class="job-row-actions">
+            ${j.status === 'done' ? `
+              <a href="/results.html?jobId=${j.id}" class="btn btn-ghost btn-sm">
+                ${ICONS.chart}
+                ${t('jobs.btn.results')}
+              </a>
+              ` : ''}
+            ${j.status === 'pending' ? `<button class="btn btn-danger btn-sm cancel-btn" data-id="${j.id}">${ICONS.cross}</button>` : ''}
+            <button class="btn btn-ghost btn-sm assign-tags-btn" data-id="${j.id}" title="Tags">${ICONS.tag}</button>
+          </div>
+        </div>
+        ${tags.length ? `<div class="job-row-tags">${tagsHtml}</div>` : ''}
+      </div>`
+    }
+
+    function bindJobActions() {
+      document.querySelectorAll('.cancel-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true
+          try {
+            await api(`/jobs/${btn.dataset.id}/cancel`, { method: 'POST' })
+            toast(t('jobs.cancelled'), 'success'); loadJobs()
+          } catch (e) { toast(t('error.' + e.code), 'error'); btn.disabled = false }
+        })
+      })
+      document.querySelectorAll('.assign-tags-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.stopPropagation()
+          openTagPopover(parseInt(btn.dataset.id), btn)
+        })
+      })
+      document.querySelectorAll('.has-error-msg').forEach(badge => {
+        badge.addEventListener('mouseenter', e => _showTooltip(e, `<span>${badge.dataset.errorMsg}</span>`))
+        badge.addEventListener('mousemove',  e => _showTooltip(e, `<span>${badge.dataset.errorMsg}</span>`))
+        badge.addEventListener('mouseleave', () => _hideTooltip())
+        badge.addEventListener('click',      e => { e.stopPropagation(); _showTooltip(e, `<span>${badge.dataset.errorMsg}</span>`) })
+      })
+    }
+
+    // Tags modal
+    document.getElementById('manageTagsBtn').addEventListener('click', () => {
+      renderTagsList()
+      openModal('tagsModal', 'tagsModalClose')
+    })
+    document.getElementById('tagsModalClose').addEventListener('click', () => closeModal('tagsModal'))
+    
+    bindModalKeys('tagsModal', {
+      onCancel: () => closeModal('tagsModal'),
+    })
+
+    function renderTagsList() {
+      const list = document.getElementById('tagsList')
+      if (!allTags.length) {
+        list.innerHTML = `<p class="text-muted text-sm">${t('jobs.tags.empty')}</p>`
+        return
+      }
+      list.innerHTML = allTags.map(tag => `
+        <div class="tag-manage-row">
+          <span class="tag-chip" style="background:${tag.color}20;color:${tag.color};border-color:${tag.color}40">${escHtml(tag.name)}</span>
+          <span class="text-muted text-sm">${tag._count?.jobTags ?? 0} job${(tag._count?.jobTags ?? 0) !== 1 ? 's' : ''}</span>
+          <div class="tag-manage-actions">
+            <input type="color" class="tag-color-edit" value="${tag.color}" data-id="${tag.id}" title="${t('jobs.tags.color_title')}">
+            <button class="btn btn-danger btn-sm delete-btn delete-tag-btn" data-id="${tag.id}">${ICONS.cross}</button>
+          </div>
+        </div>
+      `).join('')
+
+      document.querySelectorAll('.delete-tag-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true
+          try {
+            await api(`/tags/${btn.dataset.id}`, { method: 'DELETE' })
+            allTags = allTags.filter(tg => tg.id !== parseInt(btn.dataset.id))
+            renderTagsList(); loadJobs(); toast(t('jobs.tags.deleted'), 'success')
+          } catch (e) { toast(t('error.' + e.code), 'error'); btn.disabled = false }
+        })
+      })
+      document.querySelectorAll('.tag-color-edit').forEach(input => {
+        input.addEventListener('change', async () => {
+          try {
+            await api(`/tags/${input.dataset.id}`, { method: 'PUT', body: { color: input.value } })
+            const idx = allTags.findIndex(tg => tg.id === parseInt(input.dataset.id))
+            if (idx !== -1) allTags[idx] = { ...allTags[idx], color: input.value }
+            renderTagsList(); loadJobs()
+          } catch (e) { toast(t('error.' + e.code), 'error') }
+        })
+      })
+    }
+
+    document.getElementById('createTagBtn').addEventListener('click', async () => {
+      document.getElementById('tagCreateError').textContent = ''
+      const name  = document.getElementById('tagNameInput').value.trim()
+      const color = document.getElementById('tagColorInput').value
+      if (!name) { document.getElementById('tagCreateError').textContent = t('jobs.tags.name_req'); return }
+      const btn = document.getElementById('createTagBtn'); btn.disabled = true
+      try {
+        const { tag } = await api('/tags', { method: 'POST', body: { name, color } })
+        allTags.push({ ...tag, _count: { jobTags: 0 } })
+        document.getElementById('tagNameInput').value = ''
+        renderTagsList(); toast(t('jobs.tags.created'), 'success')
+      } catch (e) {
+        document.getElementById('tagCreateError').textContent = t('error.' + e.code)
+      } finally { btn.disabled = false }
+    })
+    document.getElementById('tagNameInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('createTagBtn').click()
+    })
+
+    // Popover contextuel
+    function openTagPopover(jobId, anchorEl) {
+      const job = allJobs.find(j => j.id === jobId)
+      if (!job) return
+
+      popoverJobId    = jobId
+      popoverSelected = getJobTags(job).map(tg => tg.id)
+
+      document.getElementById('popoverTitle').textContent = `#${jobId} - ${job.strategy.name}`
+
+      const list = document.getElementById('popoverTagList')
+      if (!allTags.length) {
+        list.innerHTML = `<p class="text-muted text-sm p-sm">${t('jobs.assign.empty')}</p>`
+      } else {
+        list.innerHTML = allTags.map(tag => `
+          <label class="assign-tag-row">
+            <input type="checkbox" class="assign-tag-cb" data-id="${tag.id}" ${popoverSelected.includes(tag.id) ? 'checked' : ''}>
+            <span class="tag-chip" style="background:${tag.color}20;color:${tag.color};border-color:${tag.color}40">${escHtml(tag.name)}</span>
+          </label>
+        `).join('')
+        document.querySelectorAll('.assign-tag-cb').forEach(cb => {
+          cb.addEventListener('change', async () => {
+            const id = parseInt(cb.dataset.id)
+            if (cb.checked) popoverSelected.push(id)
+            else popoverSelected = popoverSelected.filter(x => x !== id)
+
+            cb.disabled = true
+            try {
+              await api(`/tags/jobs/${popoverJobId}`, { method: 'PUT', body: { tagIds: popoverSelected } })
+              loadJobs()
+            } catch (e) {
+              toast(t('error.' + e.code), 'error')
+              // rollback visuel
+              cb.checked = !cb.checked
+              if (cb.checked) popoverSelected.push(id)
+              else popoverSelected = popoverSelected.filter(x => x !== id)
+            } finally {
+              cb.disabled = false
+            }
+          })
+        })
+      }
+
+      // Positionner le popover près du bouton
+      const popover = document.getElementById('tagPopover')
+      popover.classList.remove('hidden')
+
+      const rect    = anchorEl.getBoundingClientRect()
+      const pw      = popover.offsetWidth  || 240
+      const ph      = popover.offsetHeight || 300
+      let   top     = rect.bottom + 6
+      let   left    = rect.right  - pw
+
+      if (left < 8) left = 8
+      if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8
+      if (top + ph > window.innerHeight - 8) top = rect.top - ph - 6
+
+      popover.style.top  = top  + 'px'
+      popover.style.left = left + 'px'
+    }
+
+    function closePopover() {
+      popoverJobId = null
+      popoverSelected = []
+      document.getElementById('tagPopover').classList.add('hidden')
+    }
+
+    document.getElementById('popoverClose').addEventListener('click', closePopover)
+
+    // Close popover by clicking outside
+    document.addEventListener('click', e => {
+      const popover = document.getElementById('tagPopover')
+      if (!popover.classList.contains('hidden') &&
+          !popover.contains(e.target) &&
+          !e.target.closest('.assign-tags-btn')) {
+        closePopover()
+      }
+    })
+    
+    window.addEventListener('scroll', () => _hideTooltip(), { passive: true })
+
+    function fmtDateTime(d) {
+      return new Date(d).toLocaleString(i18nCurrentLang() === 'fr' ? 'fr-FR' : 'en-US', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' })
+    }
+    function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML }
+    function escAttr(s) { return s.replace(/"/g, '&quot;') }
+  </script>
+</body>
+</html>

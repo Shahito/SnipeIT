@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE `Strategy` ADD COLUMN `atrPeriod` INTEGER NULL DEFAULT 14,
+    ADD COLUMN `slType` VARCHAR(191) NULL DEFAULT 'percent',
+    ADD COLUMN `tpType` VARCHAR(191) NULL DEFAULT 'percent';

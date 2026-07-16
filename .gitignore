@@ -1,0 +1,33 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+*.bk
+logs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+dist/
+build/
+.cache/
+/src/generated/prisma
+
+.htaccess
+debug_mode.php
+config/.env
+
+# Cache / logs
+*.cache
+*.tmp
+*.bak
+*.swp
+
+# Python
+python/venv/
+python/.venv/
+python/**/__pycache__/
+python/**/*.pyc
+python/.cache/
+python/cache/

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html data-i18n-title="page.title.apikeys">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SnipeIT</title>
+  <link rel="icon" type="image/png" href="/images/tab/tab-icon.png">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/i18n.js"></script>
+  <script src="/js/icons.js"></script>
+</head>
+
+<body>
+  <div class="app-layout">
+    <header class="app-header" id="appHeader" data-active="apikeys"></header>
+
+    <main class="app-main">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h1 data-i18n="apikeys.title"></h1>
+          <p data-i18n="apikeys.subtitle"></p>
+        </div>
+        <button class="btn btn-primary" id="createKeyBtn">
+          <i data-icon="plus"></i>
+          <span data-i18n="apikeys.create_btn"></span>
+        </button>
+      </div>
+
+      <div class="card card--info mb-xl api-tips">
+        <div class="flex-row flex-row--gap-md flex-row--start">
+          <span class="card--info-icon"><i data-icon="bulb"></i></span>
+          <div>
+            <div class="card--info-title" data-i18n="apikeys.info_title"></div>
+            <div class="text-muted text-sm lh-relaxed">
+              <span data-i18n="apikeys.info_step1"></span><br>
+              <span data-i18n="apikeys.info_step2"></span><br>
+              <span data-i18n="apikeys.info_step3"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="loadingState" class="loading-spinner">
+        <div class="spinner"></div>
+      </div>
+
+      <div id="emptyState" class="empty-state hidden">
+        <div class="empty-state-icon"><i data-icon="key"></i></div>
+        <h3 data-i18n="apikeys.empty_title"></h3>
+        <p data-i18n="apikeys.empty_desc"></p>
+        <button class="btn btn-primary" id="createKeyFirstBtn">
+          <i data-icon="plus"></i>
+          <span data-i18n="apikeys.create_first_btn"></span>
+        </button>
+      </div>
+
+      <div id="keysList" class="apikey-list hidden"></div>
+    </main>
+  </div>
+
+  <!-- Create -->
+  <div id="createModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" data-i18n="apikeys.modal.new_title"></div>
+        <button class="modal-close" id="createModalClose">✕</button>
+      </div>
+      <div class="form-group">
+        <label data-i18n="apikeys.modal.key_label"></label>
+        <input type="text" id="keyName" data-i18n-attr="placeholder" data-i18n="apikeys.modal.key_ph" maxlength="60">
+      </div>
+      <p class="form-error" id="createKeyError"></p>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="createCancelBtn" data-i18n="apikeys.modal.cancel"></button>
+        <button class="btn btn-primary" id="createConfirmBtn" data-i18n="apikeys.modal.create"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reveal -->
+  <div id="revealModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" data-i18n="apikeys.modal.reveal_title"></div>
+      </div>
+      <p class="text-muted text-sm mb-md" data-i18n="apikeys.modal.reveal_desc"></p>
+      <div class="key-reveal">
+        <span id="rawKeyText" class="monospace"></span>
+        <button class="btn btn-ghost btn-sm" id="copyKeyBtn" data-i18n="apikeys.modal.copy_btn"></button>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="revealCloseBtn" data-i18n="apikeys.modal.confirm_copy"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete -->
+  <div id="deleteModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" data-i18n="apikeys.modal.del_title"></div>
+        <button class="modal-close" id="deleteModalClose"><i data-icon="cross"></i></button>
+      </div>
+      <p class="text-muted" data-i18n="apikeys.modal.del_desc"></p>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="deleteCancelBtn" data-i18n="common.cancel"></button>
+        <button class="btn btn-danger" id="deleteConfirmBtn" data-i18n="apikeys.modal.del_confirm"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+  <script src="/js/api.js"></script>
+  <script src="/js/toast.js"></script>
+  <script src="/js/header.js"></script>
+  <script src="/js/overlay-a11y.js"></script>
+  <script>
+    let deleteTargetId = null
+
+    document.addEventListener('header:ready', () => { loadKeys() })
+    initI18n()
+
+    function openCreateModal() {
+      document.getElementById('keyName').value = ''
+      document.getElementById('createKeyError').textContent = ''
+      openModal('createModal', 'keyName')
+    }
+
+    async function loadKeys() {
+      try {
+        const { apiKeys } = await api('/apikeys')
+        document.getElementById('loadingState').classList.add('hidden')
+        if (!apiKeys.length) {
+          document.getElementById('emptyState').classList.remove('hidden')
+          document.getElementById('keysList').classList.add('hidden')
+          return
+        }
+        document.getElementById('emptyState').classList.add('hidden')
+        const list = document.getElementById('keysList')
+        list.classList.remove('hidden')
+        list.innerHTML = apiKeys.map(k => `
+          <div class="apikey-item">
+            <div class="apikey-info">
+              <div class="apikey-name">${escHtml(k.name)}</div>
+              <div class="apikey-meta">
+                ${t('apikeys.item.prefix')} <code>${k.keyPrefix}…</code> ·
+                ${t('apikeys.item.created')} ${fmtDate(k.createdAt)} ·
+                ${k.lastUsedAt ? t('apikeys.item.last_used') + ' ' + fmtDate(k.lastUsedAt) : t('apikeys.item.never_used')}
+              </div>
+            </div>
+            <button class="btn btn-danger btn-sm delete-key-btn" data-id="${k.id}">${ICONS.cross}${t('apikeys.item.delete_btn')}</button>
+          </div>
+        `).join('')
+
+        document.querySelectorAll('.delete-key-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            deleteTargetId = parseInt(btn.dataset.id)
+            openModal('deleteModal', 'deleteCancelBtn')
+          })
+        })
+      } catch (e) { toast(t('apikeys.load_error'), 'error') }
+    }
+
+    document.getElementById('createKeyBtn').addEventListener('click', openCreateModal)
+    document.getElementById('createKeyFirstBtn').addEventListener('click', openCreateModal)
+
+    document.getElementById('createModalClose').addEventListener('click', () => closeModal('createModal'))
+    document.getElementById('createCancelBtn').addEventListener('click', () => closeModal('createModal'))
+
+    document.getElementById('createConfirmBtn').addEventListener('click', async () => {
+      document.getElementById('createKeyError').textContent = ''
+      const name = document.getElementById('keyName').value
+      if (!name.trim()) { document.getElementById('createKeyError').textContent = t('apikeys.name_required'); return }
+      const btn = document.getElementById('createConfirmBtn'); btn.disabled = true; btn.textContent = '...'
+      try {
+        const { apiKey } = await api('/apikeys', { method: 'POST', body: { name } })
+        closeModal('createModal')
+        document.getElementById('rawKeyText').textContent = apiKey.rawKey
+        openModal('revealModal', 'revealCloseBtn')
+        loadKeys()
+      } catch (e) {
+        document.getElementById('createKeyError').textContent = t('error.' + e.code)
+      } finally { btn.disabled = false; btn.textContent = t('apikeys.modal.create') }
+    })
+    document.getElementById('keyName').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('createConfirmBtn').click()
+    })
+
+    document.getElementById('copyKeyBtn').addEventListener('click', () => {
+      const text = document.getElementById('rawKeyText').textContent
+
+      const fallbackCopy = (text) => {
+        const textarea = document.createElement('textarea')
+        textarea.value = text
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.focus()
+        textarea.select()
+        try {
+          document.execCommand('copy')
+          toast(t('apikeys.copied'), 'success')
+        } catch (err) {
+          toast(t('apikeys.copy_error'), 'error')
+        }
+        document.body.removeChild(textarea)
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text)
+          .then(() => toast(t('apikeys.copied'), 'success'))
+          .catch(() => fallbackCopy(text))
+      } else {
+        fallbackCopy(text)
+      }
+    })
+
+    document.getElementById('revealCloseBtn').addEventListener('click', () => {
+      closeModal('revealModal')
+    })
+
+    function closeDeleteModal() {
+      deleteTargetId = null
+      closeModal('deleteModal')
+    }
+
+    document.getElementById('deleteModalClose').addEventListener('click', closeDeleteModal)
+    document.getElementById('deleteCancelBtn').addEventListener('click', closeDeleteModal)
+    document.getElementById('deleteConfirmBtn').addEventListener('click', async () => {
+      if (!deleteTargetId) return
+      try {
+        await api(`/apikeys/${deleteTargetId}`, { method: 'DELETE' })
+        toast(t('apikeys.deleted'), 'success')
+        closeDeleteModal()
+        loadKeys()
+      } catch (e) { toast(t('error.' + e.code), 'error') }
+    })
+
+    bindModalKeys('deleteModal', {
+      onConfirm: () => document.getElementById('deleteConfirmBtn').click(),
+      onCancel: closeDeleteModal,
+    })
+
+    function fmtDate(d) { return new Date(d).toLocaleDateString(i18nCurrentLang() === 'fr' ? 'fr-FR' : 'en-GB') }
+    function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML }
+  </script>
+</body>
+
+</html>

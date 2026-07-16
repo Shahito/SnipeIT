@@ -1,0 +1,173 @@
+"""
+ohlcv_cache.py — Disk cache for OHLCV data
+
+Stores downloaded candles in ./cache/<exchange>/<pair>/<timeframe>/<year>.parquet
+Hierarchical structure to allow partial updates.
+
+If the requested range is already fully cached, no network request is made.
+If part of the data is missing (e.g. new candles), only the delta is downloaded.
+"""
+
+import os
+import time
+import logging
+from pathlib import Path
+from datetime import datetime, timezone
+
+import pandas as pd
+
+from logger import log_cache_hit, log_cache_miss, log_cache_partial
+
+log = logging.getLogger("snipeit.cache")
+
+CACHE_DIR = Path(os.getenv("OHLCV_CACHE_DIR", "./cache"))
+SENTINEL = "fetch_start.txt"
+
+def _save_fetch_start(cache_dir: Path, start: datetime) -> None:
+    (cache_dir / SENTINEL).write_text(start.isoformat())
+
+def _load_fetch_start(cache_dir: Path) -> datetime | None:
+    p = cache_dir / SENTINEL
+    return datetime.fromisoformat(p.read_text()) if p.exists() else None
+
+def _cache_path(exchange: str, pair: str, timeframe: str) -> Path:
+    safe_pair = pair.replace("/", "_")
+    return CACHE_DIR / exchange / safe_pair / timeframe
+
+
+def _load_from_disk(cache_dir: Path, start: datetime, end: datetime) -> pd.DataFrame | None:
+    """Loads parquet files covering the [start, end] range."""
+    if not cache_dir.exists():
+        return None
+
+    frames = []
+    for f in sorted(cache_dir.glob("*.parquet")):
+        try:
+            df = pd.read_parquet(f)
+            df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.tz_localize(None)
+            frames.append(df)
+        except Exception as e:
+            log.warning(f"Corrupted cache file, skipped: {f} ({e})")
+
+    if not frames:
+        return None
+
+    combined = pd.concat(frames).drop_duplicates(subset=["timestamp"]).sort_values("timestamp")
+    combined = combined[
+        (combined["timestamp"] >= pd.Timestamp(start)) &
+        (combined["timestamp"] <= pd.Timestamp(end))
+    ]
+    return combined if not combined.empty else None
+
+
+def _save_to_disk(cache_dir: Path, df: pd.DataFrame) -> None:
+    """Saves by year for compact files that are easy to invalidate."""
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    for year, group in df.groupby(df["timestamp"].dt.year):
+        path = cache_dir / f"{year}.parquet"
+        # If the file exists, merge to avoid losing already-present data
+        if path.exists():
+            try:
+                existing = pd.read_parquet(path)
+                existing["timestamp"] = pd.to_datetime(existing["timestamp"]).dt.tz_localize(None)
+                group    = pd.concat([existing, group]).drop_duplicates(subset=["timestamp"]).sort_values("timestamp")
+            except Exception:
+                pass
+        group.to_parquet(path, index=False)
+    log.debug(f"Cache saved: {cache_dir} ({len(df)} candles)")
+
+
+def _fetch_from_exchange(exchange_id: str, pair: str, timeframe: str,
+                          start: datetime, end: datetime) -> pd.DataFrame:
+    try:
+        import ccxt
+    except ImportError:
+        raise RuntimeError("ccxt not installed — pip install ccxt")
+
+    exchange_cls = getattr(ccxt, exchange_id, None)
+    if not exchange_cls:
+        raise ValueError(f"Unknown exchange: {exchange_id}")
+
+    exchange = exchange_cls({"enableRateLimit": True})
+    
+    since_ms = int(start.replace(tzinfo=timezone.utc).timestamp() * 1000)
+    until_ms = int(end.replace(tzinfo=timezone.utc).timestamp() * 1000)
+
+    all_ohlcv = []
+    while since_ms < until_ms:
+        batch = exchange.fetch_ohlcv(pair, timeframe, since=since_ms, limit=1000)
+        if not batch:
+            break
+        # Filter out future candles
+        batch = [b for b in batch if b[0] <= until_ms]
+        all_ohlcv.extend(batch)
+        if len(batch) < 1000:
+            break
+        since_ms = batch[-1][0] + 1
+        time.sleep(exchange.rateLimit / 1000)
+
+    if not all_ohlcv:
+        return pd.DataFrame(columns=["timestamp","open","high","low","close","volume"]).astype(
+            {"timestamp": "datetime64[ns]"}
+        )
+
+    df = pd.DataFrame(all_ohlcv, columns=["timestamp","open","high","low","close","volume"])
+    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True).dt.tz_localize(None)
+    return df
+
+
+def get_ohlcv(pair: str, timeframe: str, start_date: str, end_date: str,
+              exchange: str = "binance") -> pd.DataFrame:
+    """
+    Main entry point.
+    Returns a complete OHLCV DataFrame for the requested range.
+    Only downloads missing data.
+    """
+    start = datetime.fromisoformat(start_date[:10])
+    end   = datetime.fromisoformat(end_date[:10])
+    cache_dir = _cache_path(exchange, pair, timeframe)
+
+    cached = _load_from_disk(cache_dir, start, end)
+
+    if cached is not None:
+        # Check if the range is complete
+        cached_start = cached["timestamp"].min()
+        cached_end   = cached["timestamp"].max()
+        start_ts     = pd.Timestamp(start)
+        end_ts       = pd.Timestamp(end)
+
+        known_start = _load_fetch_start(cache_dir)
+        need_before = (known_start is None or start < known_start) and cached_start > start_ts
+        # Do not re-download the end if end_date >= today (data still in progress)
+        today = pd.Timestamp(datetime.now(timezone.utc).date())
+        need_after  = cached_end < end_ts and end_ts < today
+        if not need_before and not need_after:
+            log_cache_hit(pair, timeframe, start_date[:10], end_date[:10], len(cached))
+            return cached.reset_index(drop=True)
+
+        log_cache_partial(pair, timeframe)
+
+        frames = [cached]
+        if need_before:
+            prefix = _fetch_from_exchange(exchange, pair, timeframe, start, cached_start.to_pydatetime())
+            frames.insert(0, prefix)
+        if need_after:
+            suffix = _fetch_from_exchange(exchange, pair, timeframe, cached_end.to_pydatetime(), end)
+            frames.append(suffix)
+
+        df = pd.concat(frames).drop_duplicates(subset=["timestamp"]).sort_values("timestamp").reset_index(drop=True)
+        _save_to_disk(cache_dir, df)
+        if need_before:
+            _save_fetch_start(cache_dir, start)
+        return df[
+            (df["timestamp"] >= pd.Timestamp(start)) &
+            (df["timestamp"] <= pd.Timestamp(end))
+        ].reset_index(drop=True)
+
+    # Full cache MISS
+    log_cache_miss(pair, timeframe, start_date[:10], end_date[:10])
+    df = _fetch_from_exchange(exchange, pair, timeframe, start, end)
+    if not df.empty:
+        _save_to_disk(cache_dir, df)
+        _save_fetch_start(cache_dir, start)
+    return df

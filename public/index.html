@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html data-i18n-title="page.title.login">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SnipeIT</title>
+  <link rel="icon" type="image/png" href="/images/tab/tab-icon.png">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/i18n.js"></script>
+</head>
+<body>
+  <main class="auth-main">
+    <div class="auth-card">
+
+      <div class="app-logo">
+        <img src="/images/icons/192.png" class="app-logo-img app-logo-img--lg" alt="SnipeIT">
+        <div class="app-title app-title--lg">Snipe<span>IT</span></div>
+      </div>
+
+      <!-- LOGIN -->
+      <section id="loginSection" class="auth-section">
+        <h2 data-i18n="login.login_title"></h2>
+        <div class="form-group">
+          <label data-i18n="login.username"></label>
+          <input type="text" id="loginUsername" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+          <label data-i18n="login.password"></label>
+          <input type="password" id="loginPassword" autocomplete="current-password" required>
+        </div>
+        <p class="form-error" id="loginError"></p>
+        <button class="btn btn-primary btn-full" id="loginBtn" data-i18n="login.login_btn"></button>
+        <p class="switch-link"><span id="toRegister" data-i18n="login.to_register"></span></p>
+      </section>
+
+      <!-- REGISTER -->
+      <section id="registerSection" class="auth-section hidden">
+        <h2 data-i18n="login.register_title"></h2>
+        <div class="form-group">
+          <label data-i18n="login.username"></label>
+          <input type="text" id="regUsername" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+          <label data-i18n="login.password"></label>
+          <input type="password" id="regPassword" data-i18n-attr="placeholder" data-i18n="login.password_hint" autocomplete="new-password" required>
+        </div>
+        <p class="form-error" id="registerError"></p>
+        <button class="btn btn-primary btn-full" id="registerBtn" data-i18n="login.register_btn"></button>
+        <p class="switch-link"><span id="toLogin" data-i18n="login.to_login"></span></p>
+      </section>
+
+      <div class="auth-lang">
+        <button class="btn btn-ghost btn-sm lang-btn" id="langBtn"></button>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    document.addEventListener('i18n:ready', async () => {
+      document.getElementById('langBtn').textContent = t('header.lang')
+      try {
+        const { user } = await api('/auth/me')
+        if (user) window.location.href = '/strategies.html'
+      } catch (_) {}
+    })
+    initI18n()
+
+    document.getElementById('langBtn').addEventListener('click', () => {
+      setLang(i18nCurrentLang() === 'fr' ? 'en' : 'fr')
+    })
+
+    document.getElementById('toRegister').addEventListener('click', () => {
+      document.getElementById('loginSection').classList.add('hidden')
+      document.getElementById('registerSection').classList.remove('hidden')
+    })
+    document.getElementById('toLogin').addEventListener('click', () => {
+      document.getElementById('registerSection').classList.add('hidden')
+      document.getElementById('loginSection').classList.remove('hidden')
+    })
+
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+      document.getElementById('loginError').textContent = ''
+      const btn = document.getElementById('loginBtn')
+      btn.disabled = true
+      try {
+        await api('/auth/login', { method: 'POST', body: {
+          username: document.getElementById('loginUsername').value,
+          password: document.getElementById('loginPassword').value,
+        }})
+        window.location.href = '/strategies.html'
+      } catch (err) {
+        document.getElementById('loginError').textContent = t('error.' + err.code)
+      } finally { btn.disabled = false }
+    })
+
+    document.getElementById('registerBtn').addEventListener('click', async () => {
+      document.getElementById('registerError').textContent = ''
+      const btn = document.getElementById('registerBtn')
+      btn.disabled = true
+      try {
+        const u = document.getElementById('regUsername').value
+        const p = document.getElementById('regPassword').value
+        await api('/auth/register', { method: 'POST', body: { username: u, password: p } })
+        await api('/auth/login',    { method: 'POST', body: { username: u, password: p } })
+        window.location.href = '/strategies.html'
+      } catch (err) {
+        document.getElementById('registerError').textContent = t('error.' + err.code)
+      } finally { btn.disabled = false }
+    })
+
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return
+      const loginVisible = !document.getElementById('loginSection').classList.contains('hidden')
+      if (loginVisible) document.getElementById('loginBtn').click()
+      else document.getElementById('registerBtn').click()
+    })
+  </script>
+</body>
+</html>

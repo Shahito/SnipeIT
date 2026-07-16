@@ -1,0 +1,30 @@
+-- AlterTable
+ALTER TABLE `ApiKey` ADD COLUMN `lastHeartbeat` DATETIME(3) NULL;
+
+-- CreateTable
+CREATE TABLE `Tag` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `userId` INTEGER NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
+    `color` VARCHAR(191) NOT NULL DEFAULT '#6c8eff',
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `JobTag` (
+    `jobId` INTEGER NOT NULL,
+    `tagId` INTEGER NOT NULL,
+
+    PRIMARY KEY (`jobId`, `tagId`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- AddForeignKey
+ALTER TABLE `Tag` ADD CONSTRAINT `Tag_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `JobTag` ADD CONSTRAINT `JobTag_jobId_fkey` FOREIGN KEY (`jobId`) REFERENCES `BacktestJob`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `JobTag` ADD CONSTRAINT `JobTag_tagId_fkey` FOREIGN KEY (`tagId`) REFERENCES `Tag`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

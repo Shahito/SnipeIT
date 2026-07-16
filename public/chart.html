@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chart — SnipeIt</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #13151A;
+      color: #d1d4dc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #app { display: flex; flex-direction: column; height: 100%; }
+    #topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      border-bottom: 1px solid #;
+      box-sizing: border-box;
+      flex: 0 0 auto;
+    }
+    #info { font-size: 13px; color: #8a8f98; }
+    #topbar-right { display: flex; align-items: center; gap: 14px; }
+    #status { font-size: 13px; }
+
+    #toggle-btn {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: rgba(255,255,255,0.06); border: 1px solid #2a2e39;
+      display: flex; align-items: center; justify-content: center;
+      color: #d1d4dc; cursor: pointer; flex: 0 0 auto;
+      transition: background 0.15s ease;
+    }
+    #toggle-btn:hover { background: rgba(255,255,255,0.12); }
+    #toggle-btn.active { background: #3fa8f4; color: #0b0f17; border-color: #3fa8f4; }
+
+    #chart-area { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+    #chart { flex: 1 1 auto; min-height: 160px; position: relative; }
+    #panels { flex: 0 0 auto; display: flex; flex-direction: column; }
+    .panel { height: 150px; border-top: 1px solid #2a2e39; position: relative; flex: 0 0 auto; box-sizing: border-box; }
+    .panel-chart { width: 100%; height: 100%; }
+
+    .panel-resize-handle {
+      position: absolute; top: 0; left: 0; right: 0; height: 6px;
+      cursor: row-resize; z-index: 8; touch-action: none;
+    }
+    .panel-resize-handle:hover, .panel-resize-handle.dragging { background: rgba(63, 168, 244, 0.35); }
+
+    .pane-legend {
+      position: absolute;
+      top: 6px;
+      left: 10px;
+      z-index: 5;
+      font-size: 11px;
+      line-height: 1.6;
+      color: #c7cad1;
+      pointer-events: none;
+      text-shadow: 0 1px 3px #000, 0 0 6px #000;
+      white-space: nowrap;
+    }
+    .pane-legend b { color: #e5e7eb; }
+
+    /* Semi-floating lateral drawer, slides in from the right, doesn't affect layout */
+    #toggle-drawer {
+      position: fixed;
+      top: 0; right: 0;
+      height: 100%;
+      width: 230px;
+      background: rgba(19, 23, 34, 0.97);
+      border-left: 1px solid #2a2e39;
+      box-shadow: -6px 0 20px rgba(0,0,0,0.45);
+      transform: translateX(100%);
+      transition: transform 0.2s ease;
+      z-index: 30;
+      padding: 56px 14px 14px;
+      box-sizing: border-box;
+      overflow-y: auto;
+    }
+    #toggle-drawer.open { transform: translateX(0); }
+    #toggle-drawer .drawer-title { font-size: 13px; color: #e5e7eb; margin-bottom: 8px; font-weight: 600; }
+    .group-title { color: #6b7280; font-size: 10px; text-transform: uppercase; margin: 10px 0 4px; }
+    .group-title:first-of-type { margin-top: 0; }
+    .toggle-row { display: flex; align-items: center; gap: 7px; margin: 5px 0; cursor: pointer; font-size: 12px; white-space: nowrap; }
+    .toggle-row input { cursor: pointer; margin: 0; }
+    .toggle-row .swatch { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto; }
+  </style>
+  <script src="js/i18n.js"></script>
+  <script src="js/icons.js"></script>
+</head>
+<body>
+  <div id="app">
+    <div id="topbar">
+      <div id="info">Chargement...</div>
+      <div id="topbar-right">
+        <div id="status"></div>
+        <button id="toggle-btn" type="button" title="Afficher/masquer les indicateurs" aria-label="Indicateurs">
+          <i data-icon="layers"></i>
+        </button>
+      </div>
+    </div>
+    <div id="chart-area">
+      <div id="chart">
+        <div class="pane-legend" id="legend-main"></div>
+      </div>
+      <div id="panels"></div>
+    </div>
+    <div id="toggle-drawer">
+      <div class="drawer-title">Indicateurs</div>
+    </div>
+  </div>
+  <script src="js/api.js"></script>
+  <script src="js/trade-chart.js"></script>
+</body>
+</html>

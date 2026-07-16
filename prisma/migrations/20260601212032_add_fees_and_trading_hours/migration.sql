@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE `Strategy` ADD COLUMN `feeMaker` DOUBLE NOT NULL DEFAULT 0.0,
+    ADD COLUMN `feeTaker` DOUBLE NOT NULL DEFAULT 0.0,
+    ADD COLUMN `tradingHours` JSON NULL;

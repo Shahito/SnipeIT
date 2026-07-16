@@ -1,0 +1,115 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id              Int           @id @default(autoincrement())
+  username        String        @unique
+  displayUsername String
+  password        String
+  tokenVersion    Int           @default(0)
+  createdAt       DateTime      @default(now())
+  lastActive      DateTime      @default(now())
+
+  strategies      Strategy[]
+  apiKeys         ApiKey[]
+  tags            Tag[]
+}
+
+model ApiKey {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  name          String
+  keyHash       String    @unique
+  keyPrefix     String
+  lastUsedAt    DateTime?
+  lastHeartbeat DateTime?   // mis à jour par le worker toutes les N secondes
+  createdAt     DateTime  @default(now())
+
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs          BacktestJob[]
+}
+
+model Strategy {
+  id             Int           @id @default(autoincrement())
+  userId         Int
+  name           String
+  description    String?       @db.Text
+  pair           String
+  timeframe      String
+  startDate      DateTime
+  endDate        DateTime
+  initialCapital Float         @default(1000)
+  positionSize   Float         @default(10)
+  stopLoss       Float?
+  takeProfit     Float?
+  trailingStopLoss Float?
+  slType         String?       @default("percent")  // percent | atr
+  tpType         String?       @default("percent")  // percent | atr
+  atrPeriod      Int?          @default(14)
+  feeTaker       Float         @default(0.0)
+  feeMaker       Float         @default(0.0)
+  tradingHours   Json?                          // [{start:"08:00", end:"17:00", blockSell:false}]
+  conditions     Json
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  clonedFrom     Int?
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs           BacktestJob[]
+}
+
+model BacktestJob {
+  id             Int       @id @default(autoincrement())
+  strategyId     Int
+  apiKeyId       Int?
+  status         String    @default("pending")
+  claimedAt      DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  errorMessage   String?   @db.Text
+  result         Json?
+  strategySnapshot Json?
+
+  pnlPercent     Float?
+  pnlAbsolute    Float?
+  finalCapital   Float?
+  initialCapital Float?
+  totalTrades    Int?
+  winRate        Float?
+  maxDrawdown    Float?
+  sharpeRatio    Float?
+  durationDays   Int?
+  profitFactor   Float?
+
+  createdAt      DateTime  @default(now())
+  strategy       Strategy  @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  apiKey         ApiKey?   @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  jobTags        JobTag[]
+}
+
+model Tag {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  name      String
+  color     String    @default("#6c8eff")  // couleur HEX
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobTags   JobTag[]
+}
+
+model JobTag {
+  jobId Int
+  tagId Int
+
+  job   BacktestJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  tag   Tag         @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([jobId, tagId])
+}

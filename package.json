@@ -1,0 +1,27 @@
+{
+  "name": "snipeit",
+  "version": "1.0.0",
+  "description": "Backtest strategy tool — Node.js + Prisma + vanilla JS",
+  "main": "app.js",
+  "scripts": {
+    "dev": "nodemon app.js",
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0",
+    "jsonwebtoken": "^9.0.3",
+    "node-cron": "^4.2.1",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "@prisma/client": "^6.19.2",
+    "nodemon": "^3.1.11",
+    "prisma": "^6.19.2"
+  }
+}

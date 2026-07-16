@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html data-i18n-title="page.title.results">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SnipeIT</title>
+  <link rel="icon" type="image/png" href="/images/tab/tab-icon.png">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/i18n.js"></script>
+  <script src="/js/icons.js"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <header class="app-header" id="appHeader" data-active="jobs"></header>
+
+    <main class="app-main">
+      <div id="loadingState" class="loading-spinner"><div class="spinner"></div></div>
+
+      <div id="errorState" class="empty-state hidden">
+        <div class="empty-state-icon"><i data-icon="warning"></i></div>
+        <h3 data-i18n="results.error_title"></h3>
+        <p id="errorMsg"></p>
+        <a href="/jobs.html" class="btn btn-ghost" data-i18n="results.back_jobs"></a>
+      </div>
+
+      <div id="pendingState" class="empty-state hidden">
+        <div class="empty-state-icon beating"><i data-icon="play"></i></div>
+        <h3 data-i18n="results.pending_title"></h3>
+        <p data-i18n="results.pending_desc"></p>
+        <a href="/jobs.html" class="btn btn-ghost" data-i18n="results.back_jobs"></a>
+      </div>
+
+      <div id="resultsContent" class="hidden">
+        <div class="page-header">
+          <div class="page-header-left">
+            <h1 id="resultsTitle"></h1>
+            <p id="resultsMeta"></p>
+          </div>
+          <div class="page-header-actions">
+            <a href="/jobs.html" class="btn btn-ghost" data-i18n="results.back"></a>
+            <button class="btn btn-surface" id="exportBtn">
+              <i data-icon="export"></i>
+              <span data-i18n="results.export_btn"></span>
+            </button>
+            <button class="btn btn-surface hidden" id="cloneOriginalBtn">
+              <i data-icon="history"></i>
+              <span data-i18n="results.clone_original_btn"></span>
+            </button>
+            <button class="btn btn-primary" id="cloneAndRunBtn">
+              <i data-icon="copy"></i>
+              <span data-i18n="results.clone_btn"></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="metrics-grid" id="metricsGrid"></div>
+
+        <!-- Equity chart -->
+        <div class="card card--chart">
+          <div class="card-header">
+            <div class="card-title" data-i18n="results.equity_chart.title"></div>
+            <div class="chart-toggles" id="equityChartToggles"></div>
+          </div>
+          <canvas id="equityChart"></canvas>
+        </div>
+
+        <!-- Exit reasons chart -->
+        <div class="card" id="exitReasonsCard">
+          <div class="card-header">
+            <div class="card-title" data-i18n="results.exit_reasons.title"></div>
+            <div class="exit-reasons-filters" id="exitReasonsFilters"></div>
+          </div>
+          <div id="exitReasonsChart"></div>
+        </div>
+
+        <div class="card" id="pnlDistributionCard">
+          <div class="card-header">
+            <div class="card-title" data-i18n="results.pnl_distribution.title"></div>
+          </div>
+          <canvas id="pnlDistributionCanvas"></canvas>
+        </div>
+
+        <div class="card" id="monthlyPerfCard">
+          <div class="card-header">
+            <div class="card-title" data-i18n="results.monthly_perf.title"></div>
+          </div>
+          <canvas id="monthlyPerfCanvas"></canvas>
+          <div id="monthlyPerfCanvasNav" class="chart-nav" style="display:none">
+              <button class="btn btn-surface btn-sm" id="mpfPrevFast">
+                <i data-icon="double_chevrons_left"></i>
+              </button>
+              <button class="btn btn-surface btn-sm" id="mpfPrev">
+                <i data-icon="chevron_left"></i>
+              </button>
+              <span class="mpf-range text-muted text-sm"></span>
+              <button class="btn btn-surface btn-sm" id="mpfNext">
+                <i data-icon="chevron_right"></i>
+              </button>
+              <button class="btn btn-surface btn-sm" id="mpfNextFast">
+                <i data-icon="double_chevrons_right"></i>
+              </button>
+            </div>
+        </div>
+
+        <div class="card" id="tradesCard">
+          <div class="card-header">
+            <div class="card-title" data-i18n="results.trades_title"></div>
+            <div class="chart-toggles">
+              <span id="tradesCount" class="text-muted text-sm"></span>
+              <button class="btn btn-ghost btn-sm" id="graphBtn">
+                <i data-icon="chart"></i>
+              </button>
+            </div>
+          </div>
+          <div class="trades-list" id="tradesList">
+            <div class="trade-row">
+              <span class="tag" data-i18n="results.trades.col.type"></span>
+              <span class="text-muted text-sm trade-row-date-label" data-i18n="results.trades.col.date"></span>
+              <span class="trade-price" data-i18n="results.trades.col.price"></span>
+              <span class="trade-qty text-muted text-sm" data-i18n="results.trades.col.qty"></span>
+              <span class="trade-value" data-i18n="results.trades.col.value"></span>
+              <span class="trade-pnl trade-pnl-label" data-i18n="results.trades.col.pnl"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/toast.js"></script>
+  <script src="/js/header.js"></script>
+  <script src="/js/charts.js"></script>
+  <script src="/js/overlay-a11y.js"></script>
+  <script src="/js/export.js"></script>
+  <script>
+    const urlParams  = new URLSearchParams(location.search)
+    const jobId      = urlParams.get('jobId') ? parseInt(urlParams.get('jobId')) : null
+    let strategyId   = null
+    let pollInterval = null
+
+    let _exportData = null
+
+    // Chart instances
+    // To add a new line chart: instantiate a new CanvasLineChart here.
+    // To add a new bar chart: instantiate a new HorizontalBarChart here.
+
+    const equityChart = new CanvasLineChart('equityChart', {
+      togglesContainerId: 'equityChartToggles',
+      getTimestamps: r => (r.equityCurve || []).map(p => p.t * 1000),
+      formatDate:    ts => fmtDate(ts),
+      formatTooltipDate: ts => fmtDate(ts),
+      curves: [
+        {
+          key:          'equity',
+          i18nKey:      'results.equity_chart.equity',
+          getData:      r => (r.equityCurve || []).map(p => p.e),
+          axis:         'left',
+          prefix:       '$',
+          dynamic:      true, // auto green/red based on perf
+          lineWidth:    2,
+        },
+        // {
+        //   key:          'pnl',
+        //   i18nKey:      'results.equity_chart.pnl',
+        //   getData:      r => (r.pnlCurve || []).map(p => p.p),
+        //   axis:         'right',
+        //   color:        'rgb(200,120,255,0.8)',
+        //   prefix:       '%',
+        //   lineWidth:    2,
+        // },
+        {
+          key:          'price',
+          i18nKey:      'results.equity_chart.price',
+          getData:      r => (r.priceCurve || []).map(p => p.c),
+          axis:         'right',
+          color:        'rgba(108,142,255,0.8)',
+          fillColor:    null,
+          lineWidth:    1.5,
+        },
+      ],
+    })
+
+    // Exit reasons
+    const exitReasonsChart = new BarChart('exitReasonsChart', 'exitReasonsFilters', {
+      getBars:   r => r.exitReasons || {},
+      getLabel:  (k, d) => ({ title: { risk: 'TP/SL', signal: 'Signal', tsl: 'Trailing SL', end: 'End' }[k], sub: `${d.totalPct}% of trades` }),
+      order:     ['risk', 'tsl', 'signal', 'end'],
+      defaultActive: k => k !== 'end',
+      segments: [
+        { key: 'win',  getValue: d => d.winPct,  suffix: '%', color: 'var(--success)' },
+        { key: 'loss', getValue: d => d.lossPct, suffix: '%', color: 'var(--danger)'  },
+      ],
+    })
+
+    // PnL distribution
+    const pnlDistributionChart = new CanvasHistogram('pnlDistributionCanvas', {
+      getBuckets: r => r.pnlBuckets,
+    })
+
+    // Trades heatmap
+    const tradesHeatmap = new TradesHeatmap('tradesHeatmapCanvas', {
+      getBucket:    r => r.dailyTradeCounts,
+      getTimeframe: snap => snap.timeframe,  // '1d', '1h', '15m', etc.
+    })
+
+    const monthlyChart = new MonthlyPerfChart('monthlyPerfCanvas', {
+      getData: r => r.monthlyPerf,
+      showDelta: true,
+      // height: 220,
+    })
+
+    // Resize handler - redraw all CanvasLineChart instances
+    let _resizeTimer
+    window.addEventListener('resize', () => {
+      clearTimeout(_resizeTimer)
+      _resizeTimer = setTimeout(() => equityChart.render(equityChart._result), 150)
+    })
+
+    // Trades helper
+    const REASONS = ['risk', 'tsl', 'signal', 'end']
+    
+    function tradePnl(ep, xp, a, feeTaker, feeMaker) {
+      const qty      = a / ep
+      const netEntry = a + a * feeTaker
+      const proceeds = qty * xp - qty * xp * feeMaker
+      return round((proceeds - netEntry) / netEntry * 100, 2)
+    }
+    function round(v, d) { return Math.round(v * 10**d) / 10**d }
+
+    function unpackTrades(payload, snap) {
+      if (!payload?.rows) return []
+      const ft = (snap?.feeTaker ?? 0) / 100
+      const fm = (snap?.feeMaker ?? 0) / 100
+      return payload.rows.flatMap(([eOff, xOff, ep, xp, a, r]) => {
+        const entryDate = new Date((payload.t0 + eOff) * 1000).toISOString()
+        const exitDate  = new Date((payload.t0 + xOff) * 1000).toISOString()
+        const pnl       = tradePnl(ep, xp, a, ft, fm)
+        return [
+          { side: 'buy',  date: entryDate, price: ep, quantity: a / ep, value: a,          pnl: null },
+          { side: 'sell', date: exitDate,  price: xp, quantity: a / ep, value: xp * a / ep, pnl,
+            entryDate, entryPrice: ep, reason: REASONS[r] },
+        ]
+      })
+    }
+
+    // Page logic 
+    document.addEventListener('header:ready', async () => {
+      if (!jobId) { window.location.href = '/jobs.html'; return }
+      await loadJob()
+    })
+    initI18n();
+
+    initExport();
+
+    async function loadJob() {
+      try {
+        const { job } = await api(`/jobs/${jobId}`)
+        strategyId = job.strategyId
+        document.getElementById('loadingState').classList.add('hidden')
+
+        if (job.status === 'pending' || job.status === 'running') {
+          document.getElementById('pendingState').classList.remove('hidden')
+          if (!pollInterval) pollInterval = setInterval(loadJob, 4000)
+          return
+        }
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null }
+
+        if (job.status === 'error') {
+          document.getElementById('errorMsg').textContent = job.errorMessage || t('error.UNKNOWN')
+          document.getElementById('errorState').classList.remove('hidden')
+          return
+        }
+        
+        const snap = job.strategySnapshot  // what ran
+        const cur  = job.strategy          // current state
+
+        const r   = job.result
+        r._tradeSampled = r.trades?.sampled
+        r._tradeRate    = r.trades?.rate
+        
+        r.trades = unpackTrades(r.trades, snap)
+        
+        document.getElementById('pendingState').classList.add('hidden')
+        document.getElementById('resultsContent').classList.remove('hidden')
+
+        // Header - reading snapshot
+        document.getElementById('resultsTitle').textContent =
+          `${t('results.title')} - ${snap?.name ?? cur.name}`
+        document.getElementById('resultsMeta').textContent =
+          `${snap?.pair ?? cur.pair} · ${snap?.timeframe ?? cur.timeframe} · ${fmtDate(snap?.startDate ?? cur.startDate)} -> ${fmtDate(snap?.endDate ?? cur.endDate)}`
+
+        // Warning divergence
+        renderSnapshotWarning(snap, cur)
+
+        renderMetrics(r)
+        equityChart.config.referenceLines = [
+          { curveKey: 'equity', color: '#ff9632', value: r.initialCapital, label: t('results.chart_initial_capital') },
+        ]
+        
+        equityChart.render(r)
+        exitReasonsChart.render(r)
+        pnlDistributionChart.render(r)
+        monthlyChart.render(r)
+        // tradesHeatmap.render(r, snap)
+        renderTrades(r, r.trades || [], r.totalTrades || 0)
+        
+        // Export overlay
+        _exportData = { ...r, _pair: snap?.pair ?? cur.pair, _timeframe: snap?.timeframe ?? cur.timeframe }
+        window._exportData = _exportData
+      } catch (e) {
+        if (e.code === 'JOB_NOT_FOUND') {
+          document.getElementById('loadingState').classList.add('hidden')
+          document.getElementById('errorMsg').textContent = t('error.JOB_NOT_FOUND')
+          document.getElementById('errorState').classList.remove('hidden')
+          return
+        }
+        toast(t('error.' + e.code), 'error')
+      }
+    }
+
+    function renderSnapshotWarning(snap, cur) {
+      const existing = document.getElementById('snapshotWarning')
+      if (existing) existing.remove()
+      const cloneOriginalBtn = document.getElementById('cloneOriginalBtn')
+      if (!snap) { cloneOriginalBtn.classList.add('hidden'); return }
+
+      const FIELDS = ['pair', 'timeframe', 'initialCapital', 'positionSize', 'stopLoss', 'trailingStopLoss', 'takeProfit', 'feeMaker', 'feeTaker', 'tradingHours']
+      const changed = FIELDS.filter(f => JSON.stringify(snap[f]) !== JSON.stringify(cur[f]))
+      const conditionsChanged = JSON.stringify(snap.conditions) !== JSON.stringify(cur.conditions)
+      const dateChanged = new Date(snap.startDate).getTime() !== new Date(cur.startDate).getTime() ||
+                    new Date(snap.endDate).getTime()   !== new Date(cur.endDate).getTime()
+
+      const diffs = [
+        ...changed,
+        ...(conditionsChanged ? ['conditions'] : []),
+        ...(dateChanged       ? ['dates']      : []),
+      ]
+
+      if (!diffs.length) { cloneOriginalBtn.classList.add('hidden'); return }
+      cloneOriginalBtn.classList.remove('hidden')
+
+      const labels = {
+        pair:             t('results.snapshot.field.pair'),
+        timeframe:        t('results.snapshot.field.timeframe'),
+        initialCapital:   t('results.snapshot.field.capital'),
+        positionSize:     t('results.snapshot.field.position_size'),
+        feeMaker:         t('results.snapshot.field.fee_maker'),
+        feeTaker:         t('results.snapshot.field.fee_taker'),
+        tradingHours:     t('results.snapshot.field.trading_hours'),
+        stopLoss:         t('results.snapshot.field.stop_loss'),
+        trailingStopLoss: t('results.snapshot.field.trailing_stop_loss'),
+        takeProfit:       t('results.snapshot.field.take_profit'),
+        conditions:       t('results.snapshot.field.conditions'),
+        dates:            t('results.snapshot.field.dates'),
+      }
+
+      const banner = document.createElement('div')
+      banner.id = 'snapshotWarning'
+      banner.className = 'snapshot-warning'
+      banner.innerHTML = `
+        <span class="snapshot-warning-icon">${ICONS.warning}</span>
+        <div>
+          <strong class="text-sm">${t('results.snapshot.warning_title')}</strong>
+          <span class="text-muted text-sm">${t('results.snapshot.warning_desc')} : ${diffs.map(d => labels[d] ?? d).join(', ')}</span>
+        </div>
+      `
+      document.getElementById('resultsContent').prepend(banner)
+    }
+
+    // Metrics
+    function renderMetrics(r) {
+      const metrics = [
+        { key: 'results.metric.pnl_pct',       value: r.pnlPercent,     fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, cls: v => v >= 0 ? 'positive' : 'negative' },
+        { key: 'results.metric.pnl_abs',       value: r.pnlAbsolute,    fmt: v => `${v >= 0 ? '+' : ''}$${v.toFixed(2)}`, cls: v => v >= 0 ? 'positive' : 'negative' },
+        { key: 'results.metric.pnl_cumul',     value: r.cumulativePnl,  fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, cls: v => v >= 0 ? 'positive' : 'negative' },
+        { key: 'results.metric.buy_hold_pct',  value: r.buyHoldPercent, fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, cls: v => v >= 0 ? 'positive' : 'negative' },
+        { key: 'results.metric.trades',        value: r.totalTrades,    fmt: v => v,                                      cls: () => 'neutral' },
+        { key: 'results.metric.winrate',       value: r.winRate,        fmt: v => `${v.toFixed(1)}%`,                     cls: v => v >= 50 ? 'positive' : 'negative' },
+        { key: 'results.metric.maxdd',         value: r.maxDrawdown,    fmt: v => `-${v.toFixed(2)}%`,                    cls: () => 'negative' },
+        { key: 'results.metric.sharpe',        value: r.sharpeRatio,    fmt: v => v.toFixed(2),                           cls: v => v >= 1.5 ? 'positive' : v >= 0 ? 'neutral' : 'negative' },
+        { key: 'results.metric.profit_factor', value: r.profitFactor,   fmt: v => v.toFixed(2),                           cls: v => v >= 1.75 ? 'positive' : v >= 1 ? 'neutral' : 'negative' },
+        { key: 'results.metric.capital',       value: r.finalCapital,   fmt: v => `$${v.toFixed(2)}`,                     cls: () => 'neutral' },
+        { key: 'results.metric.duration',      value: r.durationDays,   fmt: v => v,                                      cls: () => 'neutral' },
+        { key: 'results.metric.exposure',      value: r.exposurePct,    fmt: v => `${v.toFixed(1)}%`,                     cls: () => 'neutral' },
+      ]
+      document.getElementById('metricsGrid').innerHTML = metrics.map(m => {
+        const formatted = m.value != null ? m.fmt(m.value) : '-'
+        const cls       = m.value != null ? m.cls(m.value) : 'neutral'
+        return `<div class="metric-card">
+          <div class="metric-label">${t(m.key)}</div>
+          <div class="metric-value ${cls}">${formatted}</div>
+        </div>`
+      }).join('')
+    }
+
+    // Trades
+    function renderTrades(r, trades, totalTrades) {
+      const count = trades.filter(tr => tr.side === 'sell').length
+      const label = count < totalTrades
+        ? `${count} / ${totalTrades} trades`
+        : `${count} trade${count !== 1 ? 's' : ''}`
+      document.getElementById('tradesCount').textContent = label
+      if (r._tradeSampled) {
+        document.getElementById('tradesCount').insertAdjacentHTML(
+          'beforeend',
+          ` <span class="tag tag-warning">${t('results.trades.sampled', { rate: r._tradeRate })}</span>`
+        )
+      }
+      if (!trades.length) {
+        document.getElementById('tradesList').innerHTML = `<div class="text-muted text-sm p-sm">${t('results.no_trades')}</div>`
+        return
+      }
+      document.getElementById('tradesList').innerHTML += trades.map(tr => {
+        const pnlClass = tr.pnl != null ? (tr.pnl >= 0 ? 'pnl-positive' : 'pnl-negative') : ''
+        const pnlStr   = tr.pnl != null ? (tr.pnl >= 0 ? '+' : '') + tr.pnl.toFixed(2) + '%' : '-'
+        return `<div class="trade-row trade-${tr.side}">
+          <span class="tag ${tr.side === 'buy' ? 'tag-success' : 'tag-danger'}">${t('results.trade.' + tr.side)}</span>
+          <span class="text-muted text-sm">${fmtDateTime(tr.date)}</span>
+          <span class="trade-price">$${tr.price?.toFixed(2) ?? '-'}</span>
+          <span class="trade-qty text-muted text-sm">${tr.quantity?.toFixed(6) ?? '-'}</span>
+          <span class="trade-value">$${tr.value?.toFixed(2) ?? '-'}</span>
+          <span class="${pnlClass} trade-pnl">${pnlStr}</span>
+        </div>`
+      }).join('')
+    }
+
+    // Clone & run
+    document.getElementById('cloneAndRunBtn').addEventListener('click', async () => {
+      if (!strategyId) return
+      try {
+        const { strategy } = await api(`/strategies/${strategyId}/clone`, { method: 'POST' })
+        window.location.href = `/strategy-editor.html?id=${strategy.id}`
+      } catch (e) { toast(t('error.' + e.code), 'error') }
+    })
+
+    document.getElementById('cloneOriginalBtn').addEventListener('click', async () => {
+      if (!jobId) return
+      try {
+        const { strategy } = await api(`/strategies/jobs/${jobId}/clone-snapshot`, { method: 'POST' })
+        window.location.href = `/strategy-editor.html?id=${strategy.id}`
+      } catch (e) { toast(t('error.' + e.code), 'error') }
+    })
+
+    // Chart (TV-like)
+    document.getElementById('graphBtn').addEventListener('click', async () => {
+      window.location.href = `/chart.html?jobId=${jobId}`
+    })
+
+    // Formatters
+    function fmtDate(d) {
+      return new Date(d).toLocaleDateString(
+        i18nCurrentLang() === 'fr' ? 'fr-FR' : 'en-US',
+        { day: '2-digit', month: '2-digit', year: '2-digit', timeZone: 'UTC' }
+      )
+    }
+    function fmtDateTime(d) {
+      return new Date(d).toLocaleString(
+        i18nCurrentLang() === 'fr' ? 'fr-FR' : 'en-US',
+        { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }
+      )
+    }
+  </script>
+</body>
+</html>
