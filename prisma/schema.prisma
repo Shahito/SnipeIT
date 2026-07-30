@@ -19,6 +19,7 @@ model User {
   strategies      Strategy[]
   apiKeys         ApiKey[]
   tags            Tag[]
+  sweepGroups     SweepGroup[]
 }
 
 model ApiKey {
@@ -40,18 +41,20 @@ model Strategy {
   userId         Int
   name           String
   description    String?       @db.Text
-  pair           String
-  timeframe      String
+  pairs          Json          // string[] — ex: ["BTC/USDT"] (run classique) ou ["BTC/USDT","ETH/USDT",...] (sweep)
+  // Champs sweepables : scalaire OU { sweep: [v1, v2, ...] }. Résolus en scalaire
+  // pur dans BacktestJob.strategySnapshot au lancement (voir sweepEngine).
+  timeframe      Json          // String ou { sweep: [...] }
   startDate      DateTime
   endDate        DateTime
   initialCapital Float         @default(1000)
-  positionSize   Float         @default(10)
-  stopLoss       Float?
-  takeProfit     Float?
-  trailingStopLoss Float?
-  slType         String?       @default("percent")  // percent | atr
-  tpType         String?       @default("percent")  // percent | atr
-  atrPeriod      Int?          @default(14)
+  positionSize   Json          // Float ou { sweep: [...] }
+  stopLoss       Json?         // Float ou { sweep: [...] }
+  takeProfit     Json?         // Float ou { sweep: [...] }
+  trailingStopLoss Json?       // Float ou { sweep: [...] }
+  slType         Json?         // "percent"|"atr" ou { sweep: [...] }
+  tpType         Json?         // "percent"|"atr" ou { sweep: [...] }
+  atrPeriod      Json?         // Int ou { sweep: [...] }
   feeTaker       Float         @default(0.0)
   feeMaker       Float         @default(0.0)
   tradingHours   Json?                          // [{start:"08:00", end:"17:00", blockSell:false}]
@@ -62,12 +65,18 @@ model Strategy {
 
   user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobs           BacktestJob[]
+  sweepGroups    SweepGroup[]
 }
 
 model BacktestJob {
   id             Int       @id @default(autoincrement())
   strategyId     Int
   apiKeyId       Int?
+  sweepGroupId   Int?
+  pair           String?   // pair résolue pour ce run précis (colonne réelle, tri/filtre)
+  paramValues    Json?     // valeurs résolues des axes sweep pour ce run (hors pair)
+  resultHash     String?   @db.VarChar(64) // sha256(strategySnapshot)
+  reusedFromJobId Int?
   status         String    @default("pending")
   claimedAt      DateTime?
   startedAt      DateTime?
@@ -88,9 +97,30 @@ model BacktestJob {
   profitFactor   Float?
 
   createdAt      DateTime  @default(now())
-  strategy       Strategy  @relation(fields: [strategyId], references: [id], onDelete: Cascade)
-  apiKey         ApiKey?   @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  strategy       Strategy   @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  apiKey         ApiKey?    @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  sweepGroup     SweepGroup? @relation(fields: [sweepGroupId], references: [id], onDelete: Cascade)
   jobTags        JobTag[]
+
+  @@index([sweepGroupId])
+  @@index([pair])
+  @@index([strategyId, resultHash])
+}
+
+model SweepGroup {
+  id                 Int       @id @default(autoincrement())
+  strategyId         Int
+  userId             Int
+  name               String?
+  definitionSnapshot Json      // définition complète de la stratégie au lancement (avec axes sweep)
+  totalRuns          Int
+  status             String    @default("pending") // pending | running | done | partial_error | error
+  createdAt          DateTime  @default(now())
+  completedAt        DateTime?
+
+  strategy Strategy      @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs     BacktestJob[]
 }
 
 model Tag {

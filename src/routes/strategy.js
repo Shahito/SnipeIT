@@ -53,11 +53,11 @@ router.get('/:id', authRequired, getController)
  *         application/json:
  *           schema:
  *             type: object
- *             required: [name, pair, timeframe, startDate, endDate, conditions]
+ *             required: [name, pairs, timeframe, startDate, endDate, conditions]
  *             properties:
  *               name: { type: string }
  *               description: { type: string }
- *               pair: { type: string }
+ *               pairs: { type: array, items: { type: string } }
  *               timeframe: { type: string }
  *               startDate: { type: string, format: date }
  *               endDate: { type: string, format: date }
@@ -70,7 +70,7 @@ router.get('/:id', authRequired, getController)
  *       201:
  *         description: Created
  *       400:
- *         description: MISSING_FIELDS / NAME_REQUIRED / PAIR_INVALID / TIMEFRAME_INVALID / DATE_INVALID / DATE_RANGE_INVALID / CAPITAL_INVALID / POSITION_SIZE_INVALID / CONDITIONS_INVALID
+ *         description: MISSING_FIELDS / NAME_REQUIRED / PAIRS_INVALID / TIMEFRAME_INVALID / DATE_INVALID / DATE_RANGE_INVALID / CAPITAL_INVALID / POSITION_SIZE_INVALID / CONDITIONS_INVALID
  */
 router.post('/', authRequired, createController)
 
@@ -95,7 +95,7 @@ router.post('/', authRequired, createController)
  *             properties:
  *               name: { type: string }
  *               description: { type: string }
- *               pair: { type: string }
+ *               pairs: { type: array, items: { type: string } }
  *               timeframe: { type: string }
  *               startDate: { type: string, format: date }
  *               endDate: { type: string, format: date }

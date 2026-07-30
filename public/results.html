@@ -291,7 +291,7 @@
         document.getElementById('resultsTitle').textContent =
           `${t('results.title')} - ${snap?.name ?? cur.name}`
         document.getElementById('resultsMeta').textContent =
-          `${snap?.pair ?? cur.pair} · ${snap?.timeframe ?? cur.timeframe} · ${fmtDate(snap?.startDate ?? cur.startDate)} -> ${fmtDate(snap?.endDate ?? cur.endDate)}`
+          `${snap.pair} · ${snap.timeframe} · ${fmtDate(snap.startDate)} -> ${fmtDate(snap.endDate)}`
 
         // Warning divergence
         renderSnapshotWarning(snap, cur)
@@ -309,7 +309,7 @@
         renderTrades(r, r.trades || [], r.totalTrades || 0)
         
         // Export overlay
-        _exportData = { ...r, _pair: snap?.pair ?? cur.pair, _timeframe: snap?.timeframe ?? cur.timeframe }
+        _exportData = { ...r, _pair: snap.pair, _timeframe: snap.timeframe }
         window._exportData = _exportData
       } catch (e) {
         if (e.code === 'JOB_NOT_FOUND') {
@@ -328,8 +328,18 @@
       const cloneOriginalBtn = document.getElementById('cloneOriginalBtn')
       if (!snap) { cloneOriginalBtn.classList.add('hidden'); return }
 
-      const FIELDS = ['pair', 'timeframe', 'initialCapital', 'positionSize', 'stopLoss', 'trailingStopLoss', 'takeProfit', 'feeMaker', 'feeTaker', 'tradingHours']
-      const changed = FIELDS.filter(f => JSON.stringify(snap[f]) !== JSON.stringify(cur[f]))
+      const FIELDS = ['timeframe', 'initialCapital', 'positionSize', 'stopLoss', 'trailingStopLoss', 'takeProfit', 'feeMaker', 'feeTaker', 'tradingHours']
+      // Un champ "cur" peut être scalaire OU { sweep: [...] } depuis la refonte sweep :
+      // on considère qu'il correspond toujours au snapshot si la valeur du run
+      // fait partie des valeurs actuellement configurées (scalaire = 1 seule valeur possible).
+      const stillMatches = (snapVal, curVal) => {
+        if (curVal && typeof curVal === 'object' && !Array.isArray(curVal) && Array.isArray(curVal.sweep)) {
+          return curVal.sweep.some(v => JSON.stringify(v) === JSON.stringify(snapVal))
+        }
+        return JSON.stringify(curVal) === JSON.stringify(snapVal)
+      }
+      const changed = FIELDS.filter(f => !stillMatches(snap[f], cur[f]))
+      if (!stillMatches(snap.pair, { sweep: cur.pairs })) changed.unshift('pair')
       const conditionsChanged = JSON.stringify(snap.conditions) !== JSON.stringify(cur.conditions)
       const dateChanged = new Date(snap.startDate).getTime() !== new Date(cur.startDate).getTime() ||
                     new Date(snap.endDate).getTime()   !== new Date(cur.endDate).getTime()
@@ -447,7 +457,7 @@
 
     // Chart (TV-like)
     document.getElementById('graphBtn').addEventListener('click', async () => {
-      window.location.href = `/chart.html?jobId=${jobId}`
+      window.open(`/chart.html?jobId=${jobId}`, '_blank')
     })
 
     // Formatters

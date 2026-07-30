@@ -23,6 +23,7 @@
           <p data-i18n="editor.subtitle"></p>
         </div>
         <div class="page-header-actions">
+          <span class="tag" id="sweepRunsBadge" style="display:none"></span>
           <a href="/strategies.html" class="btn btn-ghost" data-i18n="editor.cancel"></a>
           <button class="btn btn-surface" id="saveBtn">
             <i data-icon="save"></i> <span data-i18n="editor.save"></span>
@@ -75,23 +76,23 @@
             <div class="section-title" data-i18n="editor.section.market"></div>
             <div class="form-row">
               <div class="form-group">
-                <label data-i18n="editor.field.pair"></label>
-                <select id="fPair">
-                  <option>BTC/USDT</option><option>ETH/USDT</option><option>SOL/USDT</option>
-                  <option>BNB/USDT</option><option>XRP/USDT</option><option>ADA/USDT</option>
-                  <option>DOGE/USDT</option><option>AVAX/USDT</option><option>TAO/USDT</option>
-                </select>
+                <label data-i18n="editor.field.base_coins"></label>
+                <coin-picker id="fBaseCoins"></coin-picker>
               </div>
               <div class="form-group">
+                <label data-i18n="editor.field.quote_coins"></label>
+                <coin-picker id="fQuoteCoins"></coin-picker>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group" style="grid-column: 1 / -1">
+                <p class="text-muted text-sm" id="pairsPreview"></p>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
                 <label data-i18n="editor.field.timeframe"></label>
-                <select id="fTimeframe">
-                  <option value="1m">1m</option><option value="5m">5m</option>
-                  <option value="15m">15m</option><option value="30m">30m</option>
-                  <option value="1h" selected>1h</option><option value="2h">2h</option>
-                  <option value="4h">4h</option><option value="6h">6h</option>
-                  <option value="12h">12h</option><option value="1d">1d</option>
-                  <option value="3d">3d</option><option value="1w">1w</option>
-                </select>
+                <div class="toggle-group" id="fTimeframeGroup"></div>
               </div>
             </div>
             <div class="form-row">
@@ -118,7 +119,8 @@
               </div>
               <div class="form-group">
                 <label data-i18n="editor.field.position_size"></label>
-                <input type="number" id="fPositionSize" value="10" min="1" max="100" step="1">
+                <input type="text" id="fPositionSize" value="10" inputmode="decimal">
+                <p class="text-muted text-sm mt-sm" data-i18n="editor.field.sweep_number_hint"></p>
               </div>
             </div>
             <div class="form-row">
@@ -144,32 +146,28 @@
               <div class="form-group risk-group">
                 <label><span data-i18n="editor.field.stop_loss"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
                 <div class="input-with-select">
-                  <input type="number" id="fStopLoss" data-i18n-attr="placeholder" data-i18n="editor.field.sl_ph" min="0.01" step="0.01">
-                  <select id="fSlType">
-                    <option value="percent">%</option>
-                    <option value="atr">× ATR</option>
-                  </select>
+                  <input type="text" id="fStopLoss" data-i18n-attr="placeholder" data-i18n="editor.field.sl_ph" inputmode="decimal">
+                  <div class="toggle-group" id="fSlTypeGroup"></div>
                 </div>
                 <label class="checkbox-label sl-trailing-label">
                   <input type="checkbox" id="fSlTrailing">
                   <span class="text-muted" data-i18n="editor.field.sl_trailing"></span>
                 </label>
+                <p class="text-muted text-sm mt-sm" data-i18n="editor.field.sweep_number_hint"></p>
               </div>
               <div class="form-group risk-group">
                 <label><span data-i18n="editor.field.take_profit"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
                 <div class="input-with-select">
-                  <input type="number" id="fTakeProfit" data-i18n-attr="placeholder" data-i18n="editor.field.tp_ph" min="0.01" step="0.01">
-                  <select id="fTpType">
-                    <option value="percent">%</option>
-                    <option value="atr">× ATR</option>
-                  </select>
+                  <input type="text" id="fTakeProfit" data-i18n-attr="placeholder" data-i18n="editor.field.tp_ph" inputmode="decimal">
+                  <div class="toggle-group" id="fTpTypeGroup"></div>
                 </div>
+                <p class="text-muted text-sm mt-sm" data-i18n="editor.field.sweep_number_hint"></p>
               </div>
             </div>
             <div class="form-row" id="atrPeriodGroup" style="display:none">
               <div class="form-group">
                 <label data-i18n="editor.field.atr_period"></label>
-                <input type="number" id="fAtrPeriod" value="14" min="1" max="200" step="1">
+                <input type="text" id="fAtrPeriod" value="14" inputmode="numeric">
               </div>
             </div>
 
@@ -228,9 +226,27 @@
   </div>
 
   <div class="toast-container" id="toastContainer"></div>
+
+  <div id="sweepConfirmModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" data-i18n="editor.sweep_confirm.title"></div>
+        <button class="modal-close" id="sweepConfirmClose"><i data-icon="cross"></i></button>
+      </div>
+      <p class="text-muted" id="sweepConfirmDesc"></p>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="sweepConfirmCancel" data-i18n="common.cancel"></button>
+        <button class="btn btn-primary" id="sweepConfirmOk" data-i18n="editor.sweep_confirm.ok"></button>
+      </div>
+    </div>
+  </div>
+
   <script src="/js/api.js"></script>
   <script src="/js/toast.js"></script>
   <script src="/js/header.js"></script>
+  <script src="/js/overlay-a11y.js"></script>
+  <script src="/js/sweep-parse.js"></script>
+  <script src="/js/coin-picker.js"></script>
   <script src="/js/indicator-config.js"></script>
   <script src="/js/indicator-picker.js"></script>
   <script src="/js/condition-renderer.js"></script>
@@ -246,6 +262,15 @@
       const oneYearAgo = new Date(today); oneYearAgo.setFullYear(today.getFullYear() - 1)
       document.getElementById('fStartDate').value = oneYearAgo.toISOString().slice(0, 10)
       document.getElementById('fEndDate').value   = today.toISOString().slice(0, 10)
+
+      document.getElementById('fBaseCoins').value  = ['BTC']
+      document.getElementById('fQuoteCoins').value = ['USDT']
+      renderChipGroup('fTimeframeGroup', TIMEFRAMES_LIST, ['1h'])
+      renderChipGroup('fSlTypeGroup', RISK_TYPES, ['percent'])
+      renderChipGroup('fTpTypeGroup', RISK_TYPES, ['percent'])
+      bindSweepChipGroups()
+      bindCoinPickers()
+      updatePairsPreview()
 
       if (window._editId) {
         document.getElementById('pageTitle').textContent = t('editor.title.edit')

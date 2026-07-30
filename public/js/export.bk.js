@@ -2,56 +2,17 @@
  * export.js - Backtest results export modal
  * Depends on: t(), fmtDate(), fmtDateTime(), fmtNum() (globals from results.html)
  * Usage: initExport() once on page load, then openExportModal(resultData) on button click.
- *
- * Dual-mode: this modal is shared between results.html (single backtest job)
- * and sweep-results.html (a sweep = many jobs). The shape of the object passed
- * to openExportModal() is auto-detected (_isSweepData) and the "include"
- * checkboxes + JSON/text builders adapt accordingly:
- *  - single mode: summary / monthly perf / trades / equity curve
- *  - sweep mode: global summary / categories / sensitivity / best & worst combos
- * Nothing here needs to be told which page it runs on.
  */
 
 (function () {
     /* State */
     let _data = null
-    let _mode = 'single'   // 'single' | 'sweep' - detected from the data shape
     let _format = 'json'   // 'json' | 'text'
-
-    /* Field definitions per mode - drives both the checkbox list and the defaults */
-    const FIELD_DEFS = {
-        single: [
-            { id: 'chkSummary', opt: 'includeSummary', i18n: 'export.include.summary', default: true },
-            { id: 'chkMonthly', opt: 'includeMonthly', i18n: 'export.include.monthly', default: true },
-            { id: 'chkTrades', opt: 'includeTrades', i18n: 'export.include.trades', default: false },
-            { id: 'chkEquity', opt: 'includeEquity', i18n: 'export.include.equity', default: false },
-        ],
-        sweep: [
-            { id: 'chkSwSummary', opt: 'includeSummary', i18n: 'export.include.summary', default: true },
-            { id: 'chkSwCategories', opt: 'includeCategories', i18n: 'export.include.categories', default: true },
-            { id: 'chkSwSensitivity', opt: 'includeSensitivity', i18n: 'export.include.sensitivity', default: true },
-            { id: 'chkSwBest', opt: 'includeBest', i18n: 'export.include.best', default: true },
-            { id: 'chkSwWorst', opt: 'includeWorst', i18n: 'export.include.worst', default: true },
-        ],
-    }
-
-    function _defaultOpts(mode) {
-        const o = {}
-        FIELD_DEFS[mode].forEach(f => { o[f.opt] = f.default })
-        return o
-    }
-
-    const _optsByMode = { single: _defaultOpts('single'), sweep: _defaultOpts('sweep') }
-    let _opts = _optsByMode.single
-
-
-    /* Detect whether the object passed to openExportModal() is a sweep result
-       (many jobs summarized) or a single backtest job result. */
-    function _isSweepData(d) {
-        return !!d
-            && Array.isArray(d.best)
-            && Array.isArray(d.worst)
-            && d.global && typeof d.global === 'object' && !Array.isArray(d.global)
+    let _opts = {
+        includeSummary: true,
+        includeMonthly: true,
+        includeTrades: false,
+        includeEquity: false,
     }
 
     /* Init */
@@ -64,13 +25,9 @@
             })
         })
     }
-
+    
     function openExportModal(data) {
         _data = data
-        _mode = _isSweepData(data) ? 'sweep' : 'single'
-        _opts = _optsByMode[_mode]
-        _updateHeader()
-        _renderControls()
         _render()
         openModal('exportModal', 'expCloseBtn')
     }
@@ -87,10 +44,7 @@
         el.innerHTML = `
         <div class="exp-modal">
             <div class="exp-modal-header">
-            <div>
-                <span class="exp-title" id="expTitleText">${t('export.title')}</span>
-                <div class="text-muted text-sm" id="expSubtitle"></div>
-            </div>
+            <span class="exp-title">${t('export.title')}</span>
             <button class="modal-close" id="expCloseBtn" aria-label="${t('export.close')}">
                 ${ICONS.cross}
             </button>
@@ -106,7 +60,22 @@
                 </div>
 
                 <div class="exp-section-label" style="margin-top:.9rem">${t('export.section.include')}</div>
-                <div id="expIncludeList"></div>
+                <label class="exp-check">
+                <input type="checkbox" id="chkSummary" checked>
+                <span>${t('export.include.summary')}</span>
+                </label>
+                <label class="exp-check">
+                <input type="checkbox" id="chkMonthly" checked>
+                <span>${t('export.include.monthly')}</span>
+                </label>
+                <label class="exp-check">
+                <input type="checkbox" id="chkTrades">
+                <span>${t('export.include.trades')}</span>
+                </label>
+                <label class="exp-check">
+                <input type="checkbox" id="chkEquity">
+                <span>${t('export.include.equity')}</span>
+                </label>
             </div>
 
             <!-- Right: preview -->
@@ -136,6 +105,15 @@
             _render()
         })
 
+        /* Checkboxes */
+        const checks = { chkSummary: 'includeSummary', chkMonthly: 'includeMonthly', chkTrades: 'includeTrades', chkEquity: 'includeEquity' }
+        Object.entries(checks).forEach(([id, key]) => {
+            document.getElementById(id).addEventListener('change', e => {
+                _opts[key] = e.target.checked
+                _render()
+            })
+        })
+
         /* Copy button */
         document.getElementById('expCopyBtn').addEventListener('click', async () => {
             const text = document.getElementById('expPreview').textContent
@@ -160,41 +138,6 @@
         if (typeof renderIcons === 'function') renderIcons(el)
     }
 
-    /* Rebuild the "include" checkbox list for the current mode */
-    function _renderControls() {
-        const defs = FIELD_DEFS[_mode]
-        const container = document.getElementById('expIncludeList')
-        container.innerHTML = defs.map(f => `
-            <label class="exp-check">
-            <input type="checkbox" id="${f.id}" ${_opts[f.opt] ? 'checked' : ''}>
-            <span>${t(f.i18n)}</span>
-            </label>
-        `).join('')
-        defs.forEach(f => {
-            document.getElementById(f.id).addEventListener('change', e => {
-                _opts[f.opt] = e.target.checked
-                _render()
-            })
-        })
-    }
-
-    /* Modal title + subtitle depending on mode */
-    function _updateHeader() {
-        const titleEl = document.getElementById('expTitleText')
-        const subEl = document.getElementById('expSubtitle')
-        const r = _data
-        if (_mode === 'sweep') {
-            titleEl.textContent = t('export.title.sweep')
-            subEl.textContent = [
-                r.strategy?.name,
-                r.totalRuns != null ? `${r.counts?.done ?? 0}/${r.totalRuns} runs` : null,
-            ].filter(Boolean).join(' · ')
-        } else {
-            titleEl.textContent = t('export.title')
-            subEl.textContent = [r._pair, r._timeframe].filter(Boolean).join(' · ')
-        }
-    }
-
     function _flashCopy() {
         const btn = document.getElementById('expCopyBtn')
         btn.classList.add('exp-copied')
@@ -212,23 +155,14 @@
         document.getElementById('expPreview').textContent = content
     }
 
-    /* Dispatch to the right builder depending on mode */
+    /* JSON builder */
     function _buildJSON() {
-        return _mode === 'sweep' ? _buildSweepJSON() : _buildSingleJSON()
-    }
-    function _buildText() {
-        return _mode === 'sweep' ? _buildSweepText() : _buildSingleText()
-    }
-
-    // Single job (results.html)
-
-    function _buildSingleJSON() {
         const r = _data
         const out = {}
         if (_opts.includeSummary) {
             out.summary = {
-                pair: r._pair,
-                timeframe: r._timeframe,
+                pair:       r._pair,
+                timeframe:  r._timeframe,
                 pnlPercent: r.pnlPercent,
                 pnlAbsolute: r.pnlAbsolute,
                 buyHoldPercent: r.buyHoldPercent,
@@ -283,7 +217,7 @@
     }
 
     /* Plain text builder */
-    function _buildSingleText() {
+    function _buildText() {
         const r = _data
         const lines = []
         const fmt = (v, d = 2) => (v != null ? v.toFixed(d) : 'N/A')
@@ -293,7 +227,7 @@
 
         lines.push(t('export.text.title'))
         if (r._pair || r._timeframe) {
-            lines.push(row(t('export.text.label.symbol'), r._pair ?? 'N/A'))
+            lines.push(row(t('export.text.label.symbol'),    r._pair ?? 'N/A'))
             lines.push(row(t('export.text.label.timeframe'), r._timeframe ?? 'N/A'))
         }
         lines.push('')
@@ -353,140 +287,6 @@
 
         return lines.join('\n')
     }
-
-    // Sweep (sweep-results.html)
-
-    // Strip a sweep job (best/worst entry) down to its summary fields - the
-    // full `result` (trades/equity/price curves, per-run snapshot, ...) is
-    // huge and not relevant when comparing runs across a sweep.
-    function _sweepJobSummary(j) {
-        return {
-            id: j.id,
-            pair: j.pair,
-            paramValues: j.paramValues,
-            pnlPercent: j.pnlPercent,
-            pnlAbsolute: j.pnlAbsolute,
-            initialCapital: j.initialCapital,
-            finalCapital: j.finalCapital,
-            totalTrades: j.totalTrades,
-            winRate: j.winRate,
-            maxDrawdown: j.maxDrawdown,
-            sharpeRatio: j.sharpeRatio,
-            profitFactor: j.profitFactor,
-            durationDays: j.durationDays,
-        }
-    }
-
-    // Drop the UI-only `color` field, keep what's actually useful for analysis.
-    function _sweepCategorySummary(c) {
-        return {
-            categoryId: c.categoryId,
-            name: c.name,
-            stats: c.stats,
-        }
-    }
-
-    function _buildSweepJSON() {
-        const r = _data
-        const out = {}
-
-        if (_opts.includeSummary) {
-            out.summary = {
-                strategy: r.strategy?.name,
-                totalRuns: r.totalRuns,
-                counts: r.counts,
-                createdAt: r.createdAt,
-                completedAt: r.completedAt,
-                global: r.global,
-            }
-        }
-
-        if (_opts.includeCategories && r.byCategory) {
-            out.byCategory = r.byCategory.map(_sweepCategorySummary)
-        }
-
-        if (_opts.includeSensitivity && r.sensitivity) {
-            out.sensitivity = r.sensitivity
-        }
-
-        if (_opts.includeBest && r.best) {
-            out.best = r.best.map(_sweepJobSummary)
-        }
-
-        if (_opts.includeWorst && r.worst) {
-            out.worst = r.worst.map(_sweepJobSummary)
-        }
-
-        return JSON.stringify(out, null, 2)
-    }
-
-    function _buildSweepText() {
-        const r = _data
-        const lines = []
-        const fmt = (v, d = 2) => (v != null ? v.toFixed(d) : 'N/A')
-        const sign = v => (v != null && v >= 0 ? '+' : '')
-        const COL = 22
-        const row = (label, value) => `  ${label.padEnd(COL)}${value}`
-        const noResults = t('sweep.no_results_yet')
-
-        lines.push(t('export.text.sweep_title'))
-        lines.push(row(t('export.text.label.strategy'), r.strategy?.name ?? 'N/A'))
-        lines.push(row(t('export.text.label.runs'), `${r.counts?.done ?? 0} / ${r.totalRuns ?? 0}`))
-        lines.push('')
-
-        if (_opts.includeSummary && r.global) {
-            const g = r.global
-            lines.push(`  ${t('sweep.global_title')}`)
-            lines.push(row(t('sweep.metric.count'), g.count))
-            lines.push(row(t('sweep.metric.avg_pnl'), `${sign(g.avgPnlPercent)}${fmt(g.avgPnlPercent)}%`))
-            lines.push(row(t('sweep.metric.median_pnl'), `${sign(g.medianPnlPercent)}${fmt(g.medianPnlPercent)}%`))
-            lines.push(row(t('sweep.metric.std_pnl'), `${fmt(g.stdPnlPercent)}%`))
-            lines.push(row(t('sweep.metric.pct_profitable'), `${fmt(g.pctProfitable, 1)}%`))
-            lines.push(row(t('sweep.metric.best'), `${sign(g.bestPnlPercent)}${fmt(g.bestPnlPercent)}%`))
-            lines.push(row(t('sweep.metric.worst'), `${sign(g.worstPnlPercent)}${fmt(g.worstPnlPercent)}%`))
-            lines.push('')
-        }
-
-        if (_opts.includeCategories && r.byCategory?.length) {
-            lines.push(`  ${t('sweep.categories_title')}`)
-            r.byCategory.forEach(c => {
-                const label = c.categoryId === null ? t('sweep.category.uncategorized') : c.name
-                if (!c.stats) { lines.push(`  ${String(label).padEnd(COL)}${noResults}`); return }
-                const s = c.stats
-                lines.push(`  ${String(label).padEnd(COL)}n=${s.count}  avg=${sign(s.avgPnlPercent)}${fmt(s.avgPnlPercent)}%  profitable=${fmt(s.pctProfitable, 1)}%  best=${sign(s.bestPnlPercent)}${fmt(s.bestPnlPercent)}%  worst=${sign(s.worstPnlPercent)}${fmt(s.worstPnlPercent)}%`)
-            })
-            lines.push('')
-        }
-
-        if (_opts.includeSensitivity && r.sensitivity?.length) {
-            lines.push(`  ${t('sweep.sensitivity_title')}`)
-            r.sensitivity.forEach(axis => {
-                lines.push(`  ${axis.path}`)
-                axis.values.forEach(v => {
-                    const val = JSON.stringify(v.value)
-                    if (!v.stats) { lines.push(`    ${val.padEnd(COL)}${noResults}`); return }
-                    lines.push(`    ${val.padEnd(COL)}n=${v.stats.count}  avg=${sign(v.stats.avgPnlPercent)}${fmt(v.stats.avgPnlPercent)}%  profitable=${fmt(v.stats.pctProfitable, 1)}%`)
-                })
-                lines.push('')
-            })
-        }
-
-        const comboTable = (title, jobs) => {
-            if (!jobs?.length) return
-            lines.push(`  ${title}`)
-            jobs.forEach(j => {
-                const params = Object.entries(j.paramValues || {}).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ') || '-'
-                lines.push(`  ${(j.pair || '-').padEnd(12)} ${params.padEnd(28)} pnl=${sign(j.pnlPercent)}${fmt(j.pnlPercent)}%  sharpe=${fmt(j.sharpeRatio)}  winrate=${fmt(j.winRate, 1)}%  maxdd=-${fmt(j.maxDrawdown)}%`)
-            })
-            lines.push('')
-        }
-        if (_opts.includeBest)  comboTable(t('sweep.best_title'), r.best)
-        if (_opts.includeWorst) comboTable(t('sweep.worst_title'), r.worst)
-
-        return lines.join('\n')
-    }
-
-    // Shared helpers
 
     function _miniBar(pnl) {
         const blocks = Math.min(10, Math.abs(Math.round(pnl / 2)))

@@ -4,10 +4,10 @@ const {
 } = require('../services/strategyService')
 
 const KNOWN_CODES = new Set([
-  'STRATEGY_NOT_FOUND', 'NAME_REQUIRED', 'NAME_TOO_LONG', 'PAIR_INVALID', 'TIMEFRAME_INVALID',
+  'STRATEGY_NOT_FOUND', 'NAME_REQUIRED', 'NAME_TOO_LONG', 'PAIRS_INVALID', 'TIMEFRAME_INVALID',
   'DATE_INVALID', 'DATE_RANGE_INVALID', 'CAPITAL_INVALID', 'POSITION_SIZE_INVALID',
-  'FEE_INVALID', 'TRADING_HOURS_INVALID',
-  'CONDITIONS_INVALID', 'MISSING_FIELDS', 'TRAILING_STOP_INVALID',
+  'FEE_INVALID', 'TRADING_HOURS_INVALID', 'RISK_TYPE_INVALID', 'ATR_PERIOD_INVALID',
+  'CONDITIONS_INVALID', 'MISSING_FIELDS', 'TRAILING_STOP_INVALID', 'SWEEP_AXIS_EMPTY',
   'JOB_NOT_FOUND', 'SNAPSHOT_NOT_FOUND',
 ])
 
@@ -35,10 +35,10 @@ async function getController(req, res) {
 
 async function createController(req, res) {
   try {
-    const { name, description, pair, timeframe, startDate, endDate,
+    const { name, description, pairs, timeframe, startDate, endDate,
             initialCapital, positionSize, stopLoss, takeProfit, conditions } = req.body
 
-    if (!name || !pair || !timeframe || !startDate || !endDate || !conditions)
+    if (!name || !pairs || !timeframe || !startDate || !endDate || !conditions)
       return res.status(400).json({ error: 'MISSING_FIELDS' })
 
     const strategy = await createStrategy(req.user.id, req.body)

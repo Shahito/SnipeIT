@@ -106,8 +106,8 @@ function renderConditionRow(type, gIdx, rIdx, cond) {
             <button class="btn btn-ghost btn-xs c-value-toggle" data-type="${type}" data-gidx="${gIdx}" data-ridx="${rIdx}" title="${t('editor.cond.toggle_value')}">
               ${isIndVsInd ? ICONS.sigma : ICONS.chart_spline}
             </button>
-            <input type="number" class="c-value condition-value" data-type="${type}" data-gidx="${gIdx}" data-ridx="${rIdx}"
-              value="${cond.value ?? 0}" step="any" style="${d(!isIndVsInd)}">
+            <input type="text" class="c-value condition-value" data-type="${type}" data-gidx="${gIdx}" data-ridx="${rIdx}"
+              value="${formatSweepNumber(cond.value ?? 0)}" inputmode="decimal" style="${d(!isIndVsInd)}">
             <indicator-picker class="c-value-ind" data-type="${type}" data-gidx="${gIdx}" data-ridx="${rIdx}" value="${cond.valueIndicator || ''}" style="${d(isIndVsInd)}"></indicator-picker>
             <button type="button" class="btn btn-ghost btn-xs cs-gear-btn${rhsHasSettings ? ' cs-gear-btn--active' : ''}"
               data-type="${type}" data-gidx="${gIdx}" data-ridx="${rIdx}" data-prefix="value"
@@ -237,7 +237,7 @@ function bindConditionEvents() {
   document.querySelectorAll('.c-value').forEach(el => {
     el.addEventListener('input', e => {
       const { type, gidx, ridx } = e.target.dataset
-      getRule(type, gidx, ridx).value = parseFloat(e.target.value)
+      getRule(type, gidx, ridx).value = parseSweepNumber(e.target.value) ?? 0
       updatePreview()
     })
   })

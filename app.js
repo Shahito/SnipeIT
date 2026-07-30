@@ -7,13 +7,15 @@ const helmet = require('helmet')
 const cron = require('node-cron')
 const { isProd } = require('./src/utils/env')
 
-const authRoutes     = require('./src/routes/auth')
-const userRoutes     = require('./src/routes/user')
-const strategyRoutes = require('./src/routes/strategy')
-const jobRoutes      = require('./src/routes/job')
-const apikeyRoutes   = require('./src/routes/apikey')
-const workerRoutes   = require('./src/routes/worker')
-const tagRoutes      = require('./src/routes/tag')
+const authRoutes       = require('./src/routes/auth')
+const userRoutes       = require('./src/routes/user')
+const strategyRoutes   = require('./src/routes/strategy')
+const jobRoutes        = require('./src/routes/job')
+const apikeyRoutes     = require('./src/routes/apikey')
+const workerRoutes     = require('./src/routes/worker')
+const tagRoutes        = require('./src/routes/tag')
+const sweepRoutes      = require('./src/routes/sweep')
+const coinRoutes       = require('./src/routes/coin')
 
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./src/config/swagger');
@@ -53,16 +55,18 @@ if (isProd) {
 
   // Looser limit on write-heavy routes
   app.post('/api/strategies', writeLimiter)
-  app.post('/api/jobs', writeLimiter)
+  app.post('/api/strategies/:id/sweep', writeLimiter)
 }
 
-app.use('/api/auth',       authRoutes)
-app.use('/api/user',       userRoutes)
-app.use('/api/strategies', strategyRoutes)
-app.use('/api/jobs',       jobRoutes)
-app.use('/api/apikeys',    apikeyRoutes)
-app.use('/api/worker',     workerRoutes)
-app.use('/api/tags',       tagRoutes)
+app.use('/api/auth',           authRoutes)
+app.use('/api/user',           userRoutes)
+app.use('/api/strategies',     strategyRoutes)
+app.use('/api/jobs',           jobRoutes)
+app.use('/api/apikeys',        apikeyRoutes)
+app.use('/api/worker',         workerRoutes)
+app.use('/api/tags',           tagRoutes)
+app.use('/api/coins',          coinRoutes)
+app.use('/api',                sweepRoutes) // expose /api/strategies/:id/sweep* et /api/sweeps*
 
 if (!isProd) {
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -76,9 +80,9 @@ cron.schedule('*/30 * * * * *', async () => {
   catch (e) { console.error('[SnipeIT] timeoutStaleJobs error:', e.message) }
 })
 
-app.listen(PORT, '10.150.34.12', () => {
+//app.listen(PORT, '10.150.34.12', () => {
+//  console.log(`[SnipeIT] Server running at http://localhost:${PORT}`)
+//})
+app.listen(PORT, '127.0.0.1', () => {
   console.log(`[SnipeIT] Server running at http://localhost:${PORT}`)
 })
-// app.listen(PORT, '127.0.0.1', () => {
-//   console.log(`[SnipeIT] Server running at http://localhost:${PORT}`)
-// })

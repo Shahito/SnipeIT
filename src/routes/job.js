@@ -2,32 +2,11 @@
 const express = require('express')
 const router = express.Router()
 const authRequired = require('../middleware/auth')
-const { launchController, listController, getController, cancelController } = require('../controllers/jobController')
+const { listController, getController, cancelController } = require('../controllers/jobController')
 const { getCandlesController } = require('../controllers/candleController')
 
-/**
- * @openapi
- * /api/jobs:
- *   post:
- *     tags: [job]
- *     summary: Launch a job
- *     security: [{ bearerAuth: [] }]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [strategyId]
- *             properties:
- *               strategyId: { type: integer }
- *     responses:
- *       201:
- *         description: Created
- *       400:
- *         description: MISSING_FIELDS / STRATEGY_NOT_FOUND / JOB_ALREADY_RUNNING
- */
-router.post('/', authRequired, launchController)
+// Lancement : voir POST /api/strategies/:id/sweep (routes/sweep.js) — point
+// d'entrée unique désormais, run classique inclus (totalRuns = 1).
 
 /**
  * @openapi

@@ -212,7 +212,7 @@
           ...(filterStat !== 'all' ? { status: filterStat } : {}),
         })
         const { jobs, total, totalPages: tp } = await api(`/jobs?${params}`)
-        const hash = params.toString() + '|' + JSON.stringify(jobs) + '|' + total + '|' + tp
+        const hash = groupBy + '|' + params.toString() + '|' + JSON.stringify(jobs) + '|' + total + '|' + tp
         if (hash === _lastJobsHash) {
           document.getElementById('loadingState').classList.add('hidden')
           return
@@ -308,14 +308,16 @@
       const groups = {}
       for (const job of jobs) {
         let keys = []
-        if (groupBy === 'pair')   keys = [job.strategy.pair]
+        if (groupBy === 'pair') {
+          keys = job.itemType === 'sweep' ? [t('jobs.group.sweep')] : [job.pair || job.strategySnapshot?.pair || '?']
+        }
         if (groupBy === 'status') keys = [job.status]
         if (groupBy === 'profit') {
           const p = job.pnlPercent ?? null
           keys = [p === null ? t('jobs.group.no_result') : p >= 0 ? t('jobs.group.profitable') : t('jobs.group.loss')]
         }
         if (groupBy === 'tag') {
-          const tags = getJobTags(job)
+          const tags = job.itemType === 'sweep' ? [] : getJobTags(job)
           keys = tags.length ? tags.map(t2 => t2.name + '|||' + t2.color) : [t('jobs.group.no_tag')]
         }
         if (groupBy === 'strategy') {
@@ -350,7 +352,7 @@
       const hasGroups = groupBy !== 'none'
 
       const html = Object.entries(grouped).map(([groupKey, jobs]) => {
-        const rows = jobs.map(renderJobRow).join('')
+        const rows = jobs.map(j => j.itemType === 'sweep' ? renderSweepRow(j) : renderJobRow(j)).join('')
         if (!hasGroups) return `<div class="jobs-group">${rows}</div>`
 
         const isCollapsed = collapsedGroups.has(groupKey)
@@ -447,6 +449,43 @@
       })
     }
 
+    function renderSweepRow(s) {
+      const pnlHtml    = s.pnlPercent != null
+        ? `<div class="text-sm ${s.pnlPercent >= 0 ? 'pnl-positive' : 'pnl-negative'}">${s.pnlPercent >= 0 ? '+' : ''}${s.pnlPercent.toFixed(2)}%</div>`
+        : `<div class="text-sm text-muted">-</div>`
+      const sharpeHtml = s.sharpeRatio != null ? s.sharpeRatio.toFixed(2) : '-'
+      const winHtml    = s.winRate     != null ? s.winRate.toFixed(1) + '%' : '-'
+      const ddHtml     = s.maxDrawdown != null ? '-' + s.maxDrawdown.toFixed(2) + '%' : '-'
+
+      return `<div class="job-row" data-sweep-id="${s.id}">
+        <div class="job-row-main">
+          <div class="job-row-left">
+            <span class="status-badge status-${s.status === 'partial_error' ? 'error' : s.status}">
+              <span class="status-dot"></span>${t('sweep.status.' + s.status)}
+            </span>
+            <div class="job-row-meta">
+              <span class="job-strategy-name">${ICONS.shuffle} ${escHtml(s.strategy.name)}</span>
+              <div class="job-row-sub">
+                <span class="tag tag-primary">${t('jobs.sweep.runs_count', { n: s.totalRuns })}</span>
+                <span class="text-muted text-sm">${fmtDateTime(s.createdAt)}</span>
+              </div>
+            </div>
+          </div>
+          <div class="job-row-metrics">
+            <div class="job-metric"><div class="job-metric-label">${t('jobs.metric.pnl')} ${t('jobs.sweep.avg')}</div>${pnlHtml}</div>
+            <div class="job-metric"><div class="job-metric-label">${t('jobs.metric.sharpe')}</div><div class="text-sm">${sharpeHtml}</div></div>
+            <div class="job-metric"><div class="job-metric-label">${t('jobs.metric.winrate')}</div><div class="text-sm">${winHtml}</div></div>
+            <div class="job-metric"><div class="job-metric-label">${t('jobs.metric.maxdd')}</div><div class="text-sm" style="color:var(--danger)">${ddHtml}</div></div>
+          </div>
+          <div class="job-row-actions">
+            <a href="/sweep-results.html?id=${s.id}" class="btn btn-ghost btn-sm">
+              ${ICONS.chart_pie}${t('jobs.sweep.view')}
+            </a>
+          </div>
+        </div>
+      </div>`
+    }
+
     function renderJobRow(j) {
       const tags = getJobTags(j)
 
@@ -470,8 +509,8 @@
             <div class="job-row-meta">
               <a href="/strategy-editor.html?id=${j.strategy.id}" class="job-strategy-name">${escHtml(j.strategy.name)}</a>
               <div class="job-row-sub">
-                <span class="tag tag-primary">${j.strategySnapshot?.pair ?? j.strategy.pair}</span>
-                <span class="tag">${j.strategySnapshot?.timeframe ?? j.strategy.timeframe}</span>
+                <span class="tag tag-primary">${j.pair ?? j.strategySnapshot?.pair ?? '?'}</span>
+                <span class="tag">${j.strategySnapshot?.timeframe ?? '?'}</span>
                 <span class="text-muted text-sm">${fmtDateTime(j.createdAt)}</span>
               </div>
             </div>

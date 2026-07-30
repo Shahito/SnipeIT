@@ -173,6 +173,22 @@
     `
   }
 
+  // Version sweepable de _numberField : accepte "14" ou "14, 15, 16" -> voir
+  // sweep-parse.js. Utilisée uniquement pour period/valueMultiplier (champs
+  // reconnus comme sweepables par strategyService) - PAS pour offset, les
+  // extra-params d'indicateur (MACD fast/slow/signal...) ni combine*, qui
+  // restent volontairement scalaires (_numberField ci-dessus).
+  function _sweepNumberField(id, label, value) {
+    return `
+      <div class="form-group">
+        <label>${label}</label>
+        <input type="text" id="${id}" value="${formatSweepNumber(value)}" inputmode="decimal" placeholder="14, 15, 16">
+      </div>
+    `
+  }
+
+  const SOURCE_CLOSE_SENTINEL = '__close__'
+
   function _sourceField(id, label, value) {
     return `
       <div class="form-group">
@@ -181,6 +197,25 @@
           <option value="">${t('editor.cond.source_close')}</option>
           ${INDICATOR_SOURCES.map(s => `<option${s === value ? ' selected' : ''}>${s}</option>`).join('')}
         </select>
+      </div>
+    `
+  }
+
+  // Version sweepable de _sourceField (chips multi-select, comme
+  // pairs/timeframe dans l'éditeur). Note : mélanger le chip "close" (=
+  // absence de source) avec une source explicite dans un même sweep n'est
+  // pas supporté par la validation serveur (strategyService) - l'enregistrement
+  // échouera proprement avec CONDITIONS_INVALID si ça arrive, plutôt que de
+  // corrompre silencieusement la stratégie.
+  function _sweepSourceField(id, label, value) {
+    const selected = formatSweepChoice(value).map(v => (v === null || v === undefined || v === '') ? SOURCE_CLOSE_SENTINEL : v)
+    const options = [{ value: SOURCE_CLOSE_SENTINEL, label: t('editor.cond.source_close') }, ...INDICATOR_SOURCES.map(s => ({ value: s, label: s }))]
+    return `
+      <div class="form-group">
+        <label>${label}</label>
+        <div class="toggle-group" id="${id}">
+          ${options.map(opt => `<button type="button" class="toggle-btn${selected.includes(opt.value) ? ' active' : ''}" data-chip-value="${opt.value}">${opt.label}</button>`).join('')}
+        </div>
       </div>
     `
   }
@@ -201,7 +236,7 @@
     // in indicator-config.js.
     const combineAllowed = hasCombine || !INDICATORS_NO_COMBINE.includes(indicator)
 
-    const strategyTf   = document.getElementById('fTimeframe')?.value || '1h'
+    const strategyTf   = (typeof getPrimaryTimeframe === 'function' && getPrimaryTimeframe()) || '1h'
     const baseMinutes  = (TIMEFRAMES.find(tf => tf.value === strategyTf) || {}).minutes || 60
     const tfOptions    = TIMEFRAMES.filter(tf => tf.minutes >= baseMinutes)
 
@@ -209,8 +244,8 @@
       <div class="section-title">${t('editor.cond.settings_params')}</div>
       ${(needsPeriod || needsSource || extra.length || tfOptions.length) ? `
       <div class="form-row">
-        ${needsPeriod ? _numberField('cs-period', t('editor.cond.period'), cond[k.per] ?? INDICATOR_DEFAULT_PERIOD[indicator] ?? 14, { min: 1, max: 200 }) : ''}
-        ${needsSource ? _sourceField('cs-source', t('editor.cond.source'), cond[k.src]) : ''}
+        ${needsPeriod ? _sweepNumberField('cs-period', t('editor.cond.period'), cond[k.per] ?? INDICATOR_DEFAULT_PERIOD[indicator] ?? 14) : ''}
+        ${needsSource ? _sweepSourceField('cs-source', t('editor.cond.source'), cond[k.src]) : ''}
         ${extra.map(p => _numberField(`cs-extra-${p.key}`, t(p.labelKey), (cond[k.set] && cond[k.set][p.key]) ?? p.default, { min: p.min, max: p.max })).join('')}
         <div class="form-group">
           <label>${t('editor.cond.timeframe')}</label>
@@ -233,9 +268,7 @@
       ${isRhs ? `
       <div class="divider mt-md mb-md"></div>
       <div class="section-title">${t('editor.cond.multiplier')}</div>
-      <div class="form-group">
-        <input type="number" id="cs-multiplier" value="${cond.valueMultiplier ?? 1}" min="0.1" step="0.1">
-      </div>
+      ${_sweepNumberField('cs-multiplier', '', cond.valueMultiplier ?? 1)}
       <p class="text-muted text-sm mt-sm">${t('editor.cond.multiplier_hint')}</p>
       ` : ''}
 
@@ -295,13 +328,17 @@
     const cond = _cond, prefix = _prefix, k = _refKeys(prefix)
 
     document.getElementById('cs-period')?.addEventListener('input', e => {
-      cond[k.per] = parseInt(e.target.value) || INDICATOR_DEFAULT_PERIOD[cond[k.ind]] || 14
+      cond[k.per] = parseSweepNumber(e.target.value, parseInt) ?? (INDICATOR_DEFAULT_PERIOD[cond[k.ind]] || 14)
       updatePreview()
     })
-    document.getElementById('cs-source')?.addEventListener('change', e => {
-      cond[k.src] = e.target.value || null
-      updatePreview()
-    })
+    if (document.getElementById('cs-source')) {
+      bindChipGroup('cs-source', (selected) => {
+        const values = selected.map(v => v === SOURCE_CLOSE_SENTINEL ? null : v)
+        const parsed = parseSweepChoice(values)
+        if (parsed === null) delete cond[k.src]; else cond[k.src] = parsed
+        updatePreview()
+      })
+    }
     ;(INDICATOR_EXTRA_PARAMS[cond[k.ind]] || []).forEach(p => {
       document.getElementById(`cs-extra-${p.key}`)?.addEventListener('input', e => {
         cond[k.set] = cond[k.set] || {}
@@ -318,7 +355,7 @@
     })
 
     document.getElementById('cs-timeframe').addEventListener('change', e => {
-      const strategyTf = document.getElementById('fTimeframe')?.value || '1h'
+      const strategyTf = (typeof getPrimaryTimeframe === 'function' && getPrimaryTimeframe()) || '1h'
       // Explicitly picking the strategy's own timeframe is equivalent to
       // "no timeframe specified" (see backtest.py's run_backtest(), which
       // normalizes both to the same code path) - so just omit the key.
@@ -328,7 +365,7 @@
     })
 
     document.getElementById('cs-multiplier')?.addEventListener('input', e => {
-      cond.valueMultiplier = parseFloat(e.target.value) || 1
+      cond.valueMultiplier = parseSweepNumber(e.target.value) ?? 1
       updatePreview()
     })
 
