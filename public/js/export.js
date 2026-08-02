@@ -356,14 +356,30 @@
 
     // Sweep (sweep-results.html)
 
+    function _describeAxis(path, definition) {
+        if (typeof describeSweepAxis === 'function') {
+            try { return describeSweepAxis(path, definition) } catch (_) {}
+        }
+        return path
+    }
+    function _describeValue(path, value, definition) {
+        if (typeof describeSweepValue === 'function') {
+            try { return describeSweepValue(path, value, definition) } catch (_) {}
+        }
+        return `${path}=${JSON.stringify(value)}`
+    }
+
     // Strip a sweep job (best/worst entry) down to its summary fields - the
     // full `result` (trades/equity/price curves, per-run snapshot, ...) is
     // huge and not relevant when comparing runs across a sweep.
-    function _sweepJobSummary(j) {
+    function _sweepJobSummary(j, definition) {
         return {
             id: j.id,
             pair: j.pair,
             paramValues: j.paramValues,
+            paramLabels: Object.entries(j.paramValues || {})
+                .map(([k, v]) => _describeValue(k, v, definition))
+                .join(', '),
             pnlPercent: j.pnlPercent,
             pnlAbsolute: j.pnlAbsolute,
             initialCapital: j.initialCapital,
@@ -406,15 +422,23 @@
         }
 
         if (_opts.includeSensitivity && r.sensitivity) {
-            out.sensitivity = r.sensitivity
+            out.sensitivity = r.sensitivity.map(axis => ({
+                path: axis.path,
+                label: _describeAxis(axis.path, r.definition),
+                values: axis.values.map(v => ({
+                    value: v.value,
+                    label: _describeValue(axis.path, v.value, r.definition),
+                    stats: v.stats,
+                })),
+            }))
         }
 
         if (_opts.includeBest && r.best) {
-            out.best = r.best.map(_sweepJobSummary)
+            out.best = r.best.map(j => _sweepJobSummary(j, r.definition))
         }
 
         if (_opts.includeWorst && r.worst) {
-            out.worst = r.worst.map(_sweepJobSummary)
+            out.worst = r.worst.map(j => _sweepJobSummary(j, r.definition))
         }
 
         return JSON.stringify(out, null, 2)
@@ -461,9 +485,9 @@
         if (_opts.includeSensitivity && r.sensitivity?.length) {
             lines.push(`  ${t('sweep.sensitivity_title')}`)
             r.sensitivity.forEach(axis => {
-                lines.push(`  ${axis.path}`)
+                lines.push(`  ${_describeAxis(axis.path, r.definition)}`)
                 axis.values.forEach(v => {
-                    const val = JSON.stringify(v.value)
+                    const val = _describeValue(axis.path, v.value, r.definition)
                     if (!v.stats) { lines.push(`    ${val.padEnd(COL)}${noResults}`); return }
                     lines.push(`    ${val.padEnd(COL)}n=${v.stats.count}  avg=${sign(v.stats.avgPnlPercent)}${fmt(v.stats.avgPnlPercent)}%  profitable=${fmt(v.stats.pctProfitable, 1)}%`)
                 })
@@ -475,7 +499,9 @@
             if (!jobs?.length) return
             lines.push(`  ${title}`)
             jobs.forEach(j => {
-                const params = Object.entries(j.paramValues || {}).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ') || '-'
+                const params = Object.entries(j.paramValues || {})
+                    .map(([k, v]) => _describeValue(k, v, r.definition))
+                    .join(', ') || '-'
                 lines.push(`  ${(j.pair || '-').padEnd(12)} ${params.padEnd(28)} pnl=${sign(j.pnlPercent)}${fmt(j.pnlPercent)}%  sharpe=${fmt(j.sharpeRatio)}  winrate=${fmt(j.winRate, 1)}%  maxdd=-${fmt(j.maxDrawdown)}%`)
             })
             lines.push('')

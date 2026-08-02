@@ -201,15 +201,10 @@
     `
   }
 
-  // Version sweepable de _sourceField (chips multi-select, comme
-  // pairs/timeframe dans l'éditeur). Note : mélanger le chip "close" (=
-  // absence de source) avec une source explicite dans un même sweep n'est
-  // pas supporté par la validation serveur (strategyService) - l'enregistrement
-  // échouera proprement avec CONDITIONS_INVALID si ça arrive, plutôt que de
-  // corrompre silencieusement la stratégie.
   function _sweepSourceField(id, label, value) {
-    const selected = formatSweepChoice(value).map(v => (v === null || v === undefined || v === '') ? SOURCE_CLOSE_SENTINEL : v)
-    const options = [{ value: SOURCE_CLOSE_SENTINEL, label: t('editor.cond.source_close') }, ...INDICATOR_SOURCES.map(s => ({ value: s, label: s }))]
+    const raw = formatSweepChoice(value).map(v => (v === null || v === undefined || v === '') ? 'PRICE' : v)
+    const selected = raw.length ? raw : ['PRICE']
+    const options = [{ value: 'PRICE', label: t('editor.cond.source_close') }, ...INDICATOR_SOURCES.map(s => ({ value: s, label: s }))]
     return `
       <div class="form-group">
         <label>${label}</label>
@@ -218,6 +213,33 @@
         </div>
       </div>
     `
+  }
+
+  function _bindSourceChipGroup(containerId, onChange) {
+    const el = document.getElementById(containerId)
+    if (!el) return
+    el.addEventListener('click', e => {
+      const btn = e.target.closest('.toggle-btn')
+      if (!btn) return
+      const isClose = btn.dataset.chipValue === SOURCE_CLOSE_SENTINEL
+      const willBeActive = !btn.classList.contains('active')
+
+      if (!willBeActive) {
+        // Décocher : au moins une valeur doit rester sélectionnée.
+        if (el.querySelectorAll('.toggle-btn.active').length <= 1) return
+        btn.classList.remove('active')
+      } else if (isClose) {
+        // "close" exclut toute autre source sélectionnée.
+        el.querySelectorAll('.toggle-btn.active').forEach(b => b.classList.remove('active'))
+        btn.classList.add('active')
+      } else {
+        // Une source explicite exclut "close".
+        el.querySelector(`.toggle-btn[data-chip-value="${SOURCE_CLOSE_SENTINEL}"]`)?.classList.remove('active')
+        btn.classList.add('active')
+      }
+
+      onChange(getChipGroupSelected(containerId))
+    })
   }
 
   // Body rendering 
@@ -333,9 +355,7 @@
     })
     if (document.getElementById('cs-source')) {
       bindChipGroup('cs-source', (selected) => {
-        const values = selected.map(v => v === SOURCE_CLOSE_SENTINEL ? null : v)
-        const parsed = parseSweepChoice(values)
-        if (parsed === null) delete cond[k.src]; else cond[k.src] = parsed
+        cond[k.src] = parseSweepChoice(selected)
         updatePreview()
       })
     }

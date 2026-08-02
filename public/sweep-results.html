@@ -14,7 +14,7 @@
   <div class="app-layout">
     <header class="app-header" id="appHeader" data-active="jobs"></header>
 
-    <main class="app-main">
+    <main class="app-main" id="sweepResults">
       <div id="loadingState" class="loading-spinner"><div class="spinner"></div></div>
 
       <div id="errorState" class="empty-state hidden">
@@ -40,12 +40,7 @@
         </div>
 
         <!-- Vue globale -->
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title" data-i18n="sweep.global_title"></div>
-          </div>
-          <div class="metrics-grid" id="globalMetricsGrid"></div>
-        </div>
+        <div class="metrics-grid" id="globalMetricsGrid"></div>
 
         <!-- Par catégorie de paire -->
         <div class="card">
@@ -133,6 +128,7 @@
   <script src="/js/header.js"></script>
   <script src="/js/overlay-a11y.js"></script>
   <script src="/js/export.js"></script>
+  <script src="/js/sweep-labels.js"></script>
   <script>
     const urlParams  = new URLSearchParams(location.search)
     const sweepId    = urlParams.get('id') ? parseInt(urlParams.get('id')) : null
@@ -188,6 +184,15 @@
     }
 
     function fmtPct(v) { return v != null ? `${v >= 0 ? '+' : ''}${v.toFixed(2)}%` : '-' }
+    
+    function safeDescribeSweepValue(path, value, definition) {
+      try {
+        if (typeof describeSweepValue !== 'function') throw new Error('sweep-labels.js not loaded')
+        return describeSweepValue(path, value, definition)
+      } catch (_) {
+        return `${path}=${JSON.stringify(value)}`
+      }
+    }
 
     function renderGlobalMetrics(g) {
       const grid = document.getElementById('globalMetricsGrid')
@@ -242,7 +247,7 @@
       }
       container.innerHTML = sensitivity.map(axis => `
         <div class="mb-md">
-          <div class="text-sm text-muted mb-sm" style="font-family:var(--mono)">${escHtml(axis.path)}</div>
+          <div class="subtitle text-muted mt-sm mb-sm">${escHtml(describeSweepAxis(axis.path, currentSweep.definition))}</div>
           <div class="table-wrap">
             <table>
               <thead><tr>
@@ -253,9 +258,10 @@
               </tr></thead>
               <tbody>
                 ${axis.values.map(v => {
-                  if (!v.stats) return `<tr><td>${escHtml(JSON.stringify(v.value))}</td><td colspan="3" class="text-muted text-sm">${t('sweep.no_results_yet')}</td></tr>`
+                  const label = escHtml(safeDescribeSweepValue(axis.path, v.value, currentSweep.definition))
+                  if (!v.stats) return `<tr><td>${label}</td><td colspan="3" class="text-muted text-sm">${t('sweep.no_results_yet')}</td></tr>`
                   return `<tr>
-                    <td>${escHtml(JSON.stringify(v.value))}</td>
+                    <td>${label}</td>
                     <td>${v.stats.count}</td>
                     <td class="${v.stats.avgPnlPercent >= 0 ? 'pnl-positive' : 'pnl-negative'}">${fmtPct(v.stats.avgPnlPercent)}</td>
                     <td>${v.stats.pctProfitable.toFixed(1)}%</td>
@@ -285,14 +291,20 @@
             <span class="tag tag-primary">${escHtml(j.pair || '-')}</span>
             ${tagsHtml ? `<div class="job-row-tags">${tagsHtml}</div>` : ''}
           </td>
-          <td class="text-muted text-sm" style="font-family:var(--mono)">${escHtml(Object.entries(j.paramValues || {}).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ')) || '-'}</td>
+          <td class="text-muted text-sm" style="font-family:var(--mono)">
+            ${escHtml(Object.entries(j.paramValues || {})
+              .map(([k, v]) => safeDescribeSweepValue(k, v, currentSweep.definition))
+              .join(', ')) || '-'}
+          </td>
           <td class="${j.pnlPercent >= 0 ? 'pnl-positive' : 'pnl-negative'}">${fmtPct(j.pnlPercent)}</td>
           <td>${j.sharpeRatio != null ? j.sharpeRatio.toFixed(2) : '-'}</td>
           <td>${j.winRate != null ? j.winRate.toFixed(1) + '%' : '-'}</td>
           <td style="color:var(--danger)">${j.maxDrawdown != null ? '-' + j.maxDrawdown.toFixed(2) + '%' : '-'}</td>
-          <td>
-            <a href="/results.html?jobId=${j.id}" class="btn btn-ghost btn-sm">${ICONS.chart}${t('sweep.table.view')}</a>
-            <button class="btn btn-ghost btn-sm assign-tags-btn" data-id="${j.id}" title="Tags">${ICONS.tag}</button>
+          <td class="td-actions">
+            <div class="td-actions-inner">
+              <a href="/results.html?jobId=${j.id}" class="btn btn-ghost btn-sm">${ICONS.chart}${t('sweep.table.view')}</a>
+              <button class="btn btn-ghost btn-sm assign-tags-btn" data-id="${j.id}" title="Tags">${ICONS.tag}</button>
+            </div>
           </td>
         </tr>`
       }).join('')

@@ -93,6 +93,7 @@ async function getJob(id, userId) {
     where: { id, strategy: { userId } },
     include: {
       strategy: true,
+      sweepGroup: { select: { id: true, totalRuns: true, status: true } },
       ...JOB_TAGS_INCLUDE,
     },
   })
@@ -147,10 +148,6 @@ async function claimPendingJobs(apiKeyId, userId) {
 
     if (claimAttempt.count > 0) {
       const fullJob = await prisma.backtestJob.findUnique({ where: { id: job.id } })
-      // Le worker doit TOUJOURS recevoir le snapshot figé au lancement (déjà
-      // résolu : pair singulière, aucun marqueur sweep) — jamais la ligne
-      // Strategy vivante, qui peut avoir changé depuis et/ou porter des
-      // marqueurs { sweep: [...] } que le moteur Python ne sait pas lire.
       claimedJobs.push({
         id: fullJob.id,
         strategy: fullJob.strategySnapshot,

@@ -24,6 +24,7 @@
     let _working = []          // sélection de travail (avant validation)
     let _coinsData = null      // { coins, categories } - chargé une seule fois
     let _coinsPromise = null
+    const isMobileWidth = () => ((window.innerWidth > 0) ? window.innerWidth : screen.width) <= 640
 
     async function _ensureCoinsData() {
         if (_coinsData) return _coinsData
@@ -171,6 +172,9 @@
         } else if (filterCat) {
             items = items.filter(c => c.category === filterCat)
         }
+        items = [...items].sort((a, b) =>
+            (_working.includes(a.symbol) ? 0 : 1) - (_working.includes(b.symbol) ? 0 : 1)
+        )
 
         if (!items.length) {
             results.innerHTML = `<div class="ip-empty">${t('picker.no_results')}</div>`
@@ -178,15 +182,19 @@
         }
 
         results.innerHTML = `<div class="ip-group">${items.map(c => `
-      <button type="button" class="cp-item ${_working.includes(c.symbol) ? 'active' : ''}" data-symbol="${c.symbol}">
-        <span class="cp-item-check"></span>
-        <img class="cp-item-logo" src="${_coinLogo(c.symbol)}" alt="" onerror="this.style.visibility='hidden'">
-        <span class="cp-item-text">
-          <span class="cp-item-title">${c.name}</span>
-          <span class="cp-item-subtitle">${c.symbol}</span>
-        </span>
-      </button>
-    `).join('')}</div>`
+        <button type="button" class="cp-item ${_working.includes(c.symbol) ? 'active' : ''}" data-symbol="${c.symbol}">
+            <span class="cp-item-check"></span>
+            <span class="cp-item-logo-wrap">
+            <img class="cp-item-logo" src="${_coinLogo(c.symbol)}" alt=""
+                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
+            <span class="cp-item-logo-fallback" style="display:none;">${c.symbol.slice(0, 2)}</span>
+            </span>
+            <span class="cp-item-text">
+            <span class="cp-item-title">${c.name}</span>
+            <span class="cp-item-subtitle">${c.symbol}</span>
+            </span>
+        </button>
+        `).join('')}</div>`
 
         results.querySelectorAll('.cp-item').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -217,13 +225,17 @@
             this._syncLabel()
             this.dispatchEvent(new Event('change', { bubbles: true }))
         }
+        setSilent(arr) {
+            this._value = Array.isArray(arr) ? arr : []
+            this._syncLabel()
+        }
 
         _build() {
             this._built = true
             this.classList.add('ip-trigger')
             this.setAttribute('role', 'button')
             this.setAttribute('tabindex', '0')
-            this.innerHTML = `<span class="ip-trigger-label"></span>${ICONS.maximize}`
+            this.innerHTML = `<span class="ip-trigger-label"></span>${isMobileWidth() ? ICONS.panel_bottom : ICONS.maximize}`
             this.addEventListener('click', () => _open(this))
             this.addEventListener('keydown', e => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _open(this) }

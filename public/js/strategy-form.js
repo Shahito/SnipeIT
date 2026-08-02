@@ -74,31 +74,48 @@ function cartesianPairs() {
   return out
 }
 
+let _pairsPreviewPromise = null
+const INVALID_PAIRS_TAG_LIMIT = 3
+
+function renderLimitedTags(items, cssClass, limit) {
+  const shown = items.slice(0, limit)
+  const extra = items.length - shown.length
+  let html = shown.map(p => `<span class="tag ${cssClass}">${p}</span>`).join('')
+  if (extra > 0) html += `<span class="extra">+${extra}</span>`
+  return html
+}
+
 async function updatePairsPreview() {
   const candidates = cartesianPairs()
-  const preview = document.getElementById('pairsPreview')
+  const emptyMsg  = document.getElementById('pairsEmptyMsg')
+  const validEl   = document.getElementById('pairsValidTags')
+  const invalidEl = document.getElementById('pairsInvalidTags')
 
   if (!candidates.length) {
     _currentPairs = []
-    preview.textContent = t('editor.field.pairs_generated_empty')
+    emptyMsg.textContent = t('editor.field.pairs_generated_empty')
+    validEl.innerHTML = ''
+    invalidEl.innerHTML = ''
     updatePreview()
     return
   }
+  emptyMsg.textContent = ''
 
-  preview.textContent = t('editor.field.pairs_generated', { n: candidates.length }) + ` (${candidates.join(', ')})`
+  _pairsPreviewPromise = (async () => {
+    try {
+      const { valid, invalid } = await api('/coins/validate-pairs', { method: 'POST', body: { pairs: candidates } })
+      _currentPairs = valid
+      validEl.innerHTML   = valid.map(p => `<span class="tag tag-primary">${p}</span>`).join('')
+      invalidEl.innerHTML = renderLimitedTags(invalid, 'tag-danger', INVALID_PAIRS_TAG_LIMIT)
+    } catch (e) {
+      _currentPairs = candidates
+      validEl.innerHTML   = candidates.map(p => `<span class="tag tag-primary">${p}</span>`).join('')
+      invalidEl.innerHTML = ''
+    }
+    updatePreview()
+  })()
 
-  try {
-    const { valid, invalid } = await api('/coins/validate-pairs', { method: 'POST', body: { pairs: candidates } })
-    _currentPairs = valid
-    let text = t('editor.field.pairs_generated', { n: valid.length }) + ` (${valid.join(', ')})`
-    if (invalid.length) text += ' — ' + t('editor.field.pairs_invalid_dropped', { n: invalid.length })
-    preview.textContent = text
-  } catch (e) {
-    // API Binance injoignable : on part quand même sur le produit cartésien brut,
-    // le pire cas est qu'un job échoue individuellement côté worker.
-    _currentPairs = candidates
-  }
-  updatePreview()
+  await _pairsPreviewPromise
 }
 
 function bindCoinPickers() {
@@ -226,10 +243,12 @@ async function loadStrategy(id) {
     const { strategy: s } = await api(`/strategies/${id}`)
     document.getElementById('fName').value         = s.name
     document.getElementById('fDescription').value  = s.description || ''
-    document.getElementById('fBaseCoins').value  = [...new Set(s.pairs.map(p => p.split('/')[0]))]
-    document.getElementById('fQuoteCoins').value = [...new Set(s.pairs.map(p => p.split('/')[1]))]
+    document.getElementById('fBaseCoins').setSilent([...new Set(s.pairs.map(p => p.split('/')[0]))])
+    document.getElementById('fQuoteCoins').setSilent([...new Set(s.pairs.map(p => p.split('/')[1]))])
     _currentPairs = s.pairs
-    document.getElementById('pairsPreview').textContent = t('editor.field.pairs_generated', { n: s.pairs.length }) + ` (${s.pairs.join(', ')})`
+    document.getElementById('pairsEmptyMsg').textContent = ''
+    document.getElementById('pairsValidTags').innerHTML   = s.pairs.map(p => `<span class="tag tag-primary">${p}</span>`).join('')
+    document.getElementById('pairsInvalidTags').innerHTML = ''
     renderChipGroup('fTimeframeGroup', TIMEFRAMES_LIST, formatSweepChoice(s.timeframe))
     document.getElementById('fStartDate').value    = s.startDate.slice(0, 10)
     document.getElementById('fEndDate').value      = s.endDate.slice(0, 10)
@@ -281,6 +300,7 @@ function _restoreSaveBtnsLabels() {
 }
 
 async function _savePayload() {
+  if (_pairsPreviewPromise) await _pairsPreviewPromise
   const editId = window._editId
   const payload = buildPayload()
   if (editId) {

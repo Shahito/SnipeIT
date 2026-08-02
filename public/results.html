@@ -294,7 +294,7 @@
           `${snap.pair} · ${snap.timeframe} · ${fmtDate(snap.startDate)} -> ${fmtDate(snap.endDate)}`
 
         // Warning divergence
-        renderSnapshotWarning(snap, cur)
+        renderSnapshotWarning(snap, cur, job)
 
         renderMetrics(r)
         equityChart.config.referenceLines = [
@@ -322,16 +322,34 @@
       }
     }
 
-    function renderSnapshotWarning(snap, cur) {
+    function renderSnapshotWarning(snap, cur, job) {
       const existing = document.getElementById('snapshotWarning')
       if (existing) existing.remove()
       const cloneOriginalBtn = document.getElementById('cloneOriginalBtn')
       if (!snap) { cloneOriginalBtn.classList.add('hidden'); return }
 
+      const isRealSweep = job.sweepGroup && job.sweepGroup.totalRuns > 1
+      console.log(isRealSweep);
+      console.log(job.sweepGroup);
+      
+      if (isRealSweep) {
+        // Show sweep warning banner
+        cloneOriginalBtn.classList.add('hidden');
+        const banner = document.createElement('div')
+        banner.id = 'snapshotWarning'
+        banner.className = 'snapshot-warning'
+        banner.innerHTML = `
+          <span class="snapshot-warning-icon">${ICONS.shuffle}</span>
+          <div>
+            <strong class="text-sm">${t('results.snapshot.sweep_title')}</strong>
+            <span class="text-muted text-sm">${t('results.snapshot.sweep_desc')}</span>
+          </div>
+        `
+        document.getElementById('resultsContent').prepend(banner)
+        return
+      }
+
       const FIELDS = ['timeframe', 'initialCapital', 'positionSize', 'stopLoss', 'trailingStopLoss', 'takeProfit', 'feeMaker', 'feeTaker', 'tradingHours']
-      // Un champ "cur" peut être scalaire OU { sweep: [...] } depuis la refonte sweep :
-      // on considère qu'il correspond toujours au snapshot si la valeur du run
-      // fait partie des valeurs actuellement configurées (scalaire = 1 seule valeur possible).
       const stillMatches = (snapVal, curVal) => {
         if (curVal && typeof curVal === 'object' && !Array.isArray(curVal) && Array.isArray(curVal.sweep)) {
           return curVal.sweep.some(v => JSON.stringify(v) === JSON.stringify(snapVal))

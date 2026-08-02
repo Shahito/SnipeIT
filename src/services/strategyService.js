@@ -48,7 +48,7 @@ function validateConditions(conditions) {
     'ATR', 'VWAP', 'PRICE', 'VOLUME', 'HIGH', 'LOW', 'OPEN',
   ]
   const indicatorsWithSources = ['EMA', 'SMA']
-  const validSources    = ['VOLUME', 'HIGH', 'LOW', 'OPEN']
+  const validSources    = ['VOLUME', 'PRICE', 'HIGH', 'LOW', 'OPEN']
   const validOperators  = ['>', '<', '>=', '<=', '==', 'cross_above', 'cross_below']
 
   // Champs structurels (jamais sweepables) : indicator, operator, valueIndicator.
@@ -122,7 +122,7 @@ function validateStrategy(data) {
   // de sweep au même titre que les autres (voir sweepEngine).
   if (!Array.isArray(pairs) || pairs.length === 0) throw new Error('PAIRS_INVALID')
   pairs.forEach(p => {
-    if (typeof p !== 'string' || !/^[A-Z]+\/[A-Z]+$/.test(p)) throw new Error('PAIRS_INVALID')
+    if (typeof p !== 'string' || !/^[A-Z0-9]+\/[A-Z0-9]+$/.test(p)) throw new Error('PAIRS_INVALID')
   })
 
   const validTimeframes = ['1m','5m','15m','30m','1h','2h','4h','6h','12h','1d','3d','1w']

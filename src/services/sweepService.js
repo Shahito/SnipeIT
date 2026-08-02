@@ -254,6 +254,7 @@ async function getSweepGroup(id, userId) {
     totalRuns: group.totalRuns,
     createdAt: group.createdAt,
     completedAt: group.completedAt,
+    definition: group.definitionSnapshot,
     counts: {
       done: done.length,
       pending: jobs.filter(j => j.status === 'pending').length,

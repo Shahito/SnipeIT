@@ -263,6 +263,7 @@ function computeVWAP(high, low, close, volume) {
 
 const SOURCE_SERIES = {
   VOLUME: (ohlcv) => ohlcv.volume,
+  PRICE:  (ohlcv) => ohlcv.close,
   HIGH:   (ohlcv) => ohlcv.high,
   LOW:    (ohlcv) => ohlcv.low,
   OPEN:   (ohlcv) => ohlcv.open,
