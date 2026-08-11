@@ -279,7 +279,7 @@
             out.equityCurve = r.equityCurve
         }
 
-        return JSON.stringify(out, null, 2)
+        return JSON.stringify(_roundDeep(out), null, 2)
     }
 
     /* Plain text builder */
@@ -440,8 +440,8 @@
         if (_opts.includeWorst && r.worst) {
             out.worst = r.worst.map(j => _sweepJobSummary(j, r.definition))
         }
-
-        return JSON.stringify(out, null, 2)
+        
+        return JSON.stringify(_roundDeep(out), null, 2)
     }
 
     function _buildSweepText() {
@@ -513,6 +513,26 @@
     }
 
     // Shared helpers
+    const _ROUND2_KEYS = new Set([
+        'pnlPercent', 'pnlAbsolute', 'buyHoldPercent', 'winRate', 'maxDrawdown',
+        'sharpeRatio', 'profitFactor', 'exposurePct', 'cumulativePnl',
+        'avgPnlPercent', 'medianPnlPercent', 'stdPnlPercent', 'pctProfitable',
+        'bestPnlPercent', 'worstPnlPercent',
+    ])
+
+    function _round2(n) {
+        return typeof n === 'number' ? Math.round(n * 100) / 100 : n
+    }
+
+    function _roundDeep(v, key) {
+        if (Array.isArray(v)) return v.map(x => _roundDeep(x, key))
+        if (v && typeof v === 'object') {
+            const o = {}
+            for (const k in v) o[k] = _roundDeep(v[k], k)
+            return o
+        }
+        return _ROUND2_KEYS.has(key) ? _round2(v) : v
+    }
 
     function _miniBar(pnl) {
         const blocks = Math.min(10, Math.abs(Math.round(pnl / 2)))

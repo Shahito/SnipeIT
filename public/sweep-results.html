@@ -129,6 +129,7 @@
   <script src="/js/overlay-a11y.js"></script>
   <script src="/js/export.js"></script>
   <script src="/js/sweep-labels.js"></script>
+  <script src="/js/tag-manager.js"></script>
   <script>
     const urlParams  = new URLSearchParams(location.search)
     const sweepId    = urlParams.get('id') ? parseInt(urlParams.get('id')) : null
@@ -136,7 +137,8 @@
     let currentSweep = null
     let allTags      = []
     let popoverJobId = null
-    let popoverSelected = []
+
+    const tagManager = new TagManager({ onTagsChanged: () => { allTags = tagManager.tags } })
 
     document.addEventListener('header:ready', async () => {
       applyToDOM()
@@ -148,7 +150,8 @@
     initExport()
 
     async function loadTags() {
-      try { const { tags } = await api('/tags'); allTags = tags } catch (_) {}
+      await tagManager.load()
+      allTags = tagManager.tags
     }
 
     function getJobTags(job) { return (job.jobTags || []).map(jt => jt.tag) }
@@ -320,44 +323,24 @@
       return [...(currentSweep?.best || []), ...(currentSweep?.worst || [])].find(j => j.id === id)
     }
 
+    const assignPopover = tagManager.mountAssignPopover({
+      listEl: document.getElementById('popoverTagList'),
+      buildEndpoint: (jobId) => `/tags/jobs/${jobId}`,
+      getSelectedIds: (jobId) => {
+        const job = findJobById(jobId)
+        return job ? getJobTags(job).map(tg => tg.id) : []
+      },
+      onAssignChange: () => loadSweep(),
+      onError: (e) => toast(t('error.' + e.code), 'error'),
+    })
+
     function openTagPopover(jobId, anchorEl) {
       const job = findJobById(jobId)
       if (!job) return
 
-      popoverJobId    = jobId
-      popoverSelected = getJobTags(job).map(tg => tg.id)
-
+      popoverJobId = jobId
       document.getElementById('popoverTitle').textContent = `#${jobId}`
-
-      const list = document.getElementById('popoverTagList')
-      if (!allTags.length) {
-        list.innerHTML = `<p class="text-muted text-sm p-sm">${t('jobs.assign.empty')}</p>`
-      } else {
-        list.innerHTML = allTags.map(tag => `
-          <label class="assign-tag-row">
-            <input type="checkbox" class="assign-tag-cb" data-id="${tag.id}" ${popoverSelected.includes(tag.id) ? 'checked' : ''}>
-            <span class="tag-chip" style="background:${tag.color}20;color:${tag.color};border-color:${tag.color}40">${escHtml(tag.name)}</span>
-          </label>
-        `).join('')
-        document.querySelectorAll('.assign-tag-cb').forEach(cb => {
-          cb.addEventListener('change', async () => {
-            const id = parseInt(cb.dataset.id)
-            if (cb.checked) popoverSelected.push(id)
-            else popoverSelected = popoverSelected.filter(x => x !== id)
-
-            cb.disabled = true
-            try {
-              await api(`/tags/jobs/${popoverJobId}`, { method: 'PUT', body: { tagIds: popoverSelected } })
-              loadSweep()
-            } catch (e) {
-              toast(t('error.' + e.code), 'error')
-              cb.checked = !cb.checked
-            } finally {
-              cb.disabled = false
-            }
-          })
-        })
-      }
+      assignPopover.render(jobId)
 
       const popover = document.getElementById('tagPopover')
       popover.classList.remove('hidden')
@@ -375,9 +358,9 @@
 
     function closeTagPopover() {
       popoverJobId = null
-      popoverSelected = []
       document.getElementById('tagPopover').classList.add('hidden')
     }
+    
     document.getElementById('popoverClose').addEventListener('click', closeTagPopover)
     document.addEventListener('click', e => {
       const popover = document.getElementById('tagPopover')

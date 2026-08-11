@@ -105,7 +105,7 @@
       </div>
       <div class="tag-create-form">
         <input type="text" id="tagNameInput" data-i18n-attr="placeholder" data-i18n="jobs.tags.name_ph" maxlength="32">
-        <input type="color" id="tagColorInput" value="#6c8eff">
+        <div id="tagPaletteContainer"></div>
         <button class="btn btn-primary btn-sm" id="createTagBtn" data-i18n="jobs.tags.create_btn"></button>
       </div>
       <p class="form-error" id="tagCreateError"></p>
@@ -128,6 +128,8 @@
   <script src="/js/toast.js"></script>
   <script src="/js/header.js"></script>
   <script src="/js/overlay-a11y.js"></script>
+  <script src="/js/tag-palette.js"></script>
+  <script src="/js/tag-manager.js"></script>
   <script>
     let allJobs      = []
     let allTags      = []
@@ -139,7 +141,6 @@
     let groupBy    = _pref.groupBy    || 'none'
     let filterStat = _pref.filterStat || 'all'
     let popoverJobId = null
-    let popoverSelected = []
     let collapsedGroups = new Set()
     let autoRefreshTimer = null
 
@@ -229,8 +230,10 @@
       }
     }
 
+    const tagManager = new TagManager({ onTagsChanged: () => { allTags = tagManager.tags } })
     async function loadTags() {
-      try { const { tags } = await api('/tags'); allTags = tags } catch (_) {}
+      await tagManager.load()
+      allTags = tagManager.tags
     }
 
     // Controls
@@ -572,105 +575,38 @@
     })
 
     function renderTagsList() {
-      const list = document.getElementById('tagsList')
-      if (!allTags.length) {
-        list.innerHTML = `<p class="text-muted text-sm">${t('jobs.tags.empty')}</p>`
-        return
-      }
-      list.innerHTML = allTags.map(tag => `
-        <div class="tag-manage-row">
-          <span class="tag-chip" style="background:${tag.color}20;color:${tag.color};border-color:${tag.color}40">${escHtml(tag.name)}</span>
-          <span class="text-muted text-sm">${tag._count?.jobTags ?? 0} job${(tag._count?.jobTags ?? 0) !== 1 ? 's' : ''}</span>
-          <div class="tag-manage-actions">
-            <input type="color" class="tag-color-edit" value="${tag.color}" data-id="${tag.id}" title="${t('jobs.tags.color_title')}">
-            <button class="btn btn-danger btn-sm delete-btn delete-tag-btn" data-id="${tag.id}">${ICONS.cross}</button>
-          </div>
-        </div>
-      `).join('')
-
-      document.querySelectorAll('.delete-tag-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          btn.disabled = true
-          try {
-            await api(`/tags/${btn.dataset.id}`, { method: 'DELETE' })
-            allTags = allTags.filter(tg => tg.id !== parseInt(btn.dataset.id))
-            renderTagsList(); loadJobs(); toast(t('jobs.tags.deleted'), 'success')
-          } catch (e) { toast(t('error.' + e.code), 'error'); btn.disabled = false }
-        })
-      })
-      document.querySelectorAll('.tag-color-edit').forEach(input => {
-        input.addEventListener('change', async () => {
-          try {
-            await api(`/tags/${input.dataset.id}`, { method: 'PUT', body: { color: input.value } })
-            const idx = allTags.findIndex(tg => tg.id === parseInt(input.dataset.id))
-            if (idx !== -1) allTags[idx] = { ...allTags[idx], color: input.value }
-            renderTagsList(); loadJobs()
-          } catch (e) { toast(t('error.' + e.code), 'error') }
-        })
-      })
+      tagManager.mountManageList(document.getElementById('tagsList'))
+      allTags = tagManager.tags
     }
 
-    document.getElementById('createTagBtn').addEventListener('click', async () => {
-      document.getElementById('tagCreateError').textContent = ''
-      const name  = document.getElementById('tagNameInput').value.trim()
-      const color = document.getElementById('tagColorInput').value
-      if (!name) { document.getElementById('tagCreateError').textContent = t('jobs.tags.name_req'); return }
-      const btn = document.getElementById('createTagBtn'); btn.disabled = true
-      try {
-        const { tag } = await api('/tags', { method: 'POST', body: { name, color } })
-        allTags.push({ ...tag, _count: { jobTags: 0 } })
-        document.getElementById('tagNameInput').value = ''
-        renderTagsList(); toast(t('jobs.tags.created'), 'success')
-      } catch (e) {
-        document.getElementById('tagCreateError').textContent = t('error.' + e.code)
-      } finally { btn.disabled = false }
+    tagManager.mountCreateForm({
+      nameInput: document.getElementById('tagNameInput'),
+      paletteContainer: document.getElementById('tagPaletteContainer'),
+      createBtn: document.getElementById('createTagBtn'),
+      errorEl: document.getElementById('tagCreateError'),
     })
-    document.getElementById('tagNameInput').addEventListener('keydown', e => {
-      if (e.key === 'Enter') document.getElementById('createTagBtn').click()
+    // re-renders list + refreshes jobs after each create/update/delete
+    tagManager.onTagsChanged = () => { allTags = tagManager.tags; renderTagsList(); loadJobs() }
+
+    const assignPopover = tagManager.mountAssignPopover({
+      listEl: document.getElementById('popoverTagList'),
+      buildEndpoint: (jobId) => `/tags/jobs/${jobId}`,
+      getSelectedIds: (jobId) => {
+        const job = allJobs.find(j => j.id === jobId)
+        return job ? getJobTags(job).map(tg => tg.id) : []
+      },
+      onAssignChange: () => loadJobs(),
+      onError: (e) => toast(t('error.' + e.code), 'error'),
     })
 
     // Popover contextuel
-    function openTagPopover(jobId, anchorEl) {
+function openTagPopover(jobId, anchorEl) {
       const job = allJobs.find(j => j.id === jobId)
       if (!job) return
 
-      popoverJobId    = jobId
-      popoverSelected = getJobTags(job).map(tg => tg.id)
-
+      popoverJobId = jobId
       document.getElementById('popoverTitle').textContent = `#${jobId} - ${job.strategy.name}`
-
-      const list = document.getElementById('popoverTagList')
-      if (!allTags.length) {
-        list.innerHTML = `<p class="text-muted text-sm p-sm">${t('jobs.assign.empty')}</p>`
-      } else {
-        list.innerHTML = allTags.map(tag => `
-          <label class="assign-tag-row">
-            <input type="checkbox" class="assign-tag-cb" data-id="${tag.id}" ${popoverSelected.includes(tag.id) ? 'checked' : ''}>
-            <span class="tag-chip" style="background:${tag.color}20;color:${tag.color};border-color:${tag.color}40">${escHtml(tag.name)}</span>
-          </label>
-        `).join('')
-        document.querySelectorAll('.assign-tag-cb').forEach(cb => {
-          cb.addEventListener('change', async () => {
-            const id = parseInt(cb.dataset.id)
-            if (cb.checked) popoverSelected.push(id)
-            else popoverSelected = popoverSelected.filter(x => x !== id)
-
-            cb.disabled = true
-            try {
-              await api(`/tags/jobs/${popoverJobId}`, { method: 'PUT', body: { tagIds: popoverSelected } })
-              loadJobs()
-            } catch (e) {
-              toast(t('error.' + e.code), 'error')
-              // rollback visuel
-              cb.checked = !cb.checked
-              if (cb.checked) popoverSelected.push(id)
-              else popoverSelected = popoverSelected.filter(x => x !== id)
-            } finally {
-              cb.disabled = false
-            }
-          })
-        })
-      }
+      assignPopover.render(jobId)
 
       // Positionner le popover près du bouton
       const popover = document.getElementById('tagPopover')
