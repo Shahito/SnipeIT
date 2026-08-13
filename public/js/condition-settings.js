@@ -202,9 +202,9 @@
   }
 
   function _sweepSourceField(id, label, value) {
-    const raw = formatSweepChoice(value).map(v => (v === null || v === undefined || v === '') ? 'PRICE' : v)
-    const selected = raw.length ? raw : ['PRICE']
-    const options = [{ value: 'PRICE', label: t('editor.cond.source_close') }, ...INDICATOR_SOURCES.map(s => ({ value: s, label: s }))]
+    const raw = formatSweepChoice(value).map(v => (v === null || v === undefined || v === '') ? 'CLOSE' : v)
+    const selected = raw.length ? raw : ['CLOSE']
+    const options = [{ value: 'CLOSE', label: t('editor.cond.source_close') }, ...INDICATOR_SOURCES.map(s => ({ value: s, label: s }))]
     return `
       <div class="form-group">
         <label>${label}</label>

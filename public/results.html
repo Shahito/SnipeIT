@@ -309,7 +309,7 @@
         renderTrades(r, r.trades || [], r.totalTrades || 0)
         
         // Export overlay
-        _exportData = { ...r, _pair: snap.pair, _timeframe: snap.timeframe }
+        _exportData = { ...r, _pair: snap.pair, _timeframe: snap.timeframe, _strategy: snap }
         window._exportData = _exportData
       } catch (e) {
         if (e.code === 'JOB_NOT_FOUND') {

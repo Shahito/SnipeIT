@@ -68,8 +68,8 @@
     --border: rgba(112, 120, 138, 0.08);
     --border-light: #212530;
 
-    --primary: #5E7AB8;
-    --primary-hover: #7893CC;
+    --primary: #7893CC;
+    --primary-hover: #5E7AB8;
     --primary-dim: rgba(94, 122, 184, 0.24);
     --primary-dim-strong: rgba(94, 122, 184, 0.55);
 
@@ -3522,6 +3522,14 @@ input[type="color"] {
     gap: .4rem;
     max-height: 20rem;
     overflow-y: auto;
+    padding-right: 0.4rem;
+}
+
+.trades-list::-webkit-scrollbar-thumb {
+    background-color: var(--text-dim);
+}
+.trades-list::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-muted);
 }
 
 .trades-header {
@@ -3581,6 +3589,11 @@ input[type="color"] {
 
 .pnl-negative {
     color: var(--danger);
+    font-weight: 700;
+}
+
+.pnl-delta {
+    color: var(--warning);
     font-weight: 700;
 }
 

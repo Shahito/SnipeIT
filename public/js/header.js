@@ -16,7 +16,7 @@ document.addEventListener('i18n:ready', async () => {
 
   const COLOR_SCHEMES = {
     default:   { label: t('colorScheme.default'),    pos: '#00cb6f', neg: '#f91848' }, // Standard western
-    asian:     { label: t('colorScheme.asian'),      pos: '#ef4444', neg: '#22c55e' }, // Standard asian
+    asian:     { label: t('colorScheme.asian'),      pos: '#f91848', neg: '#00cb6f' }, // Standard asian
     blue_ora:  { label: t('colorScheme.blueOrange'), pos: '#3b82f6', neg: '#f97316' }, // Colorblind-friendly
     teal_red:  { label: t('colorScheme.tealRed'),    pos: '#14b8a6', neg: '#f43f5e' }, // Dark terminal
   }

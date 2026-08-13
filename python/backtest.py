@@ -88,7 +88,7 @@ def _resolve_ref(df: pd.DataFrame, indicator: str, period, idx: int, source=None
 def _resolve_expr(df: pd.DataFrame, cond: dict, idx: int, prefix: str = ""):
     """
     Resolves one side of a condition: a single indicator ref, optionally
-    combined with a second ref via +,-,*,/ (e.g. PRICE - OPEN = candle body).
+    combined with a second ref via +,-,*,/ (e.g. CLOSE - OPEN = candle body).
     `prefix` selects which set of keys to read:
       ""      -> indicator/period/source/offset/timeframe/settings/combine*          (LHS)
       "value" -> valueIndicator/valueIndicatorPeriod/.../valueCombine* (RHS)
@@ -359,7 +359,7 @@ def _warmup_candles(needed_indicators: list) -> int:
     # Hardcoded minimums for indicators with no variable 'period' param
     FIXED_MINIMUMS = {
         "MACD": 34, "MACD_SIGNAL": 34, "MACD_HIST": 34,
-        "VWAP": 1, "PRICE": 1, "VOLUME": 1
+        "VWAP": 1, "CLOSE": 1, "VOLUME": 1
     }
     max_period = 1
     for indicator, period, *_ in needed_indicators:

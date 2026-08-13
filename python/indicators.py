@@ -10,7 +10,7 @@ To add an indicator:
   3. That's it - the backtest engine resolves it automatically
 
 Naming convention in the final DataFrame:
-  RSI_14, EMA_20, SMA_50, MACD, BB_UPPER_20, PRICE, VOLUME, ...
+  RSI_14, EMA_20, SMA_50, MACD, BB_UPPER_20, CLOSE, VOLUME, ...
 """
 
 import numpy as np
@@ -19,7 +19,7 @@ import pandas as pd
 # Maps source names to the series they pull from a DataFrame.
 # Add entries here to make a new source available to EMA/SMA (and any future indicator with "sources").
 SOURCE_SERIES: dict[str, callable] = {
-    "PRICE":  lambda df: df["close"],
+    "CLOSE": lambda df: df["close"],
     "VOLUME": lambda df: df["volume"],
     "HIGH":   lambda df: df["high"],
     "LOW":    lambda df: df["low"],
@@ -96,7 +96,7 @@ def compute_vwap(df: pd.DataFrame) -> pd.Series:
 
 
 def compute_price(df: pd.DataFrame) -> pd.Series:
-    return df["close"].rename("PRICE")
+    return df["close"].rename("CLOSE")
 
 
 def compute_volume(df: pd.DataFrame) -> pd.Series:
@@ -205,11 +205,11 @@ REGISTRY: dict[str, dict] = {
         "params":  {},
         "col_tpl": "VWAP",
     },
-    "PRICE": {
+    "CLOSE": {
         "fn":      compute_price,
         "periods": [],
         "params":  {},
-        "col_tpl": "PRICE",
+        "col_tpl": "CLOSE",
     },
     "VOLUME": {
         "fn":      compute_volume,

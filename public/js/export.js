@@ -3,31 +3,27 @@
  * Depends on: t(), fmtDate(), fmtDateTime(), fmtNum() (globals from results.html)
  * Usage: initExport() once on page load, then openExportModal(resultData) on button click.
  *
- * Dual-mode: this modal is shared between results.html (single backtest job)
- * and sweep-results.html (a sweep = many jobs). The shape of the object passed
- * to openExportModal() is auto-detected (_isSweepData) and the "include"
- * checkboxes + JSON/text builders adapt accordingly:
- *  - single mode: summary / monthly perf / trades / equity curve
- *  - sweep mode: global summary / categories / sensitivity / best & worst combos
- * Nothing here needs to be told which page it runs on.
+ * Dual-mode: shared between results.html (single job, strategy = job.strategySnapshot,
+ * passed in as _strategy) and sweep-results.html (sweep = many jobs, strategy =
+ * { name } + definitionSnapshot, passed in as .strategy / .definition).
  */
 
 (function () {
-    /* State */
     let _data = null
-    let _mode = 'single'   // 'single' | 'sweep' - detected from the data shape
-    let _format = 'json'   // 'json' | 'text'
+    let _mode = 'single'
+    let _format = 'json'
 
-    /* Field definitions per mode - drives both the checkbox list and the defaults */
     const FIELD_DEFS = {
         single: [
             { id: 'chkSummary', opt: 'includeSummary', i18n: 'export.include.summary', default: true },
+            { id: 'chkStrategy', opt: 'includeStrategy', i18n: 'export.include.strategy', default: true },
             { id: 'chkMonthly', opt: 'includeMonthly', i18n: 'export.include.monthly', default: true },
             { id: 'chkTrades', opt: 'includeTrades', i18n: 'export.include.trades', default: false },
             { id: 'chkEquity', opt: 'includeEquity', i18n: 'export.include.equity', default: false },
         ],
         sweep: [
             { id: 'chkSwSummary', opt: 'includeSummary', i18n: 'export.include.summary', default: true },
+            { id: 'chkSwStrategy', opt: 'includeStrategy', i18n: 'export.include.strategy', default: true },
             { id: 'chkSwCategories', opt: 'includeCategories', i18n: 'export.include.categories', default: true },
             { id: 'chkSwSensitivity', opt: 'includeSensitivity', i18n: 'export.include.sensitivity', default: true },
             { id: 'chkSwBest', opt: 'includeBest', i18n: 'export.include.best', default: true },
@@ -44,9 +40,6 @@
     const _optsByMode = { single: _defaultOpts('single'), sweep: _defaultOpts('sweep') }
     let _opts = _optsByMode.single
 
-
-    /* Detect whether the object passed to openExportModal() is a sweep result
-       (many jobs summarized) or a single backtest job result. */
     function _isSweepData(d) {
         return !!d
             && Array.isArray(d.best)
@@ -54,7 +47,6 @@
             && d.global && typeof d.global === 'object' && !Array.isArray(d.global)
     }
 
-    /* Init */
     function initExport() {
         document.addEventListener('i18n:ready', () => {
             _injectModal()
@@ -79,7 +71,6 @@
         closeModal('exportModal')
     }
 
-    /* Modal skeleton */
     function _injectModal() {
         const el = document.createElement('div')
         el.id = 'exportModal'
@@ -97,7 +88,6 @@
             </div>
 
             <div class="exp-body">
-            <!-- Left: controls -->
             <div class="exp-controls">
                 <div class="exp-section-label">${t('export.section.format')}</div>
                 <div class="exp-format-toggle" id="expFormatToggle">
@@ -109,7 +99,6 @@
                 <div id="expIncludeList"></div>
             </div>
 
-            <!-- Right: preview -->
             <div class="exp-preview-wrap">
                 <button class="btn btn-surface btn-sm exp-copy-btn" id="expCopyBtn" title="Copier">
                 ${ICONS.copy}
@@ -122,12 +111,10 @@
         `
         document.body.appendChild(el)
 
-        /* Close handlers */
         document.getElementById('expCloseBtn').addEventListener('click', _closeModal)
         el.addEventListener('click', e => { if (e.target === el) _closeModal() })
         bindModalKeys('exportModal', { onCancel: _closeModal })
 
-        /* Format toggle */
         document.getElementById('expFormatToggle').addEventListener('click', e => {
             const btn = e.target.closest('.exp-fmt-btn')
             if (!btn) return
@@ -136,14 +123,12 @@
             _render()
         })
 
-        /* Copy button */
         document.getElementById('expCopyBtn').addEventListener('click', async () => {
             const text = document.getElementById('expPreview').textContent
             try {
                 await navigator.clipboard.writeText(text)
                 _flashCopy()
             } catch {
-                /* fallback */
                 const ta = document.createElement('textarea')
                 ta.value = text
                 ta.style.position = 'fixed'
@@ -156,11 +141,9 @@
             }
         })
 
-        /* Render icons (if icons.js exposes renderIcons) */
         if (typeof renderIcons === 'function') renderIcons(el)
     }
 
-    /* Rebuild the "include" checkbox list for the current mode */
     function _renderControls() {
         const defs = FIELD_DEFS[_mode]
         const container = document.getElementById('expIncludeList')
@@ -178,7 +161,6 @@
         })
     }
 
-    /* Modal title + subtitle depending on mode */
     function _updateHeader() {
         const titleEl = document.getElementById('expTitleText')
         const subEl = document.getElementById('expSubtitle')
@@ -205,19 +187,28 @@
         }, 1800)
     }
 
-    /* Render preview */
     function _render() {
         if (!_data) return
         const content = _format === 'json' ? _buildJSON() : _buildText()
         document.getElementById('expPreview').textContent = content
     }
 
-    /* Dispatch to the right builder depending on mode */
     function _buildJSON() {
         return _mode === 'sweep' ? _buildSweepJSON() : _buildSingleJSON()
     }
     function _buildText() {
         return _mode === 'sweep' ? _buildSweepText() : _buildSingleText()
+    }
+
+    // Resolve the strategy object for the current mode/data.
+    // single: job.strategySnapshot, passed in as r._strategy (results.html)
+    // sweep:  { name } from r.strategy + sweepable body from r.definition
+    function _resolveStrategy(r) {
+        if (_mode === 'sweep') {
+            if (!r.definition && !r.strategy) return null
+            return { name: r.strategy?.name, ...(r.definition || {}) }
+        }
+        return r._strategy || null
     }
 
     // Single job (results.html)
@@ -244,20 +235,16 @@
             }
         }
 
+        const strategy = _resolveStrategy(r)
+        if (_opts.includeStrategy && strategy) {
+            out.strategy = _cleanStrategy(strategy)
+        }
+
         if (_opts.includeMonthly && r.monthlyPerf) {
             out.monthlyPerf = r.monthlyPerf
         }
 
         if (_opts.includeTrades && r.trades) {
-            out.trades = r.trades.map(tr => ({
-                side: tr.side,
-                date: tr.date,
-                price: tr.price,
-                quantity: tr.quantity,
-                value: tr.value,
-                pnl: tr.pnl ?? null,
-                ...(tr.reason ? { exitReason: tr.reason } : {}),
-            }))
             out.trades = r.trades
                 .filter(tr => tr.side === "buy")
                 .map(buy => {
@@ -282,7 +269,6 @@
         return JSON.stringify(_roundDeep(out), null, 2)
     }
 
-    /* Plain text builder */
     function _buildSingleText() {
         const r = _data
         const lines = []
@@ -315,6 +301,11 @@
             lines.push(row(t('export.text.label.duration'), `${r.durationDays} days`))
             lines.push(row(t('export.text.label.exposure'), `${fmt(r.exposurePct)}%`))
             lines.push('')
+        }
+
+        const strategy = _resolveStrategy(r)
+        if (_opts.includeStrategy && strategy) {
+            lines.push(..._formatStrategyText(strategy))
         }
 
         if (_opts.includeMonthly && r.monthlyPerf?.length) {
@@ -369,9 +360,6 @@
         return `${path}=${JSON.stringify(value)}`
     }
 
-    // Strip a sweep job (best/worst entry) down to its summary fields - the
-    // full `result` (trades/equity/price curves, per-run snapshot, ...) is
-    // huge and not relevant when comparing runs across a sweep.
     function _sweepJobSummary(j, definition) {
         return {
             id: j.id,
@@ -393,7 +381,6 @@
         }
     }
 
-    // Drop the UI-only `color` field, keep what's actually useful for analysis.
     function _sweepCategorySummary(c) {
         return {
             categoryId: c.categoryId,
@@ -415,6 +402,11 @@
                 completedAt: r.completedAt,
                 global: r.global,
             }
+        }
+
+        const strategy = _resolveStrategy(r)
+        if (_opts.includeStrategy && strategy) {
+            out.strategy = _cleanStrategy(strategy)
         }
 
         if (_opts.includeCategories && r.byCategory) {
@@ -440,7 +432,7 @@
         if (_opts.includeWorst && r.worst) {
             out.worst = r.worst.map(j => _sweepJobSummary(j, r.definition))
         }
-        
+
         return JSON.stringify(_roundDeep(out), null, 2)
     }
 
@@ -469,6 +461,11 @@
             lines.push(row(t('sweep.metric.best'), `${sign(g.bestPnlPercent)}${fmt(g.bestPnlPercent)}%`))
             lines.push(row(t('sweep.metric.worst'), `${sign(g.worstPnlPercent)}${fmt(g.worstPnlPercent)}%`))
             lines.push('')
+        }
+
+        const strategy = _resolveStrategy(r)
+        if (_opts.includeStrategy && strategy) {
+            lines.push(..._formatStrategyText(strategy))
         }
 
         if (_opts.includeCategories && r.byCategory?.length) {
@@ -512,6 +509,129 @@
         return lines.join('\n')
     }
 
+    // Strategy (shared)
+
+    const _STRATEGY_DROP_KEYS = new Set(['id', '_id', 'userId', 'clonedFrom', 'createdAt', 'updatedAt', '__v'])
+
+    function _cleanStrategy(s) {
+        const clean = v => {
+            if (Array.isArray(v)) return v.map(clean)
+            if (v && typeof v === 'object') {
+                const o = {}
+                for (const k in v) { if (!_STRATEGY_DROP_KEYS.has(k)) o[k] = clean(v[k]) }
+                return o
+            }
+            return v
+        }
+        return clean(s)
+    }
+
+    const OPERATOR_LABELS = () => ({
+        '>': '>', '<': '<', '>=': '>=', '<=': '<=', '==': '==',
+        cross_above: t('editor.cond.cross_above'),
+        cross_below: t('editor.cond.cross_below'),
+    })
+
+    function _describeRef(cond, prefix) {
+        const ind = (prefix ? cond[`${prefix}Indicator`] : cond.indicator) || '?'
+        const period = prefix ? cond[`${prefix}IndicatorPeriod`] : cond.period
+        const source = prefix ? cond[`${prefix}IndicatorSource`] : cond.source
+        let label = ind
+        if (period != null && typeof period !== 'object') label += `(${period})`
+        if (source != null && typeof source !== 'object') label += `[${source}]`
+        return label
+    }
+
+    function _describeCondition(cond) {
+        const lhs = _describeRef(cond, '')
+        const op = OPERATOR_LABELS()[cond.operator] || cond.operator
+        const rhs = cond.valueIndicator ? _describeRef(cond, 'value') : cond.value
+        let line = `${lhs} ${op} ${rhs}`
+        if (cond.lookback > 1) {
+            const mode = cond.lookbackMode === 'any' ? t('editor.cond.lookback_any') : t('editor.cond.lookback_all')
+            line += ` (${mode} ${cond.lookback} ${t('editor.cond.lookback_candles')})`
+        }
+        if (cond.offset) line += ` [offset ${cond.offset}]`
+        return line
+    }
+
+    // Group[][] = OR of AND-groups (see normalizeConditions in condition-renderer.js)
+    function _describeConditionGroups(groups) {
+        if (!groups?.length) return []
+        const norm = Array.isArray(groups[0]) ? groups : [groups]
+        return norm.map(g => g.map(_describeCondition).join(` ${t('editor.cond.and')} `))
+    }
+
+    function _labelize(key) {
+        return String(key)
+            .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+            .replace(/[_-]+/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase())
+    }
+
+    function _dumpStrategyLines(v, indent) {
+        const pad = '  '.repeat(indent)
+        const lines = []
+        if (Array.isArray(v)) {
+            v.forEach(item => {
+                if (item && typeof item === 'object' && !Array.isArray(item)) {
+                    const entries = Object.entries(item)
+                    const primitive = entries.filter(([, val]) => val == null || typeof val !== 'object')
+                    const nested = entries.filter(([, val]) => val && typeof val === 'object')
+                    lines.push(`${pad}- ${primitive.map(([k, val]) => `${_labelize(k)}: ${val}`).join(', ')}`)
+                    nested.forEach(([k, val]) => {
+                        lines.push(`${pad}  ${_labelize(k)}:`)
+                        lines.push(..._dumpStrategyLines(val, indent + 2))
+                    })
+                } else {
+                    lines.push(`${pad}- ${item}`)
+                }
+            })
+        } else if (v && typeof v === 'object') {
+            Object.entries(v).forEach(([k, val]) => {
+                if (val == null || val === '') return
+                if (Array.isArray(val) || typeof val === 'object') {
+                    lines.push(`${pad}${_labelize(k)}:`)
+                    lines.push(..._dumpStrategyLines(val, indent + 1))
+                } else {
+                    lines.push(`${pad}${_labelize(k)}: ${val}`)
+                }
+            })
+        } else {
+            lines.push(`${pad}${v}`)
+        }
+        return lines
+    }
+
+    function _formatStrategyText(s) {
+        const lines = []
+        lines.push(`  ${t('export.text.section.strategy')}`)
+        if (s.name) lines.push(`  ${t('export.text.label.strategy_name').padEnd(20)}${s.name}`)
+        if (s.description) lines.push(`  ${t('export.text.label.strategy_desc').padEnd(20)}${s.description}`)
+
+        const rest = { ...s }
+        delete rest.name
+        delete rest.description
+
+        const conditions = rest.conditions
+        delete rest.conditions
+        if (conditions) {
+            const TABS = { entry: t('editor.cond.tab_entry'), exit: t('editor.cond.tab_exit') }
+            ;['entry', 'exit'].forEach(type => {
+                const described = _describeConditionGroups(conditions[type])
+                if (!described.length) return
+                lines.push(`  ${TABS[type]}:`)
+                described.forEach((g, i) => {
+                    lines.push(`    ${i > 0 ? t('editor.cond.add_group') + ' ' : ''}${g}`)
+                })
+            })
+        }
+
+        lines.push(..._dumpStrategyLines(rest, 1))
+        lines.push('')
+        return lines
+    }
+
     // Shared helpers
     const _ROUND2_KEYS = new Set([
         'pnlPercent', 'pnlAbsolute', 'buyHoldPercent', 'winRate', 'maxDrawdown',
@@ -545,7 +665,6 @@
         catch { return String(d) }
     }
 
-    /* Public API */
     window.initExport = initExport
     window.openExportModal = openExportModal
 })()

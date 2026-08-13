@@ -173,6 +173,38 @@ function getTradingHours() {
 }
 
 // Payload & preview
+function _resolveConditionDefaults(cond) {
+  const c = { ...cond }
+  const REFS = [
+    { ind: 'indicator',             per: 'period',              src: 'source',              set: 'settings' },
+    { ind: 'combineIndicator',      per: 'combinePeriod',        src: 'combineSource',        set: 'combineSettings' },
+    { ind: 'valueIndicator',        per: 'valueIndicatorPeriod', src: 'valueIndicatorSource', set: 'valueIndicatorSettings' },
+    { ind: 'valueCombineIndicator', per: 'valueCombinePeriod',   src: 'valueCombineSource',   set: 'valueCombineSettings' },
+  ]
+  REFS.forEach(({ ind, per, src, set }) => {
+    const indicator = c[ind]
+    if (!indicator) return
+    if (INDICATORS_WITH_PERIOD.includes(indicator)) {
+      c[per] = c[per] ?? INDICATOR_DEFAULT_PERIOD[indicator] ?? 14
+    }
+    if (INDICATORS_WITH_SOURCES.includes(indicator)) {
+      c[src] = c[src] || 'CLOSE'
+    }
+    const extra = INDICATOR_EXTRA_PARAMS[indicator]
+    if (extra) {
+      const existing = c[set] || {}
+      c[set] = extra.reduce((acc, p) => {
+        acc[p.key] = existing[p.key] ?? p.default
+        return acc
+      }, {})
+    }
+  })
+  return c
+}
+
+function _resolveConditionGroupsDefaults(groups) {
+  return (groups || []).map(g => g.map(_resolveConditionDefaults))
+}
 
 function buildPayload() {
   return {
@@ -196,7 +228,10 @@ function buildPayload() {
     feeMaker:         parseFloat(document.getElementById('fFeeMaker').value) || 0.1,
     tradingHours:     getTradingHours().length ? getTradingHours() : null,
     description:      document.getElementById('fDescription').value,
-    conditions,
+    conditions: {
+      entry: _resolveConditionGroupsDefaults(conditions.entry),
+      exit:  _resolveConditionGroupsDefaults(conditions.exit),
+    },
   }
 }
 

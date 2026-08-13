@@ -27,7 +27,7 @@ const INDICATORS = [
   'BB_MID',
   'ATR',
   'VWAP',
-  'PRICE',
+  'CLOSE',
   'VOLUME',
   'HIGH',
   'LOW',
@@ -80,7 +80,8 @@ INDICATOR_EXTRA_PARAMS.MACD_HIST   = INDICATOR_EXTRA_PARAMS.MACD
 
 // Must stay in sync with the #fTimeframeGroup chip list (TIMEFRAMES_LIST in
 // strategy-form.js) in strategy-editor.html.
-// condition-settings.js filters this down to >= getPrimaryTimeframe()
+// condition-settings.js filters this down to >= get
+// maryTimeframe()
 const TIMEFRAMES = [
   { value: '1m',  minutes: 1 },
   { value: '5m',  minutes: 5 },
@@ -100,4 +101,4 @@ const TIMEFRAMES = [
 const INDICATORS_NO_COMBINE = ['RSI', 'STOCH_RSI_K', 'STOCH_RSI_D']
 
 // Default indicator pre-filled when "combine with" is first checked
-const DEFAULT_COMBINE_INDICATOR = 'PRICE'
+const DEFAULT_COMBINE_INDICATOR = 'CLOSE'

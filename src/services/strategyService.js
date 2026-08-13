@@ -45,10 +45,10 @@ function validateConditions(conditions) {
   const validIndicators = [
     'RSI', 'EMA', 'SMA', 'MACD', 'MACD_SIGNAL', 'MACD_HIST',
     'STOCH_RSI_K', 'STOCH_RSI_D', 'BB_UPPER', 'BB_LOWER', 'BB_MID',
-    'ATR', 'VWAP', 'PRICE', 'VOLUME', 'HIGH', 'LOW', 'OPEN',
+    'ATR', 'VWAP', 'CLOSE', 'VOLUME', 'HIGH', 'LOW', 'OPEN',
   ]
   const indicatorsWithSources = ['EMA', 'SMA']
-  const validSources    = ['VOLUME', 'PRICE', 'HIGH', 'LOW', 'OPEN']
+  const validSources    = ['VOLUME', 'CLOSE', 'HIGH', 'LOW', 'OPEN']
   const validOperators  = ['>', '<', '>=', '<=', '==', 'cross_above', 'cross_below']
 
   // Champs structurels (jamais sweepables) : indicator, operator, valueIndicator.

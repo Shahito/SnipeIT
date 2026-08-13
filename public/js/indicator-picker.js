@@ -368,7 +368,7 @@ window.INDICATOR_CATEGORIES = [
         labelKey: 'picker.cat.price_volume',
         icon: ICONS.chart,
         items: [
-            { value: 'PRICE', labelKey: 'picker.ind.price' },
+            { value: 'CLOSE', labelKey: 'picker.ind.price' },
             { value: 'OPEN', labelKey: 'picker.ind.open' },
             { value: 'HIGH', labelKey: 'picker.ind.high' },
             { value: 'LOW', labelKey: 'picker.ind.low' },

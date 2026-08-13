@@ -1199,9 +1199,9 @@ class MonthlyPerfChart {
           const fmt   = v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%'
           _showTooltip(e,
             `<div class="tt-date">${d.month}</div>` +
-            `<span>Strat : <strong>${fmt(d.strat)}</strong></span>` +
-            `<span>Asset : <strong>${fmt(d.asset ?? 0)}</strong></span>` +
-            (this.config.showDelta ? `<span>Delta : <strong style="color:#e8a838">${fmt(delta)}</strong></span>` : '')
+            `<span>Asset : <span class="${(d.asset ?? 0 ) < 0 ? 'pnl-negative':'pnl-positive'}">${fmt(d.asset ?? 0)}</span></span>` +
+            `<span>Strat : <span class="${d.strat < 0 ? 'pnl-negative':'pnl-positive'}">${fmt(d.strat)}</span></span>` +
+            (this.config.showDelta ? `<span>Delta : <span class="pnl-delta">${fmt(delta)}</span></span>` : '')
           )
           // Cursor line
           this._draw(i)
