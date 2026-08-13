@@ -237,7 +237,7 @@
 
         const strategy = _resolveStrategy(r)
         if (_opts.includeStrategy && strategy) {
-            out.strategy = _cleanStrategy(strategy)
+            out.strategy = _formatStrategyJSON(strategy)
         }
 
         if (_opts.includeMonthly && r.monthlyPerf) {
@@ -278,9 +278,8 @@
         const row = (label, value) => `  ${label.padEnd(COL)}${value}`
 
         lines.push(t('export.text.title'))
-        if (r._pair || r._timeframe) {
+        if (r._pair) {
             lines.push(row(t('export.text.label.symbol'), r._pair ?? 'N/A'))
-            lines.push(row(t('export.text.label.timeframe'), r._timeframe ?? 'N/A'))
         }
         lines.push('')
 
@@ -406,7 +405,7 @@
 
         const strategy = _resolveStrategy(r)
         if (_opts.includeStrategy && strategy) {
-            out.strategy = _cleanStrategy(strategy)
+            out.strategy = _formatStrategyJSON(strategy)
         }
 
         if (_opts.includeCategories && r.byCategory) {
@@ -526,6 +525,105 @@
         return clean(s)
     }
 
+    // JSON condition tree (entry/exit): { left, operator, right, lookback? }
+    // Mirrors _refKeys() in condition-settings.js.
+    function _condRefKeys(prefix) {
+        const p = prefix || ''
+        return {
+            ind: p ? `${p}Indicator` : 'indicator',
+            per: p ? `${p}IndicatorPeriod` : 'period',
+            src: p ? `${p}IndicatorSource` : 'source',
+            off: p ? `${p}IndicatorOffset` : 'offset',
+            tf: p ? `${p}IndicatorTimeframe` : 'timeframe',
+        }
+    }
+
+    function _buildIndicatorRef(cond, prefix) {
+        const k = _condRefKeys(prefix)
+        const ref = {}
+        if (cond[k.ind] != null) ref.indicator = cond[k.ind]
+        if (cond[k.per] != null) ref.period = cond[k.per]
+        if (cond[k.tf] != null) ref.timeframe = cond[k.tf]
+        if (cond[k.src] != null) ref.source = cond[k.src]
+        if (cond[k.off]) ref.offset = cond[k.off]
+        return ref
+    }
+
+    function _transformCondition(cond) {
+        const out = {
+            left: _buildIndicatorRef(cond, ''),
+            operator: cond.operator,
+            right: cond.valueIndicator ? _buildIndicatorRef(cond, 'value') : { constant: cond.value },
+        }
+        if (cond.lookback > 1) {
+            out.lookback = {
+                periods: cond.lookback,
+                mode: cond.lookbackMode === 'any' ? 'ANY' : 'ALL',
+                includeCurrent: true,
+            }
+        }
+        return out
+    }
+
+    // Group[][] = OR of AND-groups -> single cond, { and: [...] }, or { or: [...] }
+    function _transformConditionGroups(groups) {
+        if (!groups?.length) return null
+        const norm = Array.isArray(groups[0]) ? groups : [groups]
+        const andGroups = norm.map(g => g.length === 1 ? _transformCondition(g[0]) : { and: g.map(_transformCondition) })
+        return andGroups.length === 1 ? andGroups[0] : { or: andGroups }
+    }
+
+    function _formatStrategyJSON(s) {
+        const clean = _cleanStrategy(s)
+
+        // signals (renamed from conditions)
+        if (clean.conditions) {
+            const signals = {}
+            ;['entry', 'exit'].forEach(type => {
+                const transformed = _transformConditionGroups(clean.conditions[type])
+                if (transformed) signals[type] = transformed
+            })
+            delete clean.conditions
+            clean.signals = signals
+        }
+
+        // riskManagement (stopLoss / trailingStopLoss / takeProfit / slType / tpType / atrPeriod)
+        const hasSL = clean.stopLoss != null || clean.trailingStopLoss != null
+        const hasTP = clean.takeProfit != null
+        if (hasSL || hasTP) {
+            const risk = {}
+            if (hasSL) {
+                risk.stopLoss = {
+                    value: clean.stopLoss ?? clean.trailingStopLoss,
+                    type: (clean.slType || 'percent').toUpperCase(),
+                    trailing: clean.stopLoss == null && clean.trailingStopLoss != null,
+                }
+            }
+            if (hasTP) {
+                risk.takeProfit = { value: clean.takeProfit, type: (clean.tpType || 'percent').toUpperCase() }
+            }
+            const usesAtr = (hasSL && (clean.slType || 'percent') === 'atr') || (hasTP && (clean.tpType || 'percent') === 'atr')
+            if (usesAtr && clean.atrPeriod != null) risk.atrPeriod = clean.atrPeriod
+            clean.riskManagement = risk
+        }
+        delete clean.stopLoss; delete clean.trailingStopLoss; delete clean.takeProfit
+        delete clean.slType; delete clean.tpType; delete clean.atrPeriod
+
+        // positionSizing
+        if (clean.positionSize != null) {
+            clean.positionSizing = { type: 'EQUITY_PERCENT', value: clean.positionSize }
+        }
+        delete clean.positionSize
+
+        // fees
+        if (clean.feeMaker != null || clean.feeTaker != null) {
+            clean.fees = { makerPct: clean.feeMaker, takerPct: clean.feeTaker }
+        }
+        delete clean.feeMaker; delete clean.feeTaker
+
+        return clean
+    }
+
     const OPERATOR_LABELS = () => ({
         '>': '>', '<': '<', '>=': '>=', '<=': '<=', '==': '==',
         cross_above: t('editor.cond.cross_above'),
@@ -603,6 +701,42 @@
         return lines
     }
 
+    function _formatRiskManagementLines(s) {
+        const hasSL = s.stopLoss != null || s.trailingStopLoss != null
+        const hasTP = s.takeProfit != null
+        if (!hasSL && !hasTP) return []
+        const lines = [`  ${t('export.text.section.risk')}:`]
+        if (hasSL) {
+            const val = s.stopLoss ?? s.trailingStopLoss
+            const isAtr = (s.slType || 'percent') === 'atr'
+            const trailing = s.stopLoss == null && s.trailingStopLoss != null ? ` (${t('export.text.label.trailing')})` : ''
+            lines.push(`    ${t('export.text.label.stop_loss').padEnd(20)}${val}${isAtr ? ' x ATR' : '%'}${trailing}`)
+        }
+        if (hasTP) {
+            const isAtr = (s.tpType || 'percent') === 'atr'
+            lines.push(`    ${t('export.text.label.take_profit').padEnd(20)}${s.takeProfit}${isAtr ? ' x ATR' : '%'}`)
+        }
+        const usesAtr = (hasSL && (s.slType || 'percent') === 'atr') || (hasTP && (s.tpType || 'percent') === 'atr')
+        if (usesAtr && s.atrPeriod != null) lines.push(`    ${t('export.text.label.atr_period').padEnd(20)}${s.atrPeriod}`)
+        return lines
+    }
+
+    function _formatPositionSizingLines(s) {
+        if (s.positionSize == null) return []
+        return [
+            `  ${t('export.text.section.position_sizing')}:`,
+            `    ${t('export.text.label.position_size').padEnd(20)}${s.positionSize}%`,
+        ]
+    }
+
+    function _formatFeesLines(s) {
+        if (s.feeMaker == null && s.feeTaker == null) return []
+        const lines = [`  ${t('export.text.section.fees')}:`]
+        if (s.feeMaker != null) lines.push(`    ${t('export.text.label.maker_fee').padEnd(20)}${s.feeMaker}%`)
+        if (s.feeTaker != null) lines.push(`    ${t('export.text.label.taker_fee').padEnd(20)}${s.feeTaker}%`)
+        return lines
+    }
+
     function _formatStrategyText(s) {
         const lines = []
         lines.push(`  ${t('export.text.section.strategy')}`)
@@ -626,6 +760,13 @@
                 })
             })
         }
+
+        lines.push(..._formatRiskManagementLines(rest))
+        lines.push(..._formatPositionSizingLines(rest))
+        lines.push(..._formatFeesLines(rest))
+        delete rest.stopLoss; delete rest.trailingStopLoss; delete rest.takeProfit
+        delete rest.slType; delete rest.tpType; delete rest.atrPeriod
+        delete rest.positionSize; delete rest.feeMaker; delete rest.feeTaker
 
         lines.push(..._dumpStrategyLines(rest, 1))
         lines.push('')
