@@ -27,6 +27,22 @@
 const TIMEFRAMES_LIST = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d', '3d', '1w']
 const RISK_TYPES = [{ value: 'percent', label: '%' }, { value: 'atr', label: '× ATR' }]
 
+const STRATEGY_NAME_ADJECTIVES = [
+  'Diamond', 'Feral', 'Reckless', 'Caffeinated', 'Nocturnal', 'Greedy',
+  'Rogue', 'Savage', 'Sneaky', 'Unhinged', 'Legendary', 'Lucky', 'Chaotic', 'Ruthless',
+]
+const STRATEGY_NAME_NOUNS = [
+  'Whale', 'Wolf', 'Rocket', 'Moonshot', 'Sniper', 'Gambit',
+  'Heist', 'Bandit', 'Maverick', 'Outlaw', 'Prophet', 'Oracle', 'Vulture', 'Hustle',
+]
+
+function generateStrategyName() {
+  const adj  = STRATEGY_NAME_ADJECTIVES[Math.floor(Math.random() * STRATEGY_NAME_ADJECTIVES.length)]
+  const noun = STRATEGY_NAME_NOUNS[Math.floor(Math.random() * STRATEGY_NAME_NOUNS.length)]
+  return `${adj} ${noun}`
+}
+window.generateStrategyName = generateStrategyName
+
 // Garde-fou d'avertissement, purement indicatif côté front (l'API refait le
 // calcul et applique la vraie limite - voir src/config/sweep.js, à garder
 // synchronisé si la valeur change côté serveur).
@@ -382,6 +398,10 @@ async function _launchSweepFlow(strategyId) {
 
 document.getElementById('saveBtn').addEventListener('click', async () => {
   document.getElementById('globalError').textContent = ''
+  if (!validateForm()) {
+    document.getElementById('globalError').textContent = t('editor.validation.fix_errors')
+    return
+  }
   _setSaveBtnsState(true)
   try {
     await _savePayload()
@@ -395,6 +415,10 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
 
 document.getElementById('saveAndRunBtn').addEventListener('click', async () => {
   document.getElementById('globalError').textContent = ''
+  if (!validateForm()) {
+    document.getElementById('globalError').textContent = t('editor.validation.fix_errors')
+    return
+  }
   _setSaveBtnsState(true)
   let targetId
   try {

@@ -174,6 +174,16 @@
         document.getElementById('sweepMeta').textContent  = t('sweep.progress', { done: sweep.counts.done, total: sweep.totalRuns })
         document.getElementById('sweepStatusBadge').className = 'status-badge status-' + (sweep.status === 'partial_error' ? 'error' : sweep.status)
         document.getElementById('sweepStatusLabel').textContent = t('sweep.status.' + sweep.status)
+        const badge = document.getElementById('sweepStatusBadge')
+        if (sweep.status === 'partial_error') {
+          const msg = `<span>${t('sweep.status.partial_error.hint')}</span>`
+          badge.onmouseenter = e => _showTooltip(e, msg)
+          badge.onmousemove  = e => _showTooltip(e, msg)
+          badge.onmouseleave = () => _hideTooltip()
+        } else {
+          badge.onmouseenter = badge.onmousemove = badge.onmouseleave = null
+          _hideTooltip()
+        }
 
         renderGlobalMetrics(sweep.global)
         renderCategories(sweep.byCategory)
@@ -186,8 +196,29 @@
       }
     }
 
+const _tooltip = (() => {
+      const el = document.createElement('div')
+      el.className = 'error-tooltip'
+      document.body.appendChild(el)
+      return el
+    })()
+
+    function _showTooltip(e, html) {
+      _tooltip.innerHTML = html
+      _tooltip.classList.add('visible')
+      const tx = e.clientX + 14
+      const ty = e.clientY - 10
+      let left = tx
+      if (left + _tooltip.offsetWidth > window.innerWidth - 8) left = e.clientX - _tooltip.offsetWidth - 14
+      if (left < 8) left = 8
+      _tooltip.style.left = left + 'px'
+      _tooltip.style.top = ty + 'px'
+    }
+
+    function _hideTooltip() { _tooltip.classList.remove('visible') }
+
     function fmtPct(v) { return v != null ? `${v >= 0 ? '+' : ''}${v.toFixed(2)}%` : '-' }
-    
+
     function safeDescribeSweepValue(path, value, definition) {
       try {
         if (typeof describeSweepValue !== 'function') throw new Error('sweep-labels.js not loaded')

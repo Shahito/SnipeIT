@@ -18,13 +18,14 @@ async function listStrategies(userId) {
   return prisma.strategy.findMany({
     where: { userId },
     orderBy: { updatedAt: 'desc' },
-    include: {
+    select: {
+      id: true, name: true, description: true,
+      pairs: true, timeframe: true, startDate: true, endDate: true,
       jobs: {
         orderBy: { createdAt: 'desc' },
         take: 1,
         select: {
-          id: true, status: true, createdAt: true, completedAt: true, pnlPercent: true,
-          sweepGroupId: true,
+          id: true, status: true, pnlPercent: true,
           sweepGroup: { select: { id: true, totalRuns: true } },
         },
       },

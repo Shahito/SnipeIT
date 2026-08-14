@@ -465,7 +465,8 @@
       return `<div class="job-row" data-sweep-id="${s.id}">
         <div class="job-row-main">
           <div class="job-row-left">
-            <span class="status-badge status-${s.status === 'partial_error' ? 'error' : s.status}">
+            <span class="status-badge status-${s.status === 'partial_error' ? 'error' : s.status}"
+              ${s.status === 'partial_error' ? `data-partial-error="1"` : ''}>
               <span class="status-dot"></span>${t('sweep.status.' + s.status)}
             </span>
             <div class="job-row-meta">
@@ -556,6 +557,12 @@
           e.stopPropagation()
           openTagPopover(parseInt(btn.dataset.id), btn)
         })
+      })
+      document.querySelectorAll('[data-partial-error]').forEach(badge => {
+        const msg = `<span>${t('sweep.status.partial_error.hint')}</span>`
+        badge.addEventListener('mouseenter', e => _showTooltip(e, msg))
+        badge.addEventListener('mousemove',  e => _showTooltip(e, msg))
+        badge.addEventListener('mouseleave', () => _hideTooltip())
       })
       document.querySelectorAll('.has-error-msg').forEach(badge => {
         badge.addEventListener('mouseenter', e => _showTooltip(e, `<span>${badge.dataset.errorMsg}</span>`))

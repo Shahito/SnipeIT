@@ -254,6 +254,7 @@
   <script src="/js/condition-renderer.js"></script>
   <script src="/js/condition-settings.js"></script>
   <script src="/js/strategy-form.js"></script>
+  <script src="/js/form-validate.js"></script>
   <script>
     const urlParams = new URLSearchParams(location.search)
     window._editId  = urlParams.get('id') ? parseInt(urlParams.get('id')) : null
@@ -277,6 +278,7 @@
         document.getElementById('pageTitle').textContent = t('editor.title.edit')
         await loadStrategy(window._editId)
       } else {
+        // document.getElementById('fName').value = generateStrategyName()
         updatePairsPreview()
         conditions.entry = [[{ indicator: 'RSI', period: INDICATOR_DEFAULT_PERIOD['RSI'], operator: '<', value: 30 }]]
         conditions.exit  = [[{ indicator: 'RSI', period: INDICATOR_DEFAULT_PERIOD['RSI'], operator: '>', value: 70 }]]
