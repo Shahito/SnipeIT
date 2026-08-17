@@ -4,12 +4,11 @@ const { refreshSweepGroupStatus } = require('./sweepService')
 const JOB_TAGS_INCLUDE = { jobTags: { include: { tag: true } } }
 
 const JOB_SELECT = {
-  id: true, status: true, createdAt: true, completedAt: true, errorMessage: true,
-  pnlPercent: true, pnlAbsolute: true, finalCapital: true, initialCapital: true,
-  totalTrades: true, winRate: true, maxDrawdown: true, sharpeRatio: true,
-  durationDays: true, profitFactor: true, pair: true, sweepGroupId: true, paramValues: true,
+  id: true, status: true, createdAt: true, errorMessage: true,
+  pnlPercent: true, totalTrades: true, winRate: true, maxDrawdown: true, sharpeRatio: true,
+  pair: true, sweepGroupId: true,
   sweepGroup: { select: { id: true, totalRuns: true, status: true } },
-  strategy: { select: { id: true, name: true, pairs: true, timeframe: true } },
+  strategy: { select: { id: true, name: true } },
   strategySnapshot: true,
   ...JOB_TAGS_INCLUDE,
 }
@@ -152,6 +151,7 @@ async function claimPendingJobs(apiKeyId, userId) {
         id: fullJob.id,
         strategy: fullJob.strategySnapshot,
       })
+      await refreshSweepGroupStatus(job.sweepGroupId) // notify SSE clients: pending -> running
     }
   }
 

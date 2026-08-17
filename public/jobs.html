@@ -175,12 +175,55 @@
       localStorage.setItem('jobs_prefs', JSON.stringify({ sortBy, sortAsc, groupBy, filterStat }))
     }
 
+const IDLE_POLL_MS   = 5000
+    const ACTIVE_POLL_MS = 5000
+    const BG_POLL_MS     = 30000
+
+    function _hasActiveJobs() {
+      return allJobs.some(j => j.status === 'pending' || j.status === 'running' ||
+        (j.itemType === 'sweep' && j.status === 'running'))
+    }
+
+    function _scheduleNextPoll() {
+      clearTimeout(autoRefreshTimer)
+      if (document.hidden) {
+        autoRefreshTimer = setTimeout(_tick, BG_POLL_MS)
+        return
+      }
+      const delay = _hasActiveJobs() ? ACTIVE_POLL_MS : IDLE_POLL_MS * 4
+      autoRefreshTimer = setTimeout(_tick, delay)
+    }
+
+    async function _tick() {
+      await loadJobs()
+      await pollWorkerStatus()
+      _scheduleNextPoll()
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) { clearTimeout(autoRefreshTimer); _tick() }
+    })
+
+    let _debounceTimer = null
+    function _onLiveUpdate() {
+      clearTimeout(_debounceTimer)
+      _debounceTimer = setTimeout(loadJobs, 200)
+    }
+
+    function _connectEventStream() {
+      const es = new EventSource('/api/events/stream')
+      es.addEventListener('sweep:update', _onLiveUpdate)
+      es.onerror = () => {} // EventSource retry auto
+      return es
+    }
+
     document.addEventListener('header:ready', async () => {
       applyToDOM()
       updateSortIndicators()
       await Promise.all([loadJobs(), loadTags()])
       pollWorkerStatus()
-      autoRefreshTimer = setInterval(async () => { await loadJobs(); pollWorkerStatus() }, 5000)
+      _connectEventStream()
+      autoRefreshTimer = setInterval(pollWorkerStatus, 15000) // no push for the worker, stay in light poll
     })
     initI18n()
     restoreControlsUI()

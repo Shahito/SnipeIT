@@ -3,6 +3,7 @@ const prisma = require('../utils/prisma')
 const { resolveSweep } = require('../utils/sweepEngine')
 const { SWEEP_WARNING_THRESHOLD } = require('../config/sweep')
 const { CATEGORIES, categoryOf } = require('../config/coinCategories')
+const { emitToUser } = require('../utils/eventBus')
 
 function stableStringify(value) {
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
@@ -269,24 +270,33 @@ async function getSweepGroup(id, userId) {
   }
 }
 
-// Appelé après chaque transition de statut d'un BacktestJob rattaché à un sweep.
+// Called after every status transition of a BacktestJob attached to a sweep
 async function refreshSweepGroupStatus(sweepGroupId) {
   if (!sweepGroupId) return
   const jobs = await prisma.backtestJob.findMany({ where: { sweepGroupId }, select: { status: true } })
   const allTerminal = jobs.every(j => j.status === 'done' || j.status === 'error')
+
   if (!allTerminal) {
-    await prisma.sweepGroup.update({ where: { id: sweepGroupId }, data: { status: 'running' } })
+    const g = await prisma.sweepGroup.update({
+      where: { id: sweepGroupId },
+      data: { status: 'running' },
+      select: { id: true, userId: true, status: true },
+    })
+    emitToUser(g.userId, 'sweep:update', { sweepGroupId: g.id, status: g.status })
     return
   }
+
   const anyDone = jobs.some(j => j.status === 'done')
   const allDone = jobs.every(j => j.status === 'done')
-  await prisma.sweepGroup.update({
+  const g = await prisma.sweepGroup.update({
     where: { id: sweepGroupId },
     data: {
       status: allDone ? 'done' : (anyDone ? 'partial_error' : 'error'),
       completedAt: new Date(),
     },
+    select: { id: true, userId: true, status: true },
   })
+  emitToUser(g.userId, 'sweep:update', { sweepGroupId: g.id, status: g.status })
 }
 
 module.exports = { previewSweep, launchSweep, listSweeps, getSweepGroup, refreshSweepGroupStatus }

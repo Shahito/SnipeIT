@@ -133,7 +133,7 @@
   <script>
     const urlParams  = new URLSearchParams(location.search)
     const sweepId    = urlParams.get('id') ? parseInt(urlParams.get('id')) : null
-    let pollInterval = null
+    let _sweepEventSource = null
     let currentSweep = null
     let allTags      = []
     let popoverJobId = null
@@ -167,8 +167,14 @@
         document.getElementById('sweepContent').classList.remove('hidden')
 
         const isTerminal = sweep.status === 'done' || sweep.status === 'partial_error' || sweep.status === 'error'
-        if (!isTerminal && !pollInterval) pollInterval = setInterval(loadSweep, 4000)
-        if (isTerminal && pollInterval) { clearInterval(pollInterval); pollInterval = null }
+        if (isTerminal && _sweepEventSource) { _sweepEventSource.close(); _sweepEventSource = null }
+        if (!isTerminal && !_sweepEventSource) {
+          _sweepEventSource = new EventSource('/api/events/stream')
+          _sweepEventSource.addEventListener('sweep:update', e => {
+            const data = JSON.parse(e.data)
+            if (data.sweepGroupId === sweepId) loadSweep()
+          })
+        }
 
         document.getElementById('sweepTitle').textContent = `${t('sweep.title')} - ${sweep.strategy.name}`
         document.getElementById('sweepMeta').textContent  = t('sweep.progress', { done: sweep.counts.done, total: sweep.totalRuns })

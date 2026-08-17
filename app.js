@@ -15,6 +15,7 @@ const apikeyRoutes     = require('./src/routes/apikey')
 const workerRoutes     = require('./src/routes/worker')
 const tagRoutes        = require('./src/routes/tag')
 const sweepRoutes      = require('./src/routes/sweep')
+const eventsRoutes     = require('./src/routes/events')
 const coinRoutes       = require('./src/routes/coin')
 
 const swaggerUi = require('swagger-ui-express');
@@ -62,11 +63,12 @@ app.use('/api/auth',           authRoutes)
 app.use('/api/user',           userRoutes)
 app.use('/api/strategies',     strategyRoutes)
 app.use('/api/jobs',           jobRoutes)
+app.use('/api/events',         eventsRoutes)
 app.use('/api/apikeys',        apikeyRoutes)
 app.use('/api/worker',         workerRoutes)
 app.use('/api/tags',           tagRoutes)
 app.use('/api/coins',          coinRoutes)
-app.use('/api',                sweepRoutes) // expose /api/strategies/:id/sweep* et /api/sweeps*
+app.use('/api',                sweepRoutes) // expose /api/strategies/:id/sweep* and /api/sweeps*
 
 if (!isProd) {
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
