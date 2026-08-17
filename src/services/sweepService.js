@@ -6,6 +6,7 @@ const { CATEGORIES, categoryOf } = require('../config/coinCategories')
 const { emitToUser } = require('../utils/eventBus')
 
 function stableStringify(value) {
+  if (value instanceof Date) return JSON.stringify(value.toISOString())
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
   if (value !== null && typeof value === 'object') {
     return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${stableStringify(value[k])}`).join(',')}}`
