@@ -634,9 +634,11 @@
         const ind = (prefix ? cond[`${prefix}Indicator`] : cond.indicator) || '?'
         const period = prefix ? cond[`${prefix}IndicatorPeriod`] : cond.period
         const source = prefix ? cond[`${prefix}IndicatorSource`] : cond.source
+        const timeframe = prefix ? cond[`${prefix}IndicatorTimeframe`] : cond.timeframe
         let label = ind
         if (period != null && typeof period !== 'object') label += `(${period})`
         if (source != null && typeof source !== 'object') label += `[${source}]`
+        if (timeframe != null && typeof timeframe !== 'object') label += `[${timeframe}]`
         return label
     }
 

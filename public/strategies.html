@@ -122,13 +122,13 @@
         ? `<span class="status-badge status-${lastJob.status}"><span class="status-dot"></span>${t('status.' + lastJob.status)}</span>`
         : `<span class="status-badge status-none"><span class="status-dot"></span>${t('strategies.never_launched')}</span>`
 
-      const pnl = lastJob?.status === 'done' && lastJob.pnlPercent != null
-        ? `<span class="tag ${lastJob.pnlPercent >= 0 ? 'tag-success' : 'tag-danger'}">${lastJob.pnlPercent >= 0 ? '+' : ''}${lastJob.pnlPercent.toFixed(2)}%</span>`
-        : ''
-
       const isSweep = lastJob?.sweepGroup?.totalRuns > 1
       const sweepTag = isSweep
-        ? `<span class="tag tag-primary">${ICONS.shuffle} ${t('strategies.sweep_tag', { n: lastJob.sweepGroup.totalRuns })}</span>`
+        ? `<span class="status-badge status-none">${ICONS.shuffle} ${t('strategies.sweep_tag', { n: lastJob.sweepGroup.totalRuns })}</span>`
+        : ''
+
+      const pnl = lastJob?.status === 'done' && lastJob.pnlPercent != null
+        ? `<span class="tag ${lastJob.pnlPercent >= 0 ? 'tag-success' : 'tag-danger'}">${lastJob.pnlPercent >= 0 ? '+' : ''}${lastJob.pnlPercent.toFixed(2)}%</span>`
         : ''
 
       const pairsLabel = s.pairs.length > 1
@@ -143,7 +143,10 @@
           <div class="strategy-card-header">
             <div class="strategy-card-sup">
               <button class="btn btn-danger btn-sm delete-btn" data-id="${s.id}">${ICONS.cross}</button>
-              ${statusHtml}
+              <span class="status-group">
+                ${statusHtml}
+                ${sweepTag}
+              </span>
             </div>
             <div class="strategy-card-title">${escHtml(s.name)}</div>
           </div>
@@ -155,7 +158,6 @@
             <span class="tag tag-primary">${pairsLabel}</span>
             <span class="tag">${timeframeLabel}</span>
             <span class="tag">${fmtDate(s.startDate)} - ${fmtDate(s.endDate)}</span>
-            ${sweepTag}
             ${pnl}
           </div>
           <div class="strategy-card-actions">

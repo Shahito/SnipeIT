@@ -851,6 +851,14 @@ input[type=time]::-webkit-calendar-picker-indicator {
     cursor: default!important;
 }
 
+.status-group {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 0.4rem;
+}
+
 .status-badge {
     display: inline-flex;
     align-items: center;

@@ -81,7 +81,7 @@ async function launchSweep(strategyId, userId, { confirmLarge = false } = {}) {
   if (active) throw new Error('JOB_ALREADY_RUNNING')
 
   const definition = buildDefinition(strategy)
-  const { totalRuns, combinations } = resolveSweep(definition) // throws SWEEP_TOO_LARGE si > max
+  const { totalRuns, combinations } = resolveSweep(definition) // throws SWEEP_TOO_LARGE if > max
 
   if (totalRuns > SWEEP_WARNING_THRESHOLD && !confirmLarge) {
     const err = new Error('SWEEP_CONFIRMATION_REQUIRED')
