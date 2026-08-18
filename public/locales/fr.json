@@ -426,7 +426,7 @@
   "editor.sweep_confirm.ok": "Lancer quand même",
   "strategies.pairs_count": "{n} paires",
   "strategies.sweep_values": "{n} valeurs",
-  "strategies.sweep_tag": "Sweep · {n} runs",
+  "strategies.sweep_tag": "{n} runs",
   "strategies.btn.sweep_results": "Résultats du sweep",
   "jobs.group.sweep": "Sweep",
   "jobs.sweep.runs_count": "{n} runs",

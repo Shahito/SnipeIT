@@ -73,6 +73,7 @@
   </div>
 
   <div class="toast-container" id="toastContainer"></div>
+  <script src="/js/utils.js"></script>
   <script src="/js/api.js"></script>
   <script src="/js/toast.js"></script>
   <script src="/js/header.js"></script>
@@ -124,7 +125,7 @@
 
       const isSweep = lastJob?.sweepGroup?.totalRuns > 1
       const sweepTag = isSweep
-        ? `<span class="status-badge status-none">${ICONS.shuffle} ${t('strategies.sweep_tag', { n: lastJob.sweepGroup.totalRuns })}</span>`
+        ? `<span class="status-badge status-sweep">${ICONS.shuffle} ${t('strategies.sweep_tag', { n: lastJob.sweepGroup.totalRuns })}</span>`
         : ''
 
       const pnl = lastJob?.status === 'done' && lastJob.pnlPercent != null
@@ -322,7 +323,6 @@
     document.getElementById('sweepConfirmClose').addEventListener('click', () => document.getElementById('sweepConfirmCancel').click())
 
     function fmtDate(d) { return new Date(d).toLocaleDateString(i18nCurrentLang() === 'fr' ? 'fr-FR' : 'en-GB', { day:'2-digit', month:'2-digit', year:'2-digit' }) }
-    function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML }
   </script>
 </body>
 </html>

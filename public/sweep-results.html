@@ -123,6 +123,7 @@
   </div>
 
   <div class="toast-container" id="toastContainer"></div>
+  <script src="/js/utils.js"></script>
   <script src="/js/api.js"></script>
   <script src="/js/toast.js"></script>
   <script src="/js/header.js"></script>
@@ -407,8 +408,6 @@ const _tooltip = (() => {
         closeTagPopover()
       }
     })
-
-    function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML }
   </script>
 </body>
 </html>

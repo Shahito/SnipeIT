@@ -201,12 +201,6 @@
       getBuckets: r => r.pnlBuckets,
     })
 
-    // Trades heatmap
-    const tradesHeatmap = new TradesHeatmap('tradesHeatmapCanvas', {
-      getBucket:    r => r.dailyTradeCounts,
-      getTimeframe: snap => snap.timeframe,  // '1d', '1h', '15m', etc.
-    })
-
     const monthlyChart = new MonthlyPerfChart('monthlyPerfCanvas', {
       getData: r => r.monthlyPerf,
       showDelta: true,
@@ -305,7 +299,6 @@
         exitReasonsChart.render(r)
         pnlDistributionChart.render(r)
         monthlyChart.render(r)
-        // tradesHeatmap.render(r, snap)
         renderTrades(r, r.trades || [], r.totalTrades || 0)
         
         // Export overlay

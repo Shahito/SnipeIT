@@ -13,7 +13,7 @@ const JOB_SELECT = {
   ...JOB_TAGS_INCLUDE,
 }
 
-const VALID_SORTS  = ['createdAt', 'pnlPercent', 'pnlAbsolute', 'winRate', 'maxDrawdown', 'sharpeRatio', 'profitFactor', 'totalTrades']
+const VALID_SORTS  = ['createdAt', 'pnlPercent', 'winRate', 'maxDrawdown', 'sharpeRatio', 'totalTrades']
 const VALID_STATUS = ['pending', 'running', 'done', 'error']
 
 function sortValue(item, sortField) {

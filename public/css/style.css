@@ -72,6 +72,11 @@
     --primary-hover: #5E7AB8;
     --primary-dim: rgba(94, 122, 184, 0.24);
     --primary-dim-strong: rgba(94, 122, 184, 0.55);
+    
+    --secondary: #A98BDB;
+    --secondary-hover: #8F70C3;
+    --secondary-dim: rgba(143, 112, 195, 0.24);
+    --secondary-dim-strong: rgba(143, 112, 195, 0.55);
 
     --success: #3ecf8e;
     --success-dim: rgba(62, 207, 142, .15);
@@ -733,11 +738,12 @@ input[type=time]::-webkit-calendar-picker-indicator {
     display: flex;
     flex-direction: row-reverse;
     justify-content: space-between;
+    align-items: center;
 }
 
 .strategy-card-sup .btn {
-    width: auto;
-    height: auto;
+    width: 1.55rem;
+    height: 1.55rem;
 }
 
 .strategy-card-title {
@@ -855,7 +861,6 @@ input[type=time]::-webkit-calendar-picker-indicator {
     display: flex;
     flex-direction: row;
     justify-content: center;
-    align-items: center;
     gap: 0.4rem;
 }
 
@@ -869,6 +874,7 @@ input[type=time]::-webkit-calendar-picker-indicator {
     font-size: .75rem;
     font-weight: 600;
     height: 1.55rem;
+    width: fit-content;
     white-space: nowrap;
 }
 
@@ -877,7 +883,7 @@ input[type=time]::-webkit-calendar-picker-indicator {
     color: var(--warning);
 }
 
-.status-running {
+.status-running, .status-sweep {
     background: var(--primary-dim);
     color: var(--primary);
 }
@@ -4228,5 +4234,9 @@ input[type="color"] {
         border-radius: var(--radius-lg) var(--radius-lg) 0 0;
         max-height: 90vh;
         min-height: 70vh;
+    }
+
+    .status-group {
+        flex-direction: column;
     }
 }

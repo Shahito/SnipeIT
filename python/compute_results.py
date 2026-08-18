@@ -40,17 +40,6 @@ CURVE_THRESHOLD = 300
 
 REASON_LABELS = {"risk": "risk", "tsl": "tsl", "signal": "signal", "end": "end"}
 
-
-# Daily trade counts (heatmap) 
-def _daily_trade_counts(sell_trades: list) -> dict:
-    """Record<YYYY-MM-DD, int> - one entry per calendar day with at least one closed trade."""
-    return dict(Counter(
-        pd.Timestamp(t["date"]).strftime("%Y-%m-%d")
-        # pd.Timestamp(t["date"]).isoformat()
-        for t in sell_trades
-    ))
-
-
 # Pnl buckets (histogram) 
 def _pnl_buckets(sell_trades: list, bucket_count: int = 30) -> list:
     """
@@ -162,27 +151,6 @@ def _pnl_curve_ds(equity_dates: list, sell_trades: list) -> list:
     ys  = np.array([p["pnl"] for p in pts], dtype=np.float64)
     idx = _lttb_idx(xs, ys, CURVE_THRESHOLD)
     return [{"x": pts[i]["x"], "p": pts[i]["pnl"]} for i in idx]
-
-def _equity_trade_markers(equity_dates: list, equity_raw: np.ndarray, trades: list) -> list:
-    if not equity_dates or not trades:
-        return []
-
-    ec_ts = np.array([pd.Timestamp(d).timestamp() for d in equity_dates], dtype=np.float64)
-
-    markers = []
-    for trade in trades:
-        field = "date"  # buy et sell ont tous les deux "date"
-        t     = pd.Timestamp(trade[field]).timestamp()
-        if t < ec_ts[0] or t > ec_ts[-1]:
-            continue
-        idx = int(np.clip(np.searchsorted(ec_ts, t, side="right") - 1, 0, len(equity_raw) - 1))
-        markers.append({
-            "t": int(t),
-            "e": round(float(equity_raw[idx]), 2),
-            "s": 0 if trade["side"] == "buy" else 1,
-        })
-
-    return markers
 
 # Monthly perf (strat vs asset)
 def _monthly_perf(sell_trades: list, ts_arr, close_arr: np.ndarray) -> list:
@@ -390,12 +358,10 @@ def build_result(
         **metrics,
         "exposurePct":       _exposure_pct(trades, equity_dates),
         "exitReasons":       _exit_reasons(sell_trades),
-        # "dailyTradeCounts":  _daily_trade_counts(sell_trades),
         "monthlyPerf":       _monthly_perf(sell_trades, ts_arr, close_arr),
         "pnlBuckets":        _pnl_buckets(sell_trades),
         "equityCurve":       _equity_curve_ds(equity_dates, equity_raw),
         "priceCurve":        _price_curve_ds(ts_arr, close_arr),
-        # "equityMarkers": _equity_trade_markers(equity_dates, equity_raw, trades),
         # uncomment if needed:
         # "drawdownCurve":     _drawdown_curve_ds(equity_raw),
         # "pnlCurve":          _pnl_curve_ds(equity_dates, sell_trades),
