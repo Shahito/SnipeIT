@@ -1,3 +1,4 @@
+const { Prisma } = require('@prisma/client')
 const prisma = require('../utils/prisma')
 const { refreshSweepGroupStatus } = require('./sweepService')
 
@@ -16,9 +17,17 @@ const JOB_SELECT = {
 const VALID_SORTS  = ['createdAt', 'pnlPercent', 'winRate', 'maxDrawdown', 'sharpeRatio', 'totalTrades']
 const VALID_STATUS = ['pending', 'running', 'done', 'error']
 
-function sortValue(item, sortField) {
-  if (sortField === 'createdAt') return new Date(item.createdAt).getTime()
-  return item[sortField] ?? -Infinity
+// sortField (whitelisted contre VALID_SORTS avant usage) -> fragment SQL.
+// 'job'   : colonne directe sur BacktestJob
+// 'sweep' : moyenne sur les jobs 'done' du groupe (même sémantique que sweepAverages()),
+//           sauf createdAt qui reste la date de création du groupe.
+const SORT_SQL = {
+  createdAt:   { job: 'bj.createdAt',   sweep: 'sg.createdAt' },
+  pnlPercent:  { job: 'bj.pnlPercent',  sweep: "AVG(CASE WHEN bj.status = 'done' THEN bj.pnlPercent END)" },
+  winRate:     { job: 'bj.winRate',     sweep: "AVG(CASE WHEN bj.status = 'done' THEN bj.winRate END)" },
+  maxDrawdown: { job: 'bj.maxDrawdown', sweep: "AVG(CASE WHEN bj.status = 'done' THEN bj.maxDrawdown END)" },
+  sharpeRatio: { job: 'bj.sharpeRatio', sweep: "AVG(CASE WHEN bj.status = 'done' THEN bj.sharpeRatio END)" },
+  totalTrades: { job: 'bj.totalTrades', sweep: "AVG(CASE WHEN bj.status = 'done' THEN bj.totalTrades END)" },
 }
 
 function sweepAverages(jobs) {
@@ -52,38 +61,67 @@ async function listJobs(userId, { page = 1, limit = 20, sort = 'createdAt', orde
     ])
     return { jobs, total, page: Math.max(parseInt(page) || 1, 1), totalPages: Math.ceil(total / take) }
   }
+const orderSql   = sortOrder === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`
+  const jobSortCol   = Prisma.raw(SORT_SQL[sortField].job)
+  const sweepSortExpr = Prisma.raw(SORT_SQL[sortField].sweep)
 
-  const sweepGroups = await prisma.sweepGroup.findMany({
-    where: { userId, totalRuns: { gt: 1 } },
-    include: {
-      strategy: { select: { id: true, name: true } },
-      jobs: { select: { status: true, pnlPercent: true, sharpeRatio: true, winRate: true, maxDrawdown: true, totalTrades: true } },
-    },
-  })
-  const sweepItems = sweepGroups
-    .filter(g => !statusFilter || g.jobs.some(j => j.status === statusFilter) || g.status === statusFilter)
-    .map(g => ({
-      itemType: 'sweep', id: g.id, strategy: g.strategy, status: g.status,
-      totalRuns: g.totalRuns, createdAt: g.createdAt, ...sweepAverages(g.jobs),
-    }))
+  const sweepStatusCond = statusFilter
+    ? Prisma.sql`AND (sg.status = ${statusFilter} OR EXISTS (
+        SELECT 1 FROM BacktestJob bj2 WHERE bj2.sweepGroupId = sg.id AND bj2.status = ${statusFilter}
+      ))`
+    : Prisma.empty
+  const jobStatusCond = statusFilter ? Prisma.sql`AND bj.status = ${statusFilter}` : Prisma.empty
 
-  const standaloneJobs = await prisma.backtestJob.findMany({
-    where: {
-      strategy: { userId },
-      sweepGroup: { totalRuns: 1 },
-      ...(statusFilter ? { status: statusFilter } : {}),
-    },
-    select: JOB_SELECT,
-  })
-  const jobItems = standaloneJobs.map(j => ({ itemType: 'job', ...j }))
+  const unionSql = Prisma.sql`
+    SELECT 'sweep' AS itemType, sg.id AS id, ${sweepSortExpr} AS sortVal
+    FROM SweepGroup sg
+    LEFT JOIN BacktestJob bj ON bj.sweepGroupId = sg.id
+    WHERE sg.userId = ${userId} AND sg.totalRuns > 1
+    ${sweepStatusCond}
+    GROUP BY sg.id
 
-  const merged = [...sweepItems, ...jobItems]
-    .sort((a, b) => sortOrder === 'asc'
-      ? sortValue(a, sortField) - sortValue(b, sortField)
-      : sortValue(b, sortField) - sortValue(a, sortField))
+    UNION ALL
 
-  const total = merged.length
-  const jobs  = merged.slice(skip, skip + take)
+    SELECT 'job' AS itemType, bj.id AS id, ${jobSortCol} AS sortVal
+    FROM BacktestJob bj
+    JOIN SweepGroup sg2 ON sg2.id = bj.sweepGroupId
+    WHERE sg2.userId = ${userId} AND sg2.totalRuns = 1
+    ${jobStatusCond}
+  `
+
+  const [countRow, pageRows] = await Promise.all([
+    prisma.$queryRaw`SELECT COUNT(*) AS total FROM (${unionSql}) c`,
+    prisma.$queryRaw`${unionSql} ORDER BY sortVal ${orderSql} LIMIT ${take} OFFSET ${skip}`,
+  ])
+
+  const total = Number(countRow[0]?.total ?? 0)
+  const sweepIds = pageRows.filter(r => r.itemType === 'sweep').map(r => r.id)
+  const jobIds   = pageRows.filter(r => r.itemType === 'job').map(r => r.id)
+
+  // Hydratation : uniquement pour les éléments de la page courante (bornés par `take`),
+  // pas pour l'historique complet comme avant.
+  const [sweepGroups, standaloneJobs] = await Promise.all([
+    sweepIds.length ? prisma.sweepGroup.findMany({
+      where: { id: { in: sweepIds } },
+      include: {
+        strategy: { select: { id: true, name: true } },
+        jobs: { select: { status: true, pnlPercent: true, sharpeRatio: true, winRate: true, maxDrawdown: true, totalTrades: true } },
+      },
+    }) : [],
+    jobIds.length ? prisma.backtestJob.findMany({ where: { id: { in: jobIds } }, select: JOB_SELECT }) : [],
+  ])
+
+  const sweepById = new Map(sweepGroups.map(g => [g.id, {
+    itemType: 'sweep', id: g.id, strategy: g.strategy, status: g.status,
+    totalRuns: g.totalRuns, createdAt: g.createdAt, ...sweepAverages(g.jobs),
+  }]))
+  const jobById = new Map(standaloneJobs.map(j => [j.id, { itemType: 'job', ...j }]))
+
+  // On respecte l'ordre déterminé par la requête SQL (celui-ci porte le vrai tri).
+  const jobs = pageRows
+    .map(r => (r.itemType === 'sweep' ? sweepById.get(r.id) : jobById.get(r.id)))
+    .filter(Boolean)
+
   return { jobs, total, page: Math.max(parseInt(page) || 1, 1), totalPages: Math.ceil(total / take) }
 }
 
