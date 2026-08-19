@@ -84,6 +84,7 @@
         <div class="card" id="monthlyPerfCard">
           <div class="card-header">
             <div class="card-title" data-i18n="results.monthly_perf.title"></div>
+            <button class="btn btn-surface btn-sm" id="mpfToggleTrades" data-i18n="results.monthly_perf.toggle_trades"></button>
           </div>
           <canvas id="monthlyPerfCanvas"></canvas>
           <div id="monthlyPerfCanvasNav" class="chart-nav" style="display:none">
@@ -449,6 +450,11 @@
       }).join('')
     }
 
+    document.getElementById('mpfToggleTrades').addEventListener('click', (e) => {
+      monthlyChart.toggleTrades()
+      e.currentTarget.classList.toggle('active', monthlyChart._showTrades)
+    })
+    
     // Clone & run
     document.getElementById('cloneAndRunBtn').addEventListener('click', async () => {
       if (!strategyId) return

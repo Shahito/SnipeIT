@@ -460,6 +460,7 @@
   "sweep.sensitivity_empty": "Aucun paramètre sweepé sur ce lancement",
   "sweep.best_title": "Meilleures combinaisons",
   "sweep.worst_title": "Pires combinaisons",
+  "sweep.all_title": "Tous les runs",
   "sweep.table.pair": "Paire",
   "sweep.table.params": "Paramètres",
   "sweep.table.pnl": "PnL",

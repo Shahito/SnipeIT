@@ -1,5 +1,5 @@
 """
-ohlcv_cache.py — Disk cache for OHLCV data
+ohlcv_cache.py - Disk cache for OHLCV data
 
 Stores downloaded candles in ./cache/<exchange>/<pair>/<timeframe>/<year>.parquet
 Hierarchical structure to allow partial updates.
@@ -22,6 +22,18 @@ log = logging.getLogger("snipeit.cache")
 
 CACHE_DIR = Path(os.getenv("OHLCV_CACHE_DIR", "./cache"))
 SENTINEL = "fetch_start.txt"
+
+# Kept in sync with backtest.py's _TF_MINUTES. Duplicated on purpose: this module
+# is a standalone low-level cache layer and shouldn't import the heavier backtest
+# module just for a one-line lookup.
+_TF_MINUTES = {
+    "1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30,
+    "1h": 60, "2h": 120, "4h": 240, "6h": 360, "8h": 480, "12h": 720,
+    "1d": 1440, "3d": 4320, "1w": 10080,
+}
+
+def _timeframe_to_minutes(tf: str) -> int:
+    return _TF_MINUTES.get(tf, 60)  # default to 1h if unknown
 
 def _save_fetch_start(cache_dir: Path, start: datetime) -> None:
     (cache_dir / SENTINEL).write_text(start.isoformat())
@@ -77,12 +89,25 @@ def _save_to_disk(cache_dir: Path, df: pd.DataFrame) -> None:
     log.debug(f"Cache saved: {cache_dir} ({len(df)} candles)")
 
 
+def _find_gaps(df: pd.DataFrame, step: pd.Timedelta) -> list[tuple[datetime, datetime]]:
+    """
+    Scans a sorted, deduplicated OHLCV frame for missing candles.
+    Returns a list of (gap_start, gap_end) windows to re-fetch from the exchange.
+    A 1.5x tolerance absorbs normal jitter without masking real holes
+    (a single missing candle already triggers a re-fetch).
+    """
+    ts     = df["timestamp"].reset_index(drop=True)
+    diffs  = ts.diff()
+    holes  = diffs[diffs > step * 1.5].index
+    return [(ts[i - 1].to_pydatetime(), ts[i].to_pydatetime()) for i in holes]
+
+
 def _fetch_from_exchange(exchange_id: str, pair: str, timeframe: str,
                           start: datetime, end: datetime) -> pd.DataFrame:
     try:
         import ccxt
     except ImportError:
-        raise RuntimeError("ccxt not installed — pip install ccxt")
+        raise RuntimeError("ccxt not installed - pip install ccxt")
 
     exchange_cls = getattr(ccxt, exchange_id, None)
     if not exchange_cls:
@@ -97,7 +122,9 @@ def _fetch_from_exchange(exchange_id: str, pair: str, timeframe: str,
     while since_ms < until_ms:
         batch = exchange.fetch_ohlcv(pair, timeframe, since=since_ms, limit=1000)
         if not batch:
-            break
+            since_ms += step_ms * 1000
+            time.sleep(exchange.rateLimit / 1000)
+            continue
         # Filter out future candles
         batch = [b for b in batch if b[0] <= until_ms]
         all_ohlcv.extend(batch)
@@ -121,15 +148,19 @@ def get_ohlcv(pair: str, timeframe: str, start_date: str, end_date: str,
     """
     Main entry point.
     Returns a complete OHLCV DataFrame for the requested range.
-    Only downloads missing data.
+    Only downloads missing data, including any internal gap (not just at the
+    start/end of the cached range).
     """
     start = datetime.fromisoformat(start_date[:10])
     end   = datetime.fromisoformat(end_date[:10])
     cache_dir = _cache_path(exchange, pair, timeframe)
+    step      = pd.Timedelta(minutes=_timeframe_to_minutes(timeframe))
 
     cached = _load_from_disk(cache_dir, start, end)
 
     if cached is not None:
+        cached = cached.sort_values("timestamp").reset_index(drop=True)
+
         # Check if the range is complete
         cached_start = cached["timestamp"].min()
         cached_end   = cached["timestamp"].max()
@@ -141,7 +172,14 @@ def get_ohlcv(pair: str, timeframe: str, start_date: str, end_date: str,
         # Do not re-download the end if end_date >= today (data still in progress)
         today = pd.Timestamp(datetime.now(timezone.utc).date())
         need_after  = cached_end < end_ts and end_ts < today
-        if not need_before and not need_after:
+
+        # Internal gaps: missing candles anywhere between cached_start and cached_end.
+        # need_before/need_after only ever look at the two extremities, so a hole in
+        # the middle (partial fetch failure, a year file deleted, etc.) would
+        # otherwise go undetected forever.
+        gaps = _find_gaps(cached, step)
+
+        if not need_before and not need_after and not gaps:
             log_cache_hit(pair, timeframe, start_date[:10], end_date[:10], len(cached))
             return cached.reset_index(drop=True)
 
@@ -151,6 +189,15 @@ def get_ohlcv(pair: str, timeframe: str, start_date: str, end_date: str,
         if need_before:
             prefix = _fetch_from_exchange(exchange, pair, timeframe, start, cached_start.to_pydatetime())
             frames.insert(0, prefix)
+        for gap_start, gap_end in gaps:
+            patch = _fetch_from_exchange(exchange, pair, timeframe, gap_start, gap_end)
+            if patch.empty:
+                log.warning(
+                    f"Gap {gap_start} -> {gap_end} on {pair}/{timeframe} still empty after "
+                    f"re-fetch - likely a real exchange gap (delisting/outage), not a cache bug."
+                )
+            else:
+                frames.append(patch)
         if need_after:
             suffix = _fetch_from_exchange(exchange, pair, timeframe, cached_end.to_pydatetime(), end)
             frames.append(suffix)

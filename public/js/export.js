@@ -42,8 +42,7 @@
 
     function _isSweepData(d) {
         return !!d
-            && Array.isArray(d.best)
-            && Array.isArray(d.worst)
+            && ((Array.isArray(d.best) && Array.isArray(d.worst)) || Array.isArray(d.all))
             && d.global && typeof d.global === 'object' && !Array.isArray(d.global)
     }
 
@@ -424,12 +423,19 @@
             }))
         }
 
-        if (_opts.includeBest && r.best) {
-            out.best = r.best.map(j => _sweepJobSummary(j, r.definition))
-        }
+        if (r.all) {
+            // Small sweep
+            if (_opts.includeBest || _opts.includeWorst) {
+                out.all = r.all.map(j => _sweepJobSummary(j, r.definition))
+            }
+        } else {
+            if (_opts.includeBest && r.best) {
+                out.best = r.best.map(j => _sweepJobSummary(j, r.definition))
+            }
 
-        if (_opts.includeWorst && r.worst) {
-            out.worst = r.worst.map(j => _sweepJobSummary(j, r.definition))
+            if (_opts.includeWorst && r.worst) {
+                out.worst = r.worst.map(j => _sweepJobSummary(j, r.definition))
+            }
         }
 
         return JSON.stringify(_roundDeep(out), null, 2)
@@ -502,8 +508,12 @@
             })
             lines.push('')
         }
-        if (_opts.includeBest)  comboTable(t('sweep.best_title'), r.best)
-        if (_opts.includeWorst) comboTable(t('sweep.worst_title'), r.worst)
+        if (r.all) {
+            if (_opts.includeBest || _opts.includeWorst) comboTable(t('sweep.all_title'), r.all)
+        } else {
+            if (_opts.includeBest)  comboTable(t('sweep.best_title'), r.best)
+            if (_opts.includeWorst) comboTable(t('sweep.worst_title'), r.worst)
+        }
 
         return lines.join('\n')
     }

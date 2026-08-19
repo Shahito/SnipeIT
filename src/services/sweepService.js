@@ -1,7 +1,7 @@
 const crypto = require('crypto')
 const prisma = require('../utils/prisma')
 const { resolveSweep } = require('../utils/sweepEngine')
-const { SWEEP_WARNING_THRESHOLD } = require('../config/sweep')
+const { SWEEP_WARNING_THRESHOLD, SWEEP_ALL_RUNS_THRESHOLD } = require('../config/sweep')
 const { CATEGORIES, categoryOf } = require('../config/coinCategories')
 const { emitToUser } = require('../utils/eventBus')
 
@@ -198,7 +198,23 @@ async function getSweepGroup(id, userId) {
   const group = await prisma.sweepGroup.findFirst({
     where: { id, userId },
     include: {
-      jobs: { include: { jobTags: { include: { tag: true } } } },
+      jobs: {
+        select: {
+          id: true,
+          status: true,
+          pair: true,
+          paramValues: true,
+          pnlPercent: true,
+          pnlAbsolute: true,
+          initialCapital: true,
+          finalCapital: true,
+          totalTrades: true,
+          winRate: true,
+          maxDrawdown: true,
+          sharpeRatio: true,
+          jobTags: { include: { tag: true } },
+        },
+      },
       strategy: { select: { id: true, name: true } },
     },
   })
@@ -249,6 +265,7 @@ async function getSweepGroup(id, userId) {
   })
 
   const byPnl = (a, b) => (b.pnlPercent ?? -Infinity) - (a.pnlPercent ?? -Infinity)
+  const smallSweep = done.length <= SWEEP_ALL_RUNS_THRESHOLD
 
   return {
     id: group.id,
@@ -267,8 +284,9 @@ async function getSweepGroup(id, userId) {
     global: statsFor(done),
     byCategory,
     sensitivity,
-    best:  [...done].sort(byPnl).slice(0, 10),
-    worst: [...done].sort(byPnl).slice(-10).reverse(),
+    ...(smallSweep
+      ? { all: [...done].sort(byPnl) }
+      : { best: [...done].sort(byPnl).slice(0, 10), worst: [...done].sort(byPnl).slice(-10).reverse() }),
   }
 }
 

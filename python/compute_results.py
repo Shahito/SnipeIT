@@ -175,10 +175,12 @@ def _monthly_perf(sell_trades: list, ts_arr, close_arr: np.ndarray) -> list:
     periods     = pd.period_range(first_month, last_month, freq='M')
 
     # Aggregate strat pnl per month
-    strat_by_month: dict[str, float] = {}
+    strat_by_month:  dict[str, float] = {}
+    trades_by_month: dict[str, int]   = {}
     for t in sell_trades:
         key = pd.Timestamp(t["date"]).strftime('%Y-%m')
-        strat_by_month[key] = round(strat_by_month.get(key, 0.0) + (t.get("pnl") or 0.0), 2)
+        strat_by_month[key]  = round(strat_by_month.get(key, 0.0) + (t.get("pnl") or 0.0), 2)
+        trades_by_month[key] = trades_by_month.get(key, 0) + 1
 
     result = []
     for period in periods:
@@ -199,6 +201,7 @@ def _monthly_perf(sell_trades: list, ts_arr, close_arr: np.ndarray) -> list:
             "month": key,
             "strat": strat_by_month.get(key, 0.0),
             "asset": asset_pct,
+            "trades": trades_by_month.get(key, 0),
         })
 
     return result

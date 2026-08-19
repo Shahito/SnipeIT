@@ -70,10 +70,10 @@
           <div id="sensitivityContainer"></div>
         </div>
 
-        <!-- Meilleures / pires combinaisons -->
+        <!-- Best / worst combinaisons -->
         <div class="card">
           <div class="card-header">
-            <div class="card-title" data-i18n="sweep.best_title"></div>
+            <div class="card-title" id="bestCardTitle" data-i18n="sweep.best_title"></div>
           </div>
           <div class="table-wrap">
             <table>
@@ -91,7 +91,7 @@
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" id="worstCard">
           <div class="card-header">
             <div class="card-title" data-i18n="sweep.worst_title"></div>
           </div>
@@ -195,8 +195,22 @@
         renderGlobalMetrics(sweep.global)
         renderCategories(sweep.byCategory)
         renderSensitivity(sweep.sensitivity)
-        renderCombosTable('bestTableBody', sweep.best)
-        renderCombosTable('worstTableBody', sweep.worst)
+
+        const worstCard = document.getElementById('worstCard')
+        const bestCardTitle = document.getElementById('bestCardTitle')
+        if (sweep.all) {
+          // Petit sweep : une seule liste "tous les runs" plutôt que best/worst qui se recoupent.
+          worstCard.classList.add('hidden')
+          bestCardTitle.removeAttribute('data-i18n')
+          bestCardTitle.textContent = t('sweep.all_title')
+          renderCombosTable('bestTableBody', sweep.all)
+        } else {
+          worstCard.classList.remove('hidden')
+          bestCardTitle.setAttribute('data-i18n', 'sweep.best_title')
+          bestCardTitle.textContent = t('sweep.best_title')
+          renderCombosTable('bestTableBody', sweep.best)
+          renderCombosTable('worstTableBody', sweep.worst)
+        }
       } catch (e) {
         document.getElementById('loadingState').classList.add('hidden')
         document.getElementById('errorState').classList.remove('hidden')
@@ -358,7 +372,7 @@ const _tooltip = (() => {
     }
 
     function findJobById(id) {
-      return [...(currentSweep?.best || []), ...(currentSweep?.worst || [])].find(j => j.id === id)
+      return [...(currentSweep?.all || []), ...(currentSweep?.best || []), ...(currentSweep?.worst || [])].find(j => j.id === id)
     }
 
     const assignPopover = tagManager.mountAssignPopover({

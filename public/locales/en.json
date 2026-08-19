@@ -459,6 +459,7 @@
   "sweep.sensitivity_empty": "No swept parameter on this launch",
   "sweep.best_title": "Best combinations",
   "sweep.worst_title": "Worst combinations",
+  "sweep.all_title": "All runs",
   "sweep.table.pair": "Pair",
   "sweep.table.params": "Parameters",
   "sweep.table.pnl": "PnL",

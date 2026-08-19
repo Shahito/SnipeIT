@@ -720,19 +720,33 @@ class CanvasHistogram {
  */
 class MonthlyPerfChart {
   constructor(canvasId, config) {
-    this.canvasId   = canvasId
-    this.config     = { height: 220, gridLines: 4, showDelta: true, windowSize: 12, ...config }
-    this._result    = null
-    this._data      = []
-    this._winStart  = 0
-    this._isMobile  = false
+    this.canvasId    = canvasId
+    // this.config      = { height: 220, gridLines: 4, showDelta: true, windowSize: 12, ...config }
+    this.config = { height: 220, gridLines: 4, showDelta: true, windowSize: 12, desktopWindowSize: 24, ...config }
+    this._result     = null
+    this._data       = []
+    this._winStart   = 0
+    this._isMobile   = false
+    this._showTrades = false
     this._bindEvents()
+  }
+ 
+  _isWindowed() {
+    return this._isMobileNow() || this._data.length > this.config.desktopWindowSize
+  }
+  _activeWindowSize() {
+    return this._isMobileNow() ? this.config.windowSize : this.config.desktopWindowSize
+  }
+
+  toggleTrades(force) {
+    this._showTrades = force ?? !this._showTrades
+    this._draw()
   }
 
   render(result) {
     this._result  = result
     this._data    = this.config.getData(result) || []
-    if (this._isMobileNow()) this._winStart = Math.max(0, this._data.length - this.config.windowSize)
+    if (this._isWindowed()) this._winStart = Math.max(0, this._data.length - this._activeWindowSize())
     this._syncNav()
     this._draw()
   }
@@ -744,31 +758,36 @@ class MonthlyPerfChart {
     }
 
     _visibleData() {
-      if (!this._isMobileNow()) return this._data
+      if (!this._isWindowed()) return this._data
+      const size  = this._activeWindowSize()
       const start = Math.max(0, this._winStart)
-      const slice = this._data.slice(start, start + this.config.windowSize)
-      return slice.length ? slice : this._data.slice(0, this.config.windowSize)
+      const slice = this._data.slice(start, start + size)
+      return slice.length ? slice : this._data.slice(0, size)
     }
 
-  _syncNav() {
-    const nav = document.getElementById(this.canvasId + 'Nav')
-    if (!nav) return
-    nav.style.display = this._isMobileNow() && this._data.length > this.config.windowSize ? 'flex' : 'none'
-    const total = this._data.length
-    const end   = Math.min(this._winStart + this.config.windowSize, total)
-    nav.querySelector('.mpf-range').textContent =
-      `${this._data[this._winStart]?.month} - ${this._data[end - 1]?.month}`
-    nav.querySelector('#mpfPrev').disabled = this._winStart === 0
-    nav.querySelector('#mpfNext').disabled = end >= total
-    nav.querySelector('#mpfPrevFast').disabled = this._winStart === 0
-    nav.querySelector('#mpfNextFast').disabled = end >= total
-  }
+    _syncNav() {
+      const nav = document.getElementById(this.canvasId + 'Nav')
+      if (!nav) return
+      const windowed = this._isWindowed()
+      nav.style.display = windowed ? 'flex' : 'none'
+      if (!windowed) return
+      const size  = this._activeWindowSize()
+      const total = this._data.length
+      const end   = Math.min(this._winStart + size, total)
+      nav.querySelector('.mpf-range').textContent =
+        `${this._data[this._winStart]?.month} - ${this._data[end - 1]?.month}`
+      nav.querySelector('#mpfPrev').disabled = this._winStart === 0
+      nav.querySelector('#mpfNext').disabled = end >= total
+      nav.querySelector('#mpfPrevFast').disabled = this._winStart === 0
+      nav.querySelector('#mpfNextFast').disabled = end >= total
+    }
 
   // Private
   _getPad(W) {
+    const right = this._showTrades ? (W < 640 ? 34 : 40) : 8
     return W < 640
-      ? { top: 16, right: 8, bottom: 28, left: 42 }
-      : { top: 16, right: 8, bottom: 28, left: 48 }
+      ? { top: 16, right, bottom: 28, left: 42 }
+      : { top: 16, right, bottom: 28, left: 48 }
   }
 
   _draw(hoveredIdx = -1) {
@@ -831,6 +850,19 @@ class MonthlyPerfChart {
       ctx.fillText((v >= 0 ? '+' : '') + v.toFixed(1) + '%', pad.left - 5, y + 4)
     }
 
+    // Secondary axis (trade count) — scale + right-hand labels
+    const colorTrades = _cssVar('--info') || '#5b8def'
+    const maxTrades    = Math.max(...data.map(d => d.trades || 0), 1)
+    const toTradesY    = v => pad.top + cH - (v / maxTrades) * cH
+    if (this._showTrades) {
+      ctx.fillStyle = colorTrades; ctx.font = '10px system-ui'; ctx.textAlign = 'left'
+      for (let i = 0; i <= this.config.gridLines; i++) {
+        const v = maxTrades - (maxTrades / this.config.gridLines) * i
+        const y = pad.top + (cH / this.config.gridLines) * i
+        ctx.fillText(Math.round(v).toString(), pad.left + cW + 5, y + 4)
+      }
+    }
+
     // Bars
     const slotW   = cW / n
     const barW    = Math.max(2, slotW * 0.38)
@@ -891,20 +923,50 @@ class MonthlyPerfChart {
       })
     }
 
+    // Trades line (secondary axis)
+    if (this._showTrades) {
+      const tPts = data.map((d, i) => ({
+        x: pad.left + i * slotW + slotW / 2,
+        y: toTradesY(d.trades || 0),
+        dimmed: hoveredIdx >= 0 && i !== hoveredIdx,
+      }))
+      ctx.beginPath()
+      tPts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y))
+      ctx.strokeStyle = hoveredIdx >= 0 ? colorTrades + '33' : colorTrades
+      ctx.lineWidth   = 1.5
+      ctx.setLineDash([3, 3])
+      ctx.stroke()
+      ctx.setLineDash([])
+      tPts.forEach((p, i) => {
+        const isHovered = i === hoveredIdx
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, isHovered ? 3 : 2.5, 0, Math.PI * 2)
+        ctx.fillStyle = p.dimmed ? colorTrades + '33' : colorTrades
+        ctx.fill()
+        if (isHovered) {
+          ctx.beginPath()
+          ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2)
+          ctx.strokeStyle = colorTrades
+          ctx.lineWidth   = 1.5
+          ctx.stroke()
+        }
+      })
+    }
+
     // X labels
-  ctx.fillStyle = '#7c84a0'; ctx.font = '10px system-ui'; ctx.textAlign = 'center'
-  let lastLabelX = -Infinity
-  const minGap   = 8
-  data.forEach((d, i) => {
-    const x   = pad.left + i * slotW + slotW / 2
-    const lbl = n > 14
-      ? d.month.slice(2).replace('-', '/')
-      : new Date(d.month + '-01').toLocaleDateString(undefined, { month: 'short', year: '2-digit' })
-    const w = ctx.measureText(lbl).width
-    if (x - w / 2 < lastLabelX + minGap) return
-    ctx.fillText(lbl, x, pad.top + cH + 16)
-    lastLabelX = x + w / 2
-  })
+    ctx.fillStyle = '#7c84a0'; ctx.font = '10px system-ui'; ctx.textAlign = 'center'
+    let lastLabelX = -Infinity
+    const minGap   = 8
+    data.forEach((d, i) => {
+      const x   = pad.left + i * slotW + slotW / 2
+      const lbl = n > 14
+        ? d.month.slice(2).replace('-', '/')
+        : new Date(d.month + '-01').toLocaleDateString(undefined, { month: 'short', year: '2-digit' })
+      const w = ctx.measureText(lbl).width
+      if (x - w / 2 < lastLabelX + minGap) return
+      ctx.fillText(lbl, x, pad.top + cH + 16)
+      lastLabelX = x + w / 2
+    })
 
     this._pad   = pad
     this._slotW = slotW
@@ -926,7 +988,7 @@ class MonthlyPerfChart {
       const nav = document.getElementById(this.canvasId + 'Nav')
       if (nav) {
         nav.querySelector('#mpfPrevFast').addEventListener('click', () => {
-          this._winStart = Math.max(0, this._winStart - this.config.windowSize)
+          this._winStart = Math.max(0, this._winStart - this._activeWindowSize())
           this._syncNav()
           this._draw()
         })
@@ -946,8 +1008,8 @@ class MonthlyPerfChart {
         })
         nav.querySelector('#mpfNextFast').addEventListener('click', () => {
           this._winStart = Math.min(
-            this._data.length - this.config.windowSize,
-            this._winStart + this.config.windowSize
+            this._data.length - this._activeWindowSize(),
+            this._winStart + this._activeWindowSize()
           )
           this._syncNav()
           this._draw()
@@ -977,7 +1039,8 @@ class MonthlyPerfChart {
             `<div class="tt-date">${d.month}</div>` +
             `<span>Asset : <span class="${(d.asset ?? 0 ) < 0 ? 'pnl-negative':'pnl-positive'}">${fmt(d.asset ?? 0)}</span></span>` +
             `<span>Strat : <span class="${d.strat < 0 ? 'pnl-negative':'pnl-positive'}">${fmt(d.strat)}</span></span>` +
-            (this.config.showDelta ? `<span>Delta : <span class="pnl-delta">${fmt(delta)}</span></span>` : '')
+            (this.config.showDelta ? `<span>Delta : <span class="pnl-delta">${fmt(delta)}</span></span>` : '') +
+            (d.trades !== undefined ? `<span>Trades : ${d.trades}</span>` : '')
           )
           // Cursor line
           this._draw(i)
