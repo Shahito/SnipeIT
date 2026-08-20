@@ -269,37 +269,6 @@ class CanvasLineChart {
       }
     })
     
-    const markers = r.equityMarkers
-    if (markers?.length) {
-      const tss      = this.config.getTimestamps(r)
-      const t0       = tss[0]
-      const t1       = tss[tss.length - 1]
-      const span     = t1 - t0 || 1
-      const eqCurve  = this.config.curves.find(c => c.key === 'equity')
-      if (eqCurve && this._active['equity']) {
-        const vals       = eqCurve.getData(r)
-        const { toY }    = _scaleY(vals, pad.top, cH)
-        markers.forEach(m => {
-          const ratio = (m.t * 1000 - t0) / span
-          if (ratio < 0 || ratio > 1) return
-          const x     = pad.left + ratio * cW
-          const y     = toY(m.e)
-          const isBuy = m.s === 0
-          const color = isBuy ? (_cssVar('--success') || '#34c47a') : (_cssVar('--danger') || '#e24b4a')
-          // Outer ring
-          ctx.beginPath()
-          ctx.arc(x, y, 8, 0, Math.PI * 2)
-          ctx.fillStyle = color + '33'
-          ctx.fill()
-          // Inner dot
-          ctx.beginPath()
-          ctx.arc(x, y, 4, 0, Math.PI * 2)
-          ctx.fillStyle = color
-          ctx.fill()
-        })
-      }
-    }
-    
     // Reference lines (e.g. initial capital)
     ;(this.config.referenceLines || []).forEach(rl => {
       const curve = this.config.curves.find(c => c.key === rl.curveKey)
@@ -623,13 +592,13 @@ class CanvasHistogram {
       const dimFill = isWin ? colorWinDim : colorLossDim
 
       // Bar body
-      ctx.fillStyle = this._hoveredIdx === i ? fill : dimFill
+      ctx.fillStyle = (this._hoveredIdx == null || this._hoveredIdx === i) ? fill : dimFill
       ctx.beginPath()
       ctx.roundRect?.(x, y, barW, barH, [3, 3, 0, 0]) || ctx.rect(x, y, barW, barH)
       ctx.fill()
 
       // Bar border top
-      ctx.fillStyle = fill
+      ctx.fillStyle = (this._hoveredIdx == null || this._hoveredIdx === i) ? fill : dimFill
       ctx.fillRect(x, y, barW, 2)
 
       // X label - show every other if tight
@@ -728,6 +697,7 @@ class MonthlyPerfChart {
     this._winStart   = 0
     this._isMobile   = false
     this._showTrades = false
+    this._showDelta  = this.config.showDelta
     this._bindEvents()
   }
  
@@ -738,8 +708,13 @@ class MonthlyPerfChart {
     return this._isMobileNow() ? this.config.windowSize : this.config.desktopWindowSize
   }
 
-  toggleTrades(force) {
+   toggleTrades(force) {
     this._showTrades = force ?? !this._showTrades
+    this._draw()
+  }
+
+  toggleDelta(force) {
+    this._showDelta = force ?? !this._showDelta
     this._draw()
   }
 
@@ -814,7 +789,7 @@ class MonthlyPerfChart {
     ctx.clearRect(0, 0, W, H)
 
     const n      = data.length
-    const allVals = data.flatMap(d => [d.strat, d.asset ?? 0, this.config.showDelta ? d.strat - (d.asset ?? 0) : 0])
+    const allVals = data.flatMap(d => [d.strat, d.asset ?? 0, this._showDelta ? d.strat - (d.asset ?? 0) : 0])
     const mn     = Math.min(...allVals, 0)
     const mx     = Math.max(...allVals, 0)
     const rng    = mx - mn || 1
@@ -894,7 +869,7 @@ class MonthlyPerfChart {
     })
 
     // Delta line
-    if (this.config.showDelta) {
+    if (this._showDelta) {
       const pts = data.map((d, i) => ({
         x: pad.left + i * slotW + slotW / 2,
         y: toY(d.strat - (d.asset ?? 0)),
@@ -1039,7 +1014,7 @@ class MonthlyPerfChart {
             `<div class="tt-date">${d.month}</div>` +
             `<span>Asset : <span class="${(d.asset ?? 0 ) < 0 ? 'pnl-negative':'pnl-positive'}">${fmt(d.asset ?? 0)}</span></span>` +
             `<span>Strat : <span class="${d.strat < 0 ? 'pnl-negative':'pnl-positive'}">${fmt(d.strat)}</span></span>` +
-            (this.config.showDelta ? `<span>Delta : <span class="pnl-delta">${fmt(delta)}</span></span>` : '') +
+            (this._showDelta ? `<span>Delta : <span class="pnl-delta">${fmt(delta)}</span></span>` : '') +
             (d.trades !== undefined ? `<span>Trades : ${d.trades}</span>` : '')
           )
           // Cursor line

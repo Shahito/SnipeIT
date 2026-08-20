@@ -80,6 +80,7 @@ def get_logger(name: str) -> logging.Logger:
     logger.setLevel(logging.DEBUG if dev_mode else logging.INFO)
     logger.propagate = False
     _log = logger
+    
     return logger
 
 

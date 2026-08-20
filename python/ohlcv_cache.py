@@ -114,6 +114,12 @@ def _fetch_from_exchange(exchange_id: str, pair: str, timeframe: str,
         raise ValueError(f"Unknown exchange: {exchange_id}")
 
     exchange = exchange_cls({"enableRateLimit": True})
+
+    def _log_http_status(response, *args, **kwargs):
+        log.debug(f"Binance {response.request.method} {response.url} -> {response.status_code}")
+        return response
+
+    exchange.session.hooks["response"].append(_log_http_status)
     
     since_ms = int(start.replace(tzinfo=timezone.utc).timestamp() * 1000)
     until_ms = int(end.replace(tzinfo=timezone.utc).timestamp() * 1000)

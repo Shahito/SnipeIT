@@ -27,8 +27,18 @@ const PORT = process.env.PORT || 4000
 app.use(express.json())
 app.use(cookieParser())
 app.use(helmet({
-  hsts: false,
-  contentSecurityPolicy: false,
+  hsts: isProd,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
 }))
 app.use(express.static('public'))
 
@@ -52,6 +62,7 @@ const writeLimiter = rateLimit({
 if (isProd) {
   app.use('/api/auth/login', authLimiter)
   app.use('/api/auth/register', authLimiter)
+  app.post('/api/auth/change-password', authLimiter)
   app.post('/api/apikeys', authLimiter) // key creation only
 
   // Looser limit on write-heavy routes
@@ -82,9 +93,6 @@ cron.schedule('*/30 * * * * *', async () => {
   catch (e) { console.error('[SnipeIT] timeoutStaleJobs error:', e.message) }
 })
 
-//app.listen(PORT, '10.150.34.12', () => {
-//  console.log(`[SnipeIT] Server running at http://localhost:${PORT}`)
-//})
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`[SnipeIT] Server running at http://localhost:${PORT}`)
 })

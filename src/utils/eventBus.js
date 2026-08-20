@@ -10,8 +10,10 @@
 
 const { EventEmitter } = require('events')
 
+const MAX_SSE_PER_USER = 3
+
 const bus = new EventEmitter()
-bus.setMaxListeners(0) // one listener per open SSE connection, no arbitrary cap
+bus.setMaxListeners(1000) // hard ceiling, avoid unbounded memory growth
 
 function emitToUser(userId, event, payload) {
   bus.emit(`user:${userId}`, { event, payload })
@@ -20,6 +22,9 @@ function emitToUser(userId, event, payload) {
 // handler(({ event, payload }) => void) - returns an unsubscribe function
 function subscribeUser(userId, handler) {
   const channel = `user:${userId}`
+  if (bus.listenerCount(channel) >= MAX_SSE_PER_USER) {
+    throw new Error('TOO_MANY_CONNECTIONS')
+  }
   bus.on(channel, handler)
   return () => bus.off(channel, handler)
 }

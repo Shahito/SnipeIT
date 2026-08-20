@@ -84,7 +84,10 @@
         <div class="card" id="monthlyPerfCard">
           <div class="card-header">
             <div class="card-title" data-i18n="results.monthly_perf.title"></div>
-            <button class="btn btn-surface btn-sm" id="mpfToggleTrades" data-i18n="results.monthly_perf.toggle_trades"></button>
+            <div class="chart-toggles">
+              <button class="toggle-btn" id="mpfToggleDelta" data-i18n="results.monthly_perf.toggle_delta"></button>
+              <button class="toggle-btn" id="mpfToggleTrades" data-i18n="results.monthly_perf.toggle_trades"></button>
+            </div>
           </div>
           <canvas id="monthlyPerfCanvas"></canvas>
           <div id="monthlyPerfCanvasNav" class="chart-nav" style="display:none">
@@ -207,6 +210,7 @@
       showDelta: true,
       // height: 220,
     })
+    document.getElementById('mpfToggleDelta').classList.toggle('active', monthlyChart._showDelta)
 
     // Resize handler - redraw all CanvasLineChart instances
     let _resizeTimer
@@ -450,10 +454,17 @@
       }).join('')
     }
 
+    // Monthly chart toggle handlers
     document.getElementById('mpfToggleTrades').addEventListener('click', (e) => {
       monthlyChart.toggleTrades()
       e.currentTarget.classList.toggle('active', monthlyChart._showTrades)
     })
+    document.getElementById('mpfToggleDelta').addEventListener('click', (e) => {
+      monthlyChart.toggleDelta()
+      e.currentTarget.classList.toggle('active', monthlyChart._showDelta)
+    })
+    
+    // Clone & run
     
     // Clone & run
     document.getElementById('cloneAndRunBtn').addEventListener('click', async () => {

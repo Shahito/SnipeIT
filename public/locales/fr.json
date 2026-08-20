@@ -367,7 +367,6 @@
   "picker.ind.high": "Prix le plus haut",
   "picker.ind.low": "Prix le plus bas",
   "picker.ind.volume": "Volume",
-
   "results.equity_chart.title": "Courbe d'équité",
   "results.equity_chart.equity": "Équité",
   "results.equity_chart.price": "Prix",
@@ -377,6 +376,8 @@
   "results.exit_reasons.title": "Répartition des raisons de vente",
   "results.pnl_distribution.title": "Distribution du PnL",
   "results.monthly_perf.title": "Performance mensuelle",
+  "results.monthly_perf.toggle_delta": "Delta",
+  "results.monthly_perf.toggle_trades": "Trades",
   "editor.cond.add_group": "OR",
   "editor.cond.group": "Groupe",
   "editor.cond.rm_group": "Supprimer groupe",

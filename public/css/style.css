@@ -3145,13 +3145,13 @@ select.field-invalid {
     background: var(--danger-dim);
 }
 
-.toggle-btn.active[data-curve="price"] {
+.toggle-btn.active[data-curve="price"], #mpfToggleTrades.active {
     border-color: #6c8eff;
     color: #6c8eff;
     background: rgba(108, 142, 255, .08);
 }
 
-.toggle-btn.active[data-curve="drawdown"] {
+.toggle-btn.active[data-curve="drawdown"], #mpfToggleDelta.active {
     border-color: #ff9632;
     color: #ff9632;
     background: rgba(255, 150, 50, .08);
