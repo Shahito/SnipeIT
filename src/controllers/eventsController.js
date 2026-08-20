@@ -24,12 +24,20 @@ function streamController(req, res) {
 
   send('ready', { at: Date.now() })
   
-  const heartbeat = setInterval(() => res.write(': ping\n\n'), HEARTBEAT_MS)
-
-  req.on('close', () => {
+  function cleanup() {
     clearInterval(heartbeat)
     unsubscribe()
-  })
+  }
+
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(': ping\n\n')
+    } catch (e) {
+      cleanup()
+    }
+  }, HEARTBEAT_MS)
+
+  res.on('close', cleanup)
 }
 
 module.exports = { streamController }

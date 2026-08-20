@@ -13,6 +13,7 @@ import time
 import logging
 from pathlib import Path
 from datetime import datetime, timezone
+import json
 
 import pandas as pd
 
@@ -22,6 +23,8 @@ log = logging.getLogger("snipeit.cache")
 
 CACHE_DIR = Path(os.getenv("OHLCV_CACHE_DIR", "./cache"))
 SENTINEL = "fetch_start.txt"
+
+CONFIRMED_GAPS_FILE = "confirmed_gaps.json"
 
 # Kept in sync with backtest.py's _TF_MINUTES. Duplicated on purpose: this module
 # is a standalone low-level cache layer and shouldn't import the heavier backtest
@@ -101,6 +104,21 @@ def _find_gaps(df: pd.DataFrame, step: pd.Timedelta) -> list[tuple[datetime, dat
     holes  = diffs[diffs > step * 1.5].index
     return [(ts[i - 1].to_pydatetime(), ts[i].to_pydatetime()) for i in holes]
 
+def _load_confirmed_gaps(cache_dir: Path) -> list[tuple[datetime, datetime]]:
+    p = cache_dir / CONFIRMED_GAPS_FILE
+    if not p.exists():
+        return []
+    raw = json.loads(p.read_text())
+    return [(datetime.fromisoformat(a), datetime.fromisoformat(b)) for a, b in raw]
+
+def _save_confirmed_gap(cache_dir: Path, gap_start: datetime, gap_end: datetime) -> None:
+    gaps = _load_confirmed_gaps(cache_dir)
+    gaps.append((gap_start, gap_end))
+    p = cache_dir / CONFIRMED_GAPS_FILE
+    p.write_text(json.dumps([[a.isoformat(), b.isoformat()] for a, b in gaps]))
+
+def _is_confirmed_gap(gap_start, gap_end, confirmed) -> bool:
+    return any(cs <= gap_start and gap_end <= ce for cs, ce in confirmed)
 
 def _fetch_from_exchange(exchange_id: str, pair: str, timeframe: str,
                           start: datetime, end: datetime) -> pd.DataFrame:
@@ -184,6 +202,10 @@ def get_ohlcv(pair: str, timeframe: str, start_date: str, end_date: str,
         # the middle (partial fetch failure, a year file deleted, etc.) would
         # otherwise go undetected forever.
         gaps = _find_gaps(cached, step)
+        confirmed = _load_confirmed_gaps(cache_dir)
+        gaps = _find_gaps(cached, step)
+        confirmed = _load_confirmed_gaps(cache_dir)
+        gaps = [g for g in gaps if not _is_confirmed_gap(g[0], g[1], confirmed)]
 
         if not need_before and not need_after and not gaps:
             log_cache_hit(pair, timeframe, start_date[:10], end_date[:10], len(cached))
@@ -195,15 +217,18 @@ def get_ohlcv(pair: str, timeframe: str, start_date: str, end_date: str,
         if need_before:
             prefix = _fetch_from_exchange(exchange, pair, timeframe, start, cached_start.to_pydatetime())
             frames.insert(0, prefix)
+        
         for gap_start, gap_end in gaps:
             patch = _fetch_from_exchange(exchange, pair, timeframe, gap_start, gap_end)
             if patch.empty:
                 log.warning(
-                    f"Gap {gap_start} -> {gap_end} on {pair}/{timeframe} still empty after "
-                    f"re-fetch - likely a real exchange gap (delisting/outage), not a cache bug."
+                    f"Gap {gap_start} -> {gap_end} on {pair}/{timeframe} confirmed empty - "
+                    f"caching as known gap, won't re-fetch next time."
                 )
+                _save_confirmed_gap(cache_dir, gap_start, gap_end)
             else:
                 frames.append(patch)
+        
         if need_after:
             suffix = _fetch_from_exchange(exchange, pair, timeframe, cached_end.to_pydatetime(), end)
             frames.append(suffix)
