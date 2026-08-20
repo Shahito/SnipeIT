@@ -157,6 +157,9 @@ class CanvasLineChart {
       const btn = e.target.closest('.toggle-btn')
       if (!btn) return
       const key = btn.dataset.curve
+      const activeCount = Object.values(this._active).filter(Boolean).length
+      // Refuse to turn off the last remaining curve to avoid empty chart
+      if (this._active[key] && activeCount <= 1) return
       this._active[key] = !this._active[key]
       btn.classList.toggle('active', this._active[key])
       this._draw()
@@ -438,6 +441,9 @@ class BarChart {
       const btn = e.target.closest('[data-key]')
       if (!btn) return
       const k = btn.dataset.key
+      const activeCount = Object.values(this._active).filter(Boolean).length
+      // Refuse to turn off the last remaining bar to avoid empty section
+      if (this._active[k] && activeCount <= 1) return
       this._active[k] = !this._active[k]
       btn.classList.toggle('active', this._active[k])
       this._draw()

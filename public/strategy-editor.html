@@ -178,7 +178,7 @@
             <div class="form-group">
               <label data-i18n="editor.field.trading_hours"></label>
               <div id="tradingHoursContainer"></div>
-              <button type="button" class="btn btn-ghost btn-sm mt-sm" onclick="addTradingHourSlot()" data-i18n="editor.field.trading_hours_add"></button>
+              <button type="button" class="btn btn-ghost btn-sm mt-sm" id="addTradingHourBtn" data-i18n="editor.field.trading_hours_add"></button>
               <p class="text-muted text-sm mt-sm" data-i18n="editor.field.trading_hours_hint"></p>
             </div>
           </div>
@@ -190,11 +190,11 @@
             <div class="section-title" data-i18n="editor.section.conditions"></div>
             <div class="conditions-block">
               <div class="condition-tabs">
-                <button class="btn btn-ghost condition-tab active-entry" id="tabEntry" onclick="showTab('entry')">
+                <button class="btn btn-ghost condition-tab active-entry" id="tabEntry">
                   <i data-icon="enter"></i>
                   <span data-i18n="editor.cond.tab_entry"></span>
                 </button>
-                <button class="btn btn-ghost condition-tab" id="tabExit"  onclick="showTab('exit')">
+                <button class="btn btn-ghost condition-tab" id="tabExit">
                   <i data-icon="exit"></i>
                   <span data-i18n="editor.cond.tab_exit"></span>
                 </button>
@@ -255,37 +255,6 @@
   <script src="/js/condition-settings.js"></script>
   <script src="/js/strategy-form.js"></script>
   <script src="/js/form-validate.js"></script>
-  <script>
-    const urlParams = new URLSearchParams(location.search)
-    window._editId  = urlParams.get('id') ? parseInt(urlParams.get('id')) : null
-
-    document.addEventListener('header:ready', async () => {
-      applyToDOM()
-      const today = new Date()
-      const oneYearAgo = new Date(today); oneYearAgo.setFullYear(today.getFullYear() - 1)
-      document.getElementById('fStartDate').value = oneYearAgo.toISOString().slice(0, 10)
-      document.getElementById('fEndDate').value   = today.toISOString().slice(0, 10)
-
-      document.getElementById('fBaseCoins').setSilent(['BTC'])
-      document.getElementById('fQuoteCoins').setSilent(['USDT'])
-      renderChipGroup('fTimeframeGroup', TIMEFRAMES_LIST, ['1h'])
-      renderChipGroup('fSlTypeGroup', RISK_TYPES, ['percent'])
-      renderChipGroup('fTpTypeGroup', RISK_TYPES, ['percent'])
-      bindSweepChipGroups()
-      bindCoinPickers()
-
-      if (window._editId) {
-        document.getElementById('pageTitle').textContent = t('editor.title.edit')
-        await loadStrategy(window._editId)
-      } else {
-        // document.getElementById('fName').value = generateStrategyName()
-        updatePairsPreview()
-        conditions.entry = [[{ indicator: 'RSI', period: INDICATOR_DEFAULT_PERIOD['RSI'], operator: '<', value: 30 }]]
-        conditions.exit  = [[{ indicator: 'RSI', period: INDICATOR_DEFAULT_PERIOD['RSI'], operator: '>', value: 70 }]]
-        renderConditions(); updatePreview()
-      }
-    })
-    initI18n()
-  </script>
+  <script src="/js/pages/strategy-editor-page.js"></script>  
 </body>
 </html>

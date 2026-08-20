@@ -9,11 +9,11 @@ If part of the data is missing (e.g. new candles), only the delta is downloaded.
 """
 
 import os
+import json
 import time
 import logging
 from pathlib import Path
 from datetime import datetime, timezone
-import json
 
 import pandas as pd
 
@@ -23,11 +23,11 @@ log = logging.getLogger("snipeit.cache")
 
 CACHE_DIR = Path(os.getenv("OHLCV_CACHE_DIR", "./cache"))
 SENTINEL = "fetch_start.txt"
-
 CONFIRMED_GAPS_FILE = "confirmed_gaps.json"
+CONFIRMED_END_FILE = "confirmed_end.txt"
 
 # Kept in sync with backtest.py's _TF_MINUTES. Duplicated on purpose: this module
-# is a standalone low-level cache layer and shouldn't import the heavier backtest
+# is a standalone low-level cache layer and should not import the heavier backtest
 # module just for a one-line lookup.
 _TF_MINUTES = {
     "1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30,
@@ -38,12 +38,39 @@ _TF_MINUTES = {
 def _timeframe_to_minutes(tf: str) -> int:
     return _TF_MINUTES.get(tf, 60)  # default to 1h if unknown
 
+
 def _save_fetch_start(cache_dir: Path, start: datetime) -> None:
     (cache_dir / SENTINEL).write_text(start.isoformat())
 
 def _load_fetch_start(cache_dir: Path) -> datetime | None:
     p = cache_dir / SENTINEL
     return datetime.fromisoformat(p.read_text()) if p.exists() else None
+
+
+def _save_confirmed_end(cache_dir: Path, end: datetime) -> None:
+    (cache_dir / CONFIRMED_END_FILE).write_text(end.isoformat())
+
+def _load_confirmed_end(cache_dir: Path) -> datetime | None:
+    p = cache_dir / CONFIRMED_END_FILE
+    return datetime.fromisoformat(p.read_text()) if p.exists() else None
+
+
+def _load_confirmed_gaps(cache_dir: Path) -> list[tuple[datetime, datetime]]:
+    p = cache_dir / CONFIRMED_GAPS_FILE
+    if not p.exists():
+        return []
+    raw = json.loads(p.read_text())
+    return [(datetime.fromisoformat(a), datetime.fromisoformat(b)) for a, b in raw]
+
+def _save_confirmed_gap(cache_dir: Path, gap_start: datetime, gap_end: datetime) -> None:
+    gaps = _load_confirmed_gaps(cache_dir)
+    gaps.append((gap_start, gap_end))
+    p = cache_dir / CONFIRMED_GAPS_FILE
+    p.write_text(json.dumps([[a.isoformat(), b.isoformat()] for a, b in gaps]))
+
+def _is_confirmed_gap(gap_start, gap_end, confirmed) -> bool:
+    return any(cs <= gap_start and gap_end <= ce for cs, ce in confirmed)
+
 
 def _cache_path(exchange: str, pair: str, timeframe: str) -> Path:
     safe_pair = pair.replace("/", "_")
@@ -85,7 +112,7 @@ def _save_to_disk(cache_dir: Path, df: pd.DataFrame) -> None:
             try:
                 existing = pd.read_parquet(path)
                 existing["timestamp"] = pd.to_datetime(existing["timestamp"]).dt.tz_localize(None)
-                group    = pd.concat([existing, group]).drop_duplicates(subset=["timestamp"]).sort_values("timestamp")
+                group = pd.concat([existing, group]).drop_duplicates(subset=["timestamp"]).sort_values("timestamp")
             except Exception:
                 pass
         group.to_parquet(path, index=False)
@@ -98,27 +125,14 @@ def _find_gaps(df: pd.DataFrame, step: pd.Timedelta) -> list[tuple[datetime, dat
     Returns a list of (gap_start, gap_end) windows to re-fetch from the exchange.
     A 1.5x tolerance absorbs normal jitter without masking real holes
     (a single missing candle already triggers a re-fetch).
+    Note: gap_start and gap_end are the two candles that ARE already in
+    the cache, bordering the hole. They are not missing themselves.
     """
-    ts     = df["timestamp"].reset_index(drop=True)
-    diffs  = ts.diff()
-    holes  = diffs[diffs > step * 1.5].index
+    ts = df["timestamp"].reset_index(drop=True)
+    diffs = ts.diff()
+    holes = diffs[diffs > step * 1.5].index
     return [(ts[i - 1].to_pydatetime(), ts[i].to_pydatetime()) for i in holes]
 
-def _load_confirmed_gaps(cache_dir: Path) -> list[tuple[datetime, datetime]]:
-    p = cache_dir / CONFIRMED_GAPS_FILE
-    if not p.exists():
-        return []
-    raw = json.loads(p.read_text())
-    return [(datetime.fromisoformat(a), datetime.fromisoformat(b)) for a, b in raw]
-
-def _save_confirmed_gap(cache_dir: Path, gap_start: datetime, gap_end: datetime) -> None:
-    gaps = _load_confirmed_gaps(cache_dir)
-    gaps.append((gap_start, gap_end))
-    p = cache_dir / CONFIRMED_GAPS_FILE
-    p.write_text(json.dumps([[a.isoformat(), b.isoformat()] for a, b in gaps]))
-
-def _is_confirmed_gap(gap_start, gap_end, confirmed) -> bool:
-    return any(cs <= gap_start and gap_end <= ce for cs, ce in confirmed)
 
 def _fetch_from_exchange(exchange_id: str, pair: str, timeframe: str,
                           start: datetime, end: datetime) -> pd.DataFrame:
@@ -138,7 +152,9 @@ def _fetch_from_exchange(exchange_id: str, pair: str, timeframe: str,
         return response
 
     exchange.session.hooks["response"].append(_log_http_status)
-    
+
+    step_ms = _timeframe_to_minutes(timeframe) * 60 * 1000
+
     since_ms = int(start.replace(tzinfo=timezone.utc).timestamp() * 1000)
     until_ms = int(end.replace(tzinfo=timezone.utc).timestamp() * 1000)
 
@@ -158,11 +174,11 @@ def _fetch_from_exchange(exchange_id: str, pair: str, timeframe: str,
         time.sleep(exchange.rateLimit / 1000)
 
     if not all_ohlcv:
-        return pd.DataFrame(columns=["timestamp","open","high","low","close","volume"]).astype(
+        return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]).astype(
             {"timestamp": "datetime64[ns]"}
         )
 
-    df = pd.DataFrame(all_ohlcv, columns=["timestamp","open","high","low","close","volume"])
+    df = pd.DataFrame(all_ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"])
     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True).dt.tz_localize(None)
     return df
 
@@ -173,12 +189,14 @@ def get_ohlcv(pair: str, timeframe: str, start_date: str, end_date: str,
     Main entry point.
     Returns a complete OHLCV DataFrame for the requested range.
     Only downloads missing data, including any internal gap (not just at the
-    start/end of the cached range).
+    start/end of the cached range). Confirmed real gaps (delistings, long
+    outages) and a confirmed "nothing more after this date" marker are
+    persisted to disk so they are not re-checked on every call.
     """
     start = datetime.fromisoformat(start_date[:10])
-    end   = datetime.fromisoformat(end_date[:10])
+    end = datetime.fromisoformat(end_date[:10])
     cache_dir = _cache_path(exchange, pair, timeframe)
-    step      = pd.Timedelta(minutes=_timeframe_to_minutes(timeframe))
+    step = pd.Timedelta(minutes=_timeframe_to_minutes(timeframe))
 
     cached = _load_from_disk(cache_dir, start, end)
 
@@ -187,24 +205,28 @@ def get_ohlcv(pair: str, timeframe: str, start_date: str, end_date: str,
 
         # Check if the range is complete
         cached_start = cached["timestamp"].min()
-        cached_end   = cached["timestamp"].max()
-        start_ts     = pd.Timestamp(start)
-        end_ts       = pd.Timestamp(end)
+        cached_end = cached["timestamp"].max()
+        start_ts = pd.Timestamp(start)
+        end_ts = pd.Timestamp(end)
 
         known_start = _load_fetch_start(cache_dir)
         need_before = (known_start is None or start < known_start) and cached_start > start_ts
-        # Do not re-download the end if end_date >= today (data still in progress)
-        today = pd.Timestamp(datetime.now(timezone.utc).date())
-        need_after  = cached_end < end_ts and end_ts < today
 
-        # Internal gaps: missing candles anywhere between cached_start and cached_end.
-        # need_before/need_after only ever look at the two extremities, so a hole in
-        # the middle (partial fetch failure, a year file deleted, etc.) would
-        # otherwise go undetected forever.
+        # Do not re-download the end if end_date >= today (data still in progress).
+        # Also skip if we already confirmed there is nothing past this end_date
+        # (e.g. a delisted pair that never gets new candles).
+        today = pd.Timestamp(datetime.now(timezone.utc).date())
+        confirmed_end = _load_confirmed_end(cache_dir)
+        need_after = (
+            cached_end < end_ts
+            and end_ts < today
+            and (confirmed_end is None or end_ts > confirmed_end)
+        )
+
+        # Internal gaps: missing candles anywhere between cached_start and cached_end
         gaps = _find_gaps(cached, step)
         confirmed = _load_confirmed_gaps(cache_dir)
-        gaps = _find_gaps(cached, step)
-        confirmed = _load_confirmed_gaps(cache_dir)
+        if confirmed: log.info(f"Checking {len(gaps)} gap(s) against {len(confirmed)} confirmed gap(s) for {pair}/{timeframe}")
         gaps = [g for g in gaps if not _is_confirmed_gap(g[0], g[1], confirmed)]
 
         if not need_before and not need_after and not gaps:
@@ -217,21 +239,36 @@ def get_ohlcv(pair: str, timeframe: str, start_date: str, end_date: str,
         if need_before:
             prefix = _fetch_from_exchange(exchange, pair, timeframe, start, cached_start.to_pydatetime())
             frames.insert(0, prefix)
-        
+
         for gap_start, gap_end in gaps:
             patch = _fetch_from_exchange(exchange, pair, timeframe, gap_start, gap_end)
+            # gap_start and gap_end are the two candles already in the cache
+            # that border the hole. The exchange always echoes them back, so
+            # they must be excluded before checking whether anything NEW
+            # was actually recovered in between.
+            patch = patch[(patch["timestamp"] > gap_start) & (patch["timestamp"] < gap_end)]
             if patch.empty:
                 log.warning(
                     f"Gap {gap_start} -> {gap_end} on {pair}/{timeframe} confirmed empty - "
-                    f"caching as known gap, won't re-fetch next time."
+                    f"caching as known gap, will not re-fetch next time."
                 )
                 _save_confirmed_gap(cache_dir, gap_start, gap_end)
             else:
                 frames.append(patch)
-        
+
         if need_after:
             suffix = _fetch_from_exchange(exchange, pair, timeframe, cached_end.to_pydatetime(), end)
-            frames.append(suffix)
+            # Same idea as above: cached_end itself will be echoed back, so a
+            # suffix that only contains that one candle means nothing new.
+            new_candles = suffix[suffix["timestamp"] > cached_end]
+            if new_candles.empty:
+                log.warning(
+                    f"No data past {cached_end} for {pair}/{timeframe} up to {end} - "
+                    f"caching as confirmed end, will not re-check next time."
+                )
+                _save_confirmed_end(cache_dir, end)
+            else:
+                frames.append(new_candles)
 
         df = pd.concat(frames).drop_duplicates(subset=["timestamp"]).sort_values("timestamp").reset_index(drop=True)
         _save_to_disk(cache_dir, df)

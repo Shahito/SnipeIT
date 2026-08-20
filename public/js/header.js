@@ -65,8 +65,10 @@ document.addEventListener('i18n:ready', async () => {
     const r = document.documentElement.style
     r.setProperty('--success',     s.pos)
     r.setProperty('--success-dim', dimColor(s.pos, alpha = 0.15))
+    r.setProperty('--success-dim-strong', dimColor(s.pos, alpha = 0.4))
     r.setProperty('--danger',      s.neg)
     r.setProperty('--danger-dim',  dimColor(s.neg, alpha = 0.15))
+    r.setProperty('--danger-dim-strong',  dimColor(s.neg, alpha = 0.4))
     localStorage.setItem('colorScheme', name)
   }
   

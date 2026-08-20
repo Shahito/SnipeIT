@@ -80,12 +80,15 @@
 
     --success: #3ecf8e;
     --success-dim: rgba(62, 207, 142, .15);
+    --success-dim-strong: rgba(62, 207, 142, .4);
 
     --warning: #f5a623;
     --warning-dim: rgba(245, 166, 35, .15);
+    --warning-dim-strong: rgba(245, 166, 35, .4);
 
     --danger: #ff5c5c;
     --danger-dim: rgba(255, 92, 92, .15);
+    --danger-dim-strong: rgba(255, 92, 92, .4);
 
     --text: #F2F3F6;
     --text-muted: #979CA6;
@@ -818,6 +821,8 @@ input[type=time]::-webkit-calendar-picker-indicator {
     justify-content: center;
     align-items: center;
     gap: 0.5rem;
+    height: 1.625rem;
+    line-height: 1;
 }
 
 .tag-primary {
@@ -874,6 +879,7 @@ input[type=time]::-webkit-calendar-picker-indicator {
     font-size: .75rem;
     font-weight: 600;
     height: 1.55rem;
+    line-height: 1;
     width: fit-content;
     white-space: nowrap;
 }
@@ -2749,17 +2755,17 @@ select.field-invalid {
 }
 
 .toast-success {
-    border-color: rgba(62, 207, 142, .4);
+    border-color: var(--success-dim-strong);
     color: var(--success);
 }
 
 .toast-error {
-    border-color: rgba(255, 92, 92, .4);
+    border-color: var(--danger-dim-strong);
     color: var(--danger);
 }
 
 .toast-info {
-    border-color: rgba(108, 142, 255, .4);
+    border-color: var(--primary-dim);
     color: var(--primary);
 }
 

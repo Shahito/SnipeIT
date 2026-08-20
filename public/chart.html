@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <title>Chart — SnipeIt</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
   <style>
     html, body {
       margin: 0;
@@ -88,8 +87,6 @@
     .toggle-row input { cursor: pointer; margin: 0; }
     .toggle-row .swatch { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto; }
   </style>
-  <script src="js/i18n.js"></script>
-  <script src="js/icons.js"></script>
 </head>
 <body>
   <div id="app">
@@ -112,6 +109,9 @@
       <div class="drawer-title">Indicateurs</div>
     </div>
   </div>
+  <script src="js/vendor/lightweight-charts.standalone.production.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/icons.js"></script>
   <script src="js/api.js"></script>
   <script src="js/trade-chart.js"></script>
 </body>
