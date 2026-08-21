@@ -1,3 +1,5 @@
+// src/utils/eventBus.js — remplace tout le fichier
+
 // eventBus.js
 //
 // In-memory pub/sub used to push job/sweep status updates to open SSE
@@ -10,10 +12,12 @@
 
 const { EventEmitter } = require('events')
 
-const MAX_SSE_PER_USER = 3
+const MAX_SSE_PER_USER = 8 // multi-tab/dev usage headroom
 
 const bus = new EventEmitter()
 bus.setMaxListeners(1000) // hard ceiling, avoid unbounded memory growth
+
+const userChannels = new Map() // userId -> [{ handler }]
 
 function emitToUser(userId, event, payload) {
   bus.emit(`user:${userId}`, { event, payload })
@@ -22,11 +26,25 @@ function emitToUser(userId, event, payload) {
 // handler(({ event, payload }) => void) - returns an unsubscribe function
 function subscribeUser(userId, handler) {
   const channel = `user:${userId}`
-  if (bus.listenerCount(channel) >= MAX_SSE_PER_USER) {
-    throw new Error('TOO_MANY_CONNECTIONS')
+  let entries = userChannels.get(userId)
+  if (!entries) { entries = []; userChannels.set(userId, entries) }
+
+  // Evict the oldest connection instead of rejecting the new one - a stale
+  // tab/reload shouldn't lock a fresh page out of live updates.
+  if (entries.length >= MAX_SSE_PER_USER) {
+    const oldest = entries.shift()
+    bus.off(channel, oldest.handler)
   }
+
   bus.on(channel, handler)
-  return () => bus.off(channel, handler)
+  const entry = { handler }
+  entries.push(entry)
+
+  return () => {
+    bus.off(channel, handler)
+    const i = entries.indexOf(entry)
+    if (i !== -1) entries.splice(i, 1)
+  }
 }
 
 module.exports = { emitToUser, subscribeUser }
