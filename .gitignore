@@ -24,6 +24,9 @@ config/.env
 *.bak
 *.swp
 
+# Node candle cache (mirrors python/cache/)
+cache/candles/
+
 # Python
 python/venv/
 python/.venv/

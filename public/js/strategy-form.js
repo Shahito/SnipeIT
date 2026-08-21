@@ -240,8 +240,8 @@ function buildPayload() {
     slType:           parseSweepChoice(getChipGroupSelected('fSlTypeGroup')),
     tpType:           parseSweepChoice(getChipGroupSelected('fTpTypeGroup')),
     atrPeriod:        parseSweepNumber(document.getElementById('fAtrPeriod').value, parseInt) ?? 14,
-    feeTaker:         parseFloat(document.getElementById('fFeeTaker').value) || 0.1,
-    feeMaker:         parseFloat(document.getElementById('fFeeMaker').value) || 0.1,
+    feeTaker:         Number.isNaN(parseFloat(document.getElementById('fFeeTaker').value)) ? 0.1 : parseFloat(document.getElementById('fFeeTaker').value),
+    feeMaker:         Number.isNaN(parseFloat(document.getElementById('fFeeMaker').value)) ? 0.1 : parseFloat(document.getElementById('fFeeMaker').value),
     tradingHours:     getTradingHours().length ? getTradingHours() : null,
     description:      document.getElementById('fDescription').value,
     conditions: {

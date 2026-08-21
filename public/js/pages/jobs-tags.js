@@ -77,3 +77,5 @@ document.addEventListener('click', e => {
     closePopover()
   }
 })
+
+initI18n()

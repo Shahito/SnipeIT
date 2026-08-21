@@ -1,7 +1,7 @@
 // trade-chart.js
 // Full-page TradingView-style chart for one backtest job, with the
 // strategy's own indicators overlaid (recomputed server-side to match
-// indicators.py exactly — see candleController.js + utils/indicatorEngine.js).
+// indicators.py exactly - see candleController.js + utils/indicatorEngine.js).
 // Real multi-pane layout: one Lightweight Charts instance per pane, synced
 // on pan/zoom and crosshair, each with its own hover legend, resizable by
 // dragging, and toggled via a floating drawer.
@@ -29,7 +29,7 @@
     return
   }
 
-  // --- Floating drawer open/close ---
+  // Floating drawer open/close
   toggleBtnEl.addEventListener('click', e => {
     e.stopPropagation()
     drawerEl.classList.toggle('open')
@@ -42,7 +42,7 @@
     toggleBtnEl.classList.remove('active')
   })
 
-  // --- Decode the columnar trades table produced by compute_results.py (_pack_trades) ---
+  // Decode the columnar trades table produced by compute_results.py (_pack_trades)
   const REASONS = ['risk', 'tsl', 'signal', 'end']
 
   function unpackTrades(packed) {
@@ -78,7 +78,7 @@
     return markers
   }
 
-  // --- Classify an indicator column name into a pane kind (naming convention shared with indicators.py) ---
+  // Classify an indicator column name into a pane kind (naming convention shared with indicators.py)
   function kindOf(label) {
     if (label.startsWith('RSI_') || label.startsWith('STOCH_RSI_')) return 'oscillator'
     if (label.startsWith('MACD_')) return 'macd'
@@ -95,8 +95,8 @@
     return v.toFixed(4)
   }
 
-  // --- Drag-to-resize a pane, like TradingView. Grabbing the handle at the
-  // top of a panel and dragging up grows it, dragging down shrinks it — the
+  // Drag-to-resize a pane, like TradingView. Grabbing the handle at the
+  // top of a panel and dragging up grows it, dragging down shrinks it - the
   // main chart (flex:1) absorbs the difference automatically.
   function addResizeHandle(panel) {
     const handle = document.createElement('div')
@@ -134,7 +134,7 @@
     handle.addEventListener('pointercancel', stop)
   }
 
-  // --- Fetch job ---
+  // Fetch job
   let job
   try {
     setStatus('Chargement du job...')
@@ -150,7 +150,7 @@
     return
   }
 
-  // --- Fetch candles + indicators (single call) ---
+  // Fetch candles + indicators (single call)
   let candlesData
   try {
     setStatus('Chargement des bougies et indicateurs (Binance)...')
@@ -166,14 +166,21 @@
     return
   }
 
-  const trades  = unpackTrades(job.result.trades)
-  const markers = buildMarkers(trades)
+  const trades = unpackTrades(job.result.trades)
 
   const times = candles.map(c => c.time)
   const timeToIdx = new Map(times.map((t, i) => [t, i]))
 
-  // rawSeries: full-length arrays aligned 1:1 with `times` (null allowed) — used for legend lookups.
-  // pointSeries: same data but filtered to non-null {time,value} pairs — used to feed chart series.
+  // Some trades can reference times outside the candle range actually loaded
+  // (e.g. the chart's candle cap kicked in for a very long backtest). Markers
+  // whose time doesn't match a real candle get visually clamped/stacked by
+  // lightweight-charts, which is misleading - filter them out and count them.
+  const allMarkers = buildMarkers(trades)
+  const markers = allMarkers.filter(m => timeToIdx.has(m.time))
+  const hiddenMarkersCount = allMarkers.length - markers.length
+
+  // rawSeries: full-length arrays aligned 1:1 with `times` (null allowed) - used for legend lookups.
+  // pointSeries: same data but filtered to non-null {time,value} pairs - used to feed chart series.
   const rawSeries = {}
   const pointSeries = {}
   const kindByLabel = {}
@@ -198,9 +205,18 @@
   infoEl.textContent = `${pair} · ${timeframe} · ${candles.length} bougies · ` +
     `${trades.length}${sampled ? ` / ${totalTrades} trades (échantillonné)` : ' trades'}` +
     (nIndicators ? ` · ${nIndicators} indicateur(s)` : '')
-  setStatus('')
 
-  // --- Group labels by pane kind ---
+  const warnings = []
+  if (candlesData.truncated) {
+    const from = new Date(candlesData.effectiveStartDate).toLocaleDateString('fr-FR')
+    warnings.push(`Période trop longue pour ${timeframe} : affichage limité aux ${candlesData.maxCandles.toLocaleString('fr-FR')} bougies les plus récentes (depuis le ${from}).`)
+  }
+  if (hiddenMarkersCount) {
+    warnings.push(`${hiddenMarkersCount} marqueur(s) de trade masqué(s) car hors de la plage de bougies chargée.`)
+  }
+  setStatus(warnings.join(' '), warnings.length > 0)
+
+  // Group labels by pane kind
   const overlayLabels    = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'overlay')
   const oscillatorLabels = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'oscillator')
   const macdLabels       = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'macd')
@@ -219,7 +235,7 @@
     autoSize: true,
   })
 
-  // --- Main chart: candles + overlay indicators ---
+  // Main chart: candles + overlay indicators
   const mainChart = LightweightCharts.createChart(chartEl, CHART_OPTS())
   const candleSeries = mainChart.addCandlestickSeries({
     upColor: '#2ecc71', downColor: '#e74c3c', borderVisible: false,
@@ -228,7 +244,7 @@
   candleSeries.setData(candles.map(c => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close })))
   candleSeries.setMarkers(markers)
 
-  // --- "In position" shaded zones (semi-transparent band from entry to exit) ---
+  // "In position" shaded zones (semi-transparent band from entry to exit)
   const zonesLayer = document.createElement('div')
   zonesLayer.style.position = 'absolute'
   zonesLayer.style.top = '0'
@@ -236,6 +252,7 @@
   zonesLayer.style.right = '0'
   zonesLayer.style.bottom = '0'
   zonesLayer.style.pointerEvents = 'none'
+  zonesLayer.style.overflow = 'hidden'
   zonesLayer.style.zIndex = '1' // above the candle canvas, below .pane-legend (z-index 5)
   chartEl.appendChild(zonesLayer)
 
@@ -264,7 +281,7 @@
   const OVERLAY_COLORS = ['#f4b400', '#ab47bc', '#26c6da', '#ff7043', '#66bb6a', '#42a5f5', '#ec407a']
   const OSC_COLORS      = ['#ffd54f', '#ba68c8', '#4fc3f7', '#81c784']
 
-  const toggleables = [] // individual line toggles — overlay indicators only (they share the main pane, no dedicated graph to remove)
+  const toggleables = [] // individual line toggles - overlay indicators only (they share the main pane, no dedicated graph to remove)
   const colorOf = {}
 
   overlayLabels.forEach((label, i) => {
@@ -275,9 +292,9 @@
     toggleables.push({ label, series: s, color })
   })
 
-  // --- Sub-panes (real separate synced chart instances, resizable) ---
+  // Sub-panes (real separate synced chart instances, resizable)
   const paneEntries = [{ chart: mainChart, legendEl: mainLegendEl, refSeries: candleSeries, priceLabel: null, kind: 'main', labels: overlayLabels }]
-  const paneToggles = [] // whole-pane toggles — one entry per dedicated sub-chart (RSI/StochRSI, MACD, ATR)
+  const paneToggles = [] // whole-pane toggles - one entry per dedicated sub-chart (RSI/StochRSI, MACD, ATR)
 
   function createPane() {
     const panel = document.createElement('div')
@@ -319,7 +336,7 @@
   if (macdLabels.length) {
     // Group by "family" (params + optional @timeframe suffix): a strategy
     // referencing MACD on both its base timeframe and an HTF ref (e.g. MACD
-    // on 1h + MACD on 4h) must get one dedicated pane PER family — otherwise
+    // on 1h + MACD on 4h) must get one dedicated pane PER family - otherwise
     // only the first one found gets displayed and the rest is silently lost.
     function macdFamilyKey(label) {
       if (label.startsWith('MACD_histogram_')) return label.slice('MACD_histogram_'.length)
@@ -390,7 +407,7 @@
     paneToggles.push({ label: 'ATR', panelEl, chart, color: '#4dd0e1' })
   }
 
-  // --- Sync pan/zoom across all panes ---
+  // Sync pan/zoom across all panes
   const allCharts = paneEntries.map(p => p.chart)
   let rangeSyncing = false
   allCharts.forEach(chart => {
@@ -404,7 +421,7 @@
     })
   })
 
-  // --- Align price-scale widths across panes so the crosshair lines up vertically ---
+  // Align price-scale widths across panes so the crosshair lines up vertically
   // Each chart auto-sizes its own price-scale column based on the label widths it
   // needs to display (e.g. "102.43" vs "39.12"), which shifts the plot area and
   // misaligns the crosshair between panes. Forcing the same minimumWidth everywhere
@@ -427,7 +444,7 @@
   })
   window.addEventListener('resize', () => setTimeout(() => { alignPriceScaleWidths(); renderPositionZones() }, 50))
 
-  // --- Legends (default to latest values; update on crosshair hover) ---
+  // Legends (default to latest values; update on crosshair hover)
   const lastIdx = times.length - 1
 
   function legendHtmlFor(entry, idx) {
@@ -452,7 +469,7 @@
   }
   updateAllLegends(null) // initial state: show latest values
 
-  // --- Sync crosshair across all panes + drive the legends ---
+  // Sync crosshair across all panes + drive the legends
   let crosshairSyncing = false
   paneEntries.forEach(sourceEntry => {
     sourceEntry.chart.subscribeCrosshairMove(param => {
@@ -480,7 +497,7 @@
     })
   })
 
-  // --- Drawer contents ---
+  // Drawer contents
   function addToggleRow(color, labelText, onChange) {
     const row = document.createElement('label')
     row.className = 'toggle-row'

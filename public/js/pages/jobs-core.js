@@ -88,7 +88,6 @@ document.addEventListener('header:ready', async () => {
   _connectEventStream()
   autoRefreshTimer = setInterval(pollWorkerStatus, 15000) // no push for the worker, stay in light poll
 })
-initI18n()
 
 document.getElementById('refreshBtn').addEventListener('click', () => { loadJobs(); pollWorkerStatus() })
 

@@ -2,10 +2,12 @@ const { getJob } = require('../services/jobService')
 const {
   tfMinutes, extractNeeded, warmupCandles, computeColumns, mergeHtfColumn,
 } = require('../utils/indicatorEngine')
+const { getCachedKlines } = require('../utils/candleCache')
 
-const BINANCE_KLINES       = 'https://api.binance.com/api/v3/klines'
+const BINANCE_KLINES = 'https://api.binance.com/api/v3/klines'
 const MAX_CANDLES_PER_CALL = 1000
-const MAX_BATCHES          = 40 // safety cap: 40 * 1000 = 40k candles max per exchange call
+const MAX_CANDLES = 150000 // hard cap on total candles served for one chart (rendering + payload size)
+const MAX_BATCHES = Math.ceil(MAX_CANDLES / MAX_CANDLES_PER_CALL) // derived, not an arbitrary number
 
 function pairToSymbol(pair) {
   return String(pair).replace('/', '').toUpperCase()
@@ -93,11 +95,27 @@ async function getCandlesController(req, res) {
     const htfNeeded  = needed.filter(n => n.timeframe)
     const baseTfMin  = tfMinutes(timeframe)
 
-    // --- Base timeframe: fetch with warmup prefix so indicators have converged ---
-    const warmupN     = warmupCandles(baseNeeded)
-    const warmupStart = requestedStartMs - baseTfMin * 60 * 1000 * warmupN
+    // Base timeframe: fetch with warmup prefix so indicators have converged
+    const warmupN = warmupCandles(baseNeeded)
+    const tfMs    = baseTfMin * 60 * 1000
 
-    const rawFull = await fetchKlines(symbol, timeframe, warmupStart, requestedEndMs)
+    // If the requested range needs more candles than MAX_CANDLES allows, keep the
+    // most recent MAX_CANDLES worth of data instead of silently cutting off wherever
+    // the exchange-call cap happens to land (previous behaviour)
+    const candlesNeeded = Math.ceil((requestedEndMs - requestedStartMs) / tfMs) + warmupN
+    const truncated      = candlesNeeded > MAX_CANDLES
+    const effectiveStartMs = truncated
+      ? requestedEndMs - MAX_CANDLES * tfMs
+      : requestedStartMs
+
+    const warmupStart = effectiveStartMs - tfMs * warmupN
+
+    const rawFull = await getCachedKlines({
+      exchange, symbol, pair: snap.pair, timeframe,
+      tfMs: baseTfMin * 60 * 1000,
+      startMs: warmupStart, endMs: requestedEndMs,
+      fetchFn: fetchKlines,
+    })
     if (!rawFull.length) {
       return res.json({ candles: [], pair: snap.pair, timeframe, exchange, indicators: {} })
     }
@@ -107,7 +125,7 @@ async function getCandlesController(req, res) {
 
     // Trim the warmup prefix off before sending (mirrors backtest.py's df trim to real_start)
     let trimIdx = 0
-    while (trimIdx < ohlcvFull.time.length && ohlcvFull.time[trimIdx] * 1000 < requestedStartMs) trimIdx++
+    while (trimIdx < ohlcvFull.time.length && ohlcvFull.time[trimIdx] * 1000 < effectiveStartMs) trimIdx++
 
     const time  = ohlcvFull.time.slice(trimIdx)
     const open  = ohlcvFull.open.slice(trimIdx)
@@ -137,7 +155,12 @@ async function getCandlesController(req, res) {
       const htfWarmupN   = warmupCandles(items)
       const htfWarmupStart = requestedStartMs - htfTfMin * 60 * 1000 * htfWarmupN
 
-      const rawHtf = await fetchKlines(symbol, tf, htfWarmupStart, requestedEndMs)
+      const rawHtf = await getCachedKlines({
+        exchange, symbol, pair: snap.pair, timeframe: tf,
+        tfMs: htfTfMin * 60 * 1000,
+        startMs: htfWarmupStart, endMs: requestedEndMs,
+        fetchFn: fetchKlines,
+      })
       if (!rawHtf.length) {
         console.warn(`No HTF data for ${snap.pair} ${tf} — skipping ${items.length} indicator(s)`)
         continue
@@ -153,7 +176,15 @@ async function getCandlesController(req, res) {
 
     const candles = time.map((t, i) => ({ time: t, open: open[i], high: high[i], low: low[i], close: close[i] }))
 
-    res.json({ candles, pair: snap.pair, timeframe, exchange, indicators })
+    res.json({
+      candles, pair: snap.pair, timeframe, exchange, indicators,
+      truncated,
+      ...(truncated ? {
+        requestedStartDate: snap.startDate,
+        effectiveStartDate: new Date(effectiveStartMs).toISOString(),
+        maxCandles: MAX_CANDLES,
+      } : {}),
+    })
   } catch (e) {
     if (e.message === 'JOB_NOT_FOUND') {
       return res.status(404).json({ error: 'JOB_NOT_FOUND' })
