@@ -9,7 +9,7 @@ const { previewController, launchController, listController, getController } = r
  * /api/strategies/{id}/sweep/preview:
  *   get:
  *     tags: [sweep]
- *     summary: Preview du nombre de combinaisons (sans lancement)
+ *     summary: Preview the number of combinations (no launch)
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
@@ -28,7 +28,7 @@ router.get('/strategies/:id/sweep/preview', authRequired, previewController)
  * /api/strategies/{id}/sweep:
  *   post:
  *     tags: [sweep]
- *     summary: Lance un sweep (point d'entrée unique de lancement, run classique = totalRuns 1)
+ *     summary: Launch a sweep (single launch entry point, classic run = totalRuns 1)
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
@@ -55,7 +55,7 @@ router.post('/strategies/:id/sweep', authRequired, launchController)
  * /api/sweeps:
  *   get:
  *     tags: [sweep]
- *     summary: Liste les sweeps
+ *     summary: List sweeps
  *     security: [{ bearerAuth: [] }]
  *     responses:
  *       200: { description: OK }
@@ -67,7 +67,7 @@ router.get('/sweeps', authRequired, listController)
  * /api/sweeps/{id}:
  *   get:
  *     tags: [sweep]
- *     summary: Résultats agrégés d'un sweep (global + par catégorie de pair + sensibilité)
+ *     summary: Aggregated results of a sweep (global + per pair category + sensitivity)
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path

@@ -11,7 +11,7 @@ const {
  * /api/pair-categories:
  *   get:
  *     tags: [pairCategory]
- *     summary: Liste les catégories de pairs (ex Majors, Meme coins, L1...)
+ *     summary: List pair categories (e.g. Majors, Meme coins, L1...)
  *     security: [{ bearerAuth: [] }]
  *     responses:
  *       200: { description: OK }
@@ -23,7 +23,7 @@ router.get('/', authRequired, listController)
  * /api/pair-categories:
  *   post:
  *     tags: [pairCategory]
- *     summary: Crée une catégorie de pairs
+ *     summary: Create a pair category
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       required: true
@@ -47,7 +47,7 @@ router.post('/', authRequired, createController)
  * /api/pair-categories/{id}:
  *   put:
  *     tags: [pairCategory]
- *     summary: Modifie une catégorie de pairs
+ *     summary: Update a pair category
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
@@ -65,7 +65,7 @@ router.put('/:id', authRequired, updateController)
  * /api/pair-categories/{id}:
  *   delete:
  *     tags: [pairCategory]
- *     summary: Supprime une catégorie de pairs
+ *     summary: Delete a pair category
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path

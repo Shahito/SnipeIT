@@ -9,7 +9,7 @@ const { listController, validatePairsController } = require('../controllers/coin
  * /api/coins:
  *   get:
  *     tags: [coin]
- *     summary: Liste des coins tradables sur Binance (base+quote confondus) + catégories fixes
+ *     summary: List tradable coins on Binance (base+quote combined) + fixed categories
  *     security: [{ bearerAuth: [] }]
  *     responses:
  *       200: { description: OK }
@@ -22,7 +22,7 @@ router.get('/', authRequired, listController)
  * /api/coins/validate-pairs:
  *   post:
  *     tags: [coin]
- *     summary: Filtre une liste de paires candidates (BASE/QUOTE) sur celles réellement tradables
+ *     summary: Filter a list of candidate pairs (BASE/QUOTE) to those actually tradable
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       required: true

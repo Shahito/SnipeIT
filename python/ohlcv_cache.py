@@ -13,7 +13,7 @@ import json
 import time
 import logging
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
@@ -25,6 +25,9 @@ CACHE_DIR = Path(os.getenv("OHLCV_CACHE_DIR", "./cache"))
 SENTINEL = "fetch_start.txt"
 CONFIRMED_GAPS_FILE = "confirmed_gaps.json"
 CONFIRMED_END_FILE = "confirmed_end.txt"
+# How long a confirmed-empty gap is trusted before being re-checked
+# Adjustable via .env.
+CONFIRMED_GAP_TTL_DAYS = int(os.getenv("OHLCV_CONFIRMED_GAP_TTL_DAYS", "7"))
 
 # Kept in sync with backtest.py's _TF_MINUTES. Duplicated on purpose: this module
 # is a standalone low-level cache layer and should not import the heavier backtest
@@ -54,23 +57,81 @@ def _load_confirmed_end(cache_dir: Path) -> datetime | None:
     p = cache_dir / CONFIRMED_END_FILE
     return datetime.fromisoformat(p.read_text()) if p.exists() else None
 
-
-def _load_confirmed_gaps(cache_dir: Path) -> list[tuple[datetime, datetime]]:
+def _load_confirmed_gaps(cache_dir: Path) -> list[tuple[datetime, datetime, datetime | None]]:
     p = cache_dir / CONFIRMED_GAPS_FILE
     if not p.exists():
         return []
     raw = json.loads(p.read_text())
-    return [(datetime.fromisoformat(a), datetime.fromisoformat(b)) for a, b in raw]
+
+    gaps = []
+    for entry in raw:
+        if isinstance(entry, dict):
+            gap_start = datetime.fromisoformat(entry["gap_start"])
+            gap_end = datetime.fromisoformat(entry["gap_end"])
+            detected_at_raw = entry.get("detected_at")
+            # None (not a sentinel date) means "never verified" - _is_confirmed_gap
+            # treats that as expired. Nothing gets written to disk for this case;
+            # see _save_confirmed_gap.
+            detected_at = datetime.fromisoformat(detected_at_raw) if detected_at_raw else None
+        else:
+            # Legacy format: plain [gap_start, gap_end] pair, no detected_at.
+            gap_start, gap_end = entry
+            gap_start = datetime.fromisoformat(gap_start)
+            gap_end = datetime.fromisoformat(gap_end)
+            detected_at = None
+        gaps.append((gap_start, gap_end, detected_at))
+    return gaps
 
 def _save_confirmed_gap(cache_dir: Path, gap_start: datetime, gap_end: datetime) -> None:
-    gaps = _load_confirmed_gaps(cache_dir)
-    gaps.append((gap_start, gap_end))
     p = cache_dir / CONFIRMED_GAPS_FILE
-    p.write_text(json.dumps([[a.isoformat(), b.isoformat()] for a, b in gaps]))
+    raw = json.loads(p.read_text()) if p.exists() else []
+
+    def _entry_dates(entry):
+        if isinstance(entry, dict):
+            return datetime.fromisoformat(entry["gap_start"]), datetime.fromisoformat(entry["gap_end"])
+        a, b = entry
+        return datetime.fromisoformat(a), datetime.fromisoformat(b)
+
+    # Only the entry for this exact gap is touched. Every other entry -
+    # including legacy ones still missing detected_at - is left completely
+    # untouched: we never stamp a placeholder date onto a gap we haven't
+    # actually just re-verified.
+    raw = [e for e in raw if _entry_dates(e) != (gap_start, gap_end)]
+    raw.append({
+        "gap_start": gap_start.isoformat(),
+        "gap_end": gap_end.isoformat(),
+        "detected_at": datetime.utcnow().isoformat(),
+    })
+    p.write_text(json.dumps(raw))
+
+def _remove_confirmed_gap(cache_dir: Path, gap_start: datetime, gap_end: datetime) -> None:
+    """Drops a stale confirmed-gap entry once the exchange has backfilled it.
+    No-op if the file doesn't exist or has no matching entry (e.g. this gap
+    was never confirmed empty to begin with, it just showed up as expired)."""
+    p = cache_dir / CONFIRMED_GAPS_FILE
+    if not p.exists():
+        return
+    raw = json.loads(p.read_text())
+
+    def _entry_dates(entry):
+        if isinstance(entry, dict):
+            return datetime.fromisoformat(entry["gap_start"]), datetime.fromisoformat(entry["gap_end"])
+        a, b = entry
+        return datetime.fromisoformat(a), datetime.fromisoformat(b)
+
+    filtered = [e for e in raw if _entry_dates(e) != (gap_start, gap_end)]
+    if len(filtered) != len(raw):
+        p.write_text(json.dumps(filtered))
 
 def _is_confirmed_gap(gap_start, gap_end, confirmed) -> bool:
-    return any(cs <= gap_start and gap_end <= ce for cs, ce in confirmed)
-
+    now = datetime.utcnow()
+    ttl = timedelta(days=CONFIRMED_GAP_TTL_DAYS)
+    return any(
+        cs <= gap_start and gap_end <= ce
+        and detected_at is not None
+        and (now - detected_at) <= ttl
+        for cs, ce, detected_at in confirmed
+    )
 
 def _cache_path(exchange: str, pair: str, timeframe: str) -> Path:
     safe_pair = pair.replace("/", "_")
@@ -254,6 +315,11 @@ def get_ohlcv(pair: str, timeframe: str, start_date: str, end_date: str,
                 )
                 _save_confirmed_gap(cache_dir, gap_start, gap_end)
             else:
+                log.info(
+                    f"Gap {gap_start} -> {gap_end} on {pair}/{timeframe} was backfilled "
+                    f"by the exchange - clearing any stale confirmed-gap entry."
+                )
+                _remove_confirmed_gap(cache_dir, gap_start, gap_end)
                 frames.append(patch)
 
         if need_after:

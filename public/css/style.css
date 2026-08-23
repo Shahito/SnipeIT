@@ -3501,7 +3501,7 @@ input[type="color"] {
 }
 
 .tag-popover {
-    position: fixed;
+    position: absolute;
     z-index: 600;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -3512,6 +3512,7 @@ input[type="color"] {
     max-height: 18rem;
     display: flex;
     flex-direction: column;
+    scroll-behavior: contain;
     overflow: hidden;
 }
 

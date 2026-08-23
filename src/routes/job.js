@@ -5,8 +5,8 @@ const authRequired = require('../middleware/auth')
 const { listController, getController, cancelController } = require('../controllers/jobController')
 const { getCandlesController } = require('../controllers/candleController')
 
-// Lancement : voir POST /api/strategies/:id/sweep (routes/sweep.js) — point
-// d'entrée unique désormais, run classique inclus (totalRuns = 1).
+// Launch: see POST /api/strategies/:id/sweep (routes/sweep.js) - single
+// entry point now, classic run included (totalRuns = 1).
 
 /**
  * @openapi
@@ -80,7 +80,7 @@ router.get('/:id', authRequired, getController)
  *         description: CANDLES_FETCH_FAILED
  */
 // Indicators are embedded directly in the /candles response (see
-// candleController.js + utils/indicatorEngine.js) — one Binance fetch
+// candleController.js + utils/indicatorEngine.js) - one Binance fetch
 // shared for both, instead of a separate round-trip.
 router.get('/:id/candles', authRequired, getCandlesController)
 

@@ -57,8 +57,8 @@ function openTagPopover(jobId, anchorEl) {
   if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8
   if (top + ph > window.innerHeight - 8) top = rect.top - ph - 6
 
-  popover.style.top  = top  + 'px'
-  popover.style.left = left + 'px'
+  popover.style.top  = (top  + window.scrollY) + 'px'
+  popover.style.left = (left + window.scrollX) + 'px'
 }
 
 function closePopover() {

@@ -187,6 +187,32 @@
     `
   }
 
+  // number/% switch for the multiplier field. Display-only: cond.valueMultiplier
+  // always stays a plain multiplier on disk, backend/backtest.py never see '%'.
+  const MULTIPLIER_MODES = [{ value: 'number', label: '#' }, { value: 'percent', label: '%' }]
+
+  function _scaleMultiplier(value, factor) {
+    if (value && typeof value === 'object' && Array.isArray(value.sweep)) return { sweep: value.sweep.map(v => v * factor) }
+    return value * factor
+  }
+
+  function _multiplierDisplayValue(cond) {
+    const raw = cond.valueMultiplier ?? 1
+    return cond.valueMultiplierMode === 'percent' ? _scaleMultiplier(raw, 100) : raw
+  }
+
+  function _multiplierModeField(id, mode) {
+    const active = mode === 'percent' ? 'percent' : 'number'
+    return `
+      <div class="form-group">
+        <label></label>
+        <div class="toggle-group" id="${id}">
+          ${MULTIPLIER_MODES.map(m => `<button type="button" class="toggle-btn${m.value === active ? ' active' : ''}" data-chip-value="${m.value}">${m.label}</button>`).join('')}
+        </div>
+      </div>
+    `
+  }
+
   const SOURCE_CLOSE_SENTINEL = '__close__'
 
   function _sourceField(id, label, value) {
@@ -290,7 +316,10 @@
       ${isRhs ? `
       <div class="divider mt-md mb-md"></div>
       <div class="section-title">${t('editor.cond.multiplier')}</div>
-      ${_sweepNumberField('cs-multiplier', '', cond.valueMultiplier ?? 1)}
+      <div class="form-row">
+        ${_sweepNumberField('cs-multiplier', '', _multiplierDisplayValue(cond))}
+        ${_multiplierModeField('cs-multiplier-mode', cond.valueMultiplierMode)}
+      </div>
       <p class="text-muted text-sm mt-sm">${t('editor.cond.multiplier_hint')}</p>
       ` : ''}
 
@@ -385,7 +414,20 @@
     })
 
     document.getElementById('cs-multiplier')?.addEventListener('input', e => {
-      cond.valueMultiplier = parseSweepNumber(e.target.value) ?? 1
+      const parsed = parseSweepNumber(e.target.value) ?? 1
+      // '%' mode: the field holds e.g. 5 for "5%" - store the plain multiplier.
+      cond.valueMultiplier = cond.valueMultiplierMode === 'percent' ? _scaleMultiplier(parsed, 1 / 100) : parsed
+      updatePreview()
+    })
+
+    document.getElementById('cs-multiplier-mode')?.addEventListener('click', e => {
+      const btn = e.target.closest('.toggle-btn')
+      if (!btn) return
+      if (btn.dataset.chipValue === 'percent') cond.valueMultiplierMode = 'percent'
+      else delete cond.valueMultiplierMode
+      // Full re-render so the field shows the same multiplier converted to
+      // the new mode (0.05 <-> 5%) instead of stale text on screen.
+      _renderBody()
       updatePreview()
     })
 

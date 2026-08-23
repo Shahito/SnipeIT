@@ -148,7 +148,7 @@ function renderConditions() {
         if (gIdx > 0) {
           const sep = document.createElement('div')
           sep.className = 'group-separator'
-          sep.innerHTML = `<span class="group-separator-label">OR</span>`
+          sep.innerHTML = `<span class="group-separator-label">${t('editor.cond.or')}</span>`
           container.appendChild(sep)
         }
         const groupEl = document.createElement('div')
@@ -166,7 +166,7 @@ function renderConditions() {
           if (rIdx > 0) {
             const andSep = document.createElement('div')
             andSep.className = 'and-separator'
-            andSep.textContent = 'AND'
+            andSep.textContent = t('editor.cond.and')
             groupEl.appendChild(andSep)
           }
           groupEl.appendChild(renderConditionRow(type, gIdx, rIdx, cond))
@@ -175,7 +175,7 @@ function renderConditions() {
         addInGroup.className = 'add-rule-in-group-btn btn btn-ghost btn-sm'
         addInGroup.dataset.type = type
         addInGroup.dataset.gidx = gIdx
-        addInGroup.innerHTML = `${ICONS.plus}<span>AND</span>`
+        addInGroup.innerHTML = `${ICONS.plus}<span>${t('editor.cond.and')}</span>`
         groupEl.appendChild(addInGroup)
         container.appendChild(groupEl)
       })

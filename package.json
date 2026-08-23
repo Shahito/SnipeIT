@@ -8,7 +8,10 @@
     "sync": "browser-sync start --proxy 'localhost:5100' --files 'public/css/**/*.css, *.html, public/js/**/*.js' --port 5101",
     "dev": "concurrently \"npm:server\" \"npm:sync\"",
     "start": "node app.js",
-    "test:parity": "node test/indicatorParity.test.js"
+    "test:parity": "node test/indicatorParity.test.js",
+    "test:i18n-sync": "node test/i18nLocalesSync.test.js",
+    "test:i18n-keys": "node test/i18nKeysUsage.test.js",
+    "test:i18n": "npm run test:i18n-sync && npm run test:i18n-keys"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
