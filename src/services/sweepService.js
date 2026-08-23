@@ -212,6 +212,7 @@ async function getSweepGroup(id, userId) {
           winRate: true,
           maxDrawdown: true,
           sharpeRatio: true,
+          errorMessage: true,
           jobTags: { include: { tag: true } },
         },
       },
@@ -221,7 +222,10 @@ async function getSweepGroup(id, userId) {
   if (!group) throw new Error('SWEEP_NOT_FOUND')
 
   const jobs = group.jobs
-  const done = jobs.filter(j => j.status === 'done')
+  const done   = jobs.filter(j => j.status === 'done')
+  const failed = jobs
+    .filter(j => j.status === 'error')
+    .map(j => ({ id: j.id, errorMessage: j.errorMessage || null }))
   
   const byCatMap = new Map() // key -> { key, name, jobs: [] }
   const uncategorized = []
@@ -281,6 +285,7 @@ async function getSweepGroup(id, userId) {
       running: jobs.filter(j => j.status === 'running').length,
       error: jobs.filter(j => j.status === 'error').length,
     },
+    failed,
     global: statsFor(done),
     byCategory,
     sensitivity,
@@ -297,9 +302,11 @@ async function refreshSweepGroupStatus(sweepGroupId) {
   const allTerminal = jobs.every(j => j.status === 'done' || j.status === 'error')
 
   if (!allTerminal) {
+    // Only report 'running' when a worker has claimed one of the jobs
+    const anyRunning = jobs.some(j => j.status === 'running')
     const g = await prisma.sweepGroup.update({
       where: { id: sweepGroupId },
-      data: { status: 'running' },
+      data: { status: anyRunning ? 'running' : 'pending' },
       select: { id: true, userId: true, status: true },
     })
     emitToUser(g.userId, 'sweep:update', { sweepGroupId: g.id, status: g.status })

@@ -2128,7 +2128,7 @@ select.field-invalid {
     border: 1px solid rgba(255, 180, 0, 0.3);
     border-radius: var(--radius);
     color: var(--text);
-    grid-area: 1 / 1 / 2 / 3;
+    grid-column: span 2;
 }
 
 .snapshot-warning-icon {
@@ -2154,11 +2154,11 @@ select.field-invalid {
 }
 
 #resultsContent .page-header {
-    grid-area: 2 / 1 / 3 / 3;
+    grid-column: span 2;
 }
 
 .metrics-grid {
-    grid-area: 3 / 1 / 4 / 3;
+    grid-column: span 2;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
     gap: .75rem;
@@ -2203,7 +2203,7 @@ select.field-invalid {
 }
 
 #tradesCard {
-    grid-area: 7 / 1 / 8 / 3;
+    grid-column: span 2;
 }
 
 #tradesCount {
@@ -2218,10 +2218,6 @@ select.field-invalid {
     width: 100%;
     height: 12rem;
     display: block;
-}
-
-#exitReasonsCard {
-    grid-area: 5 / 1 / 6 / 2;
 }
 
 .exit-reasons-filters {
@@ -2327,17 +2323,13 @@ select.field-invalid {
     white-space: nowrap;
 }
 
-#pnlDistributionCard {
-    grid-area: 5 / 2 / 6 / 3;
-}
-
 #pnlDistributionCanvas {
     width: 100%;
     display: block;
 }
 
 #monthlyPerfCard {
-    grid-area: 6 / 1 / 7 / 3;
+    grid-column: span 2;
     min-width: 0;
 }
 
@@ -3042,7 +3034,7 @@ select.field-invalid {
 }
 
 .card--chart {
-    grid-area: 4 / 1 / 5 / 3;
+    grid-column: span 2;
     padding: 1.25rem 0;
 }
 
@@ -3555,6 +3547,46 @@ input[type="color"] {
     padding: .5rem .75rem;
     border-top: 1px solid var(--border);
     flex-shrink: 0;
+}
+
+/* Failed runs popover (sweep-results) */
+.failed-runs-popover {
+    border-color: rgba(255, 70, 70, 0.35);
+}
+
+.failed-runs-popover .tag-popover-header {
+    background: var(--danger-dim);
+}
+
+.failed-runs-popover .tag-popover-title {
+    color: var(--danger);
+}
+
+.failed-runs-list-item {
+    padding: .4rem .5rem;
+    border-radius: var(--radius);
+    background: var(--danger-dim);
+    color: var(--text);
+    font-size: .78rem;
+    line-height: 1.4;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+
+.failed-runs-list-item strong {
+    color: var(--danger);
+}
+
+.tag-popover-list::-webkit-scrollbar-thumb {
+    background: var(--danger-dim-strong);
+}
+
+.status-badge.clickable {
+    cursor: pointer;
+}
+
+.status-badge.clickable:hover {
+    filter: brightness(1.15);
 }
 
 /* Trades */

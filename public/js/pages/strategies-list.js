@@ -35,8 +35,14 @@ async function loadStrategies() {
 
 function renderStrategyCard(s) {
   const lastJob   = s.jobs?.[0]
+  // For a sweep, the badge must reflect the aggregate sweepGroup.status, not
+  // the status of one arbitrary job within it (see refreshSweepGroupStatus).
+  const isSweepJob   = !!lastJob?.sweepGroup
+  const badgeStatus  = isSweepJob ? lastJob.sweepGroup.status : lastJob?.status
+  const badgeKey     = isSweepJob ? 'sweep.status.' + badgeStatus : 'status.' + badgeStatus
+  const badgeCss     = isSweepJob && badgeStatus === 'partial_error' ? 'error' : badgeStatus
   const statusHtml = lastJob
-    ? `<span class="status-badge status-${lastJob.status}"><span class="status-dot"></span>${t('status.' + lastJob.status)}</span>`
+    ? `<span class="status-badge status-${badgeCss}"><span class="status-dot"></span>${t(badgeKey)}</span>`
     : `<span class="status-badge status-none"><span class="status-dot"></span>${t('strategies.never_launched')}</span>`
 
   const isSweep = lastJob?.sweepGroup?.totalRuns > 1

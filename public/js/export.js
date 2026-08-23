@@ -556,6 +556,22 @@
         if (cond[k.tf] != null) ref.timeframe = cond[k.tf]
         if (cond[k.src] != null) ref.source = cond[k.src]
         if (cond[k.off]) ref.offset = cond[k.off]
+
+        // Optional "combine with" second ref (e.g. OPEN - CLOSE), mirrors
+        // _refKeys() in condition-settings.js. Was previously dropped
+        // silently since nothing referenced these keys.
+        const p = prefix || ''
+        const copKey  = p ? `${p}CombineOp` : 'combineOp'
+        const cindKey = p ? `${p}CombineIndicator` : 'combineIndicator'
+        const cperKey = p ? `${p}CombinePeriod` : 'combinePeriod'
+        const csrcKey = p ? `${p}CombineSource` : 'combineSource'
+        const coffKey = p ? `${p}CombineOffset` : 'combineOffset'
+        if (cond[copKey]) {
+            ref.combine = { op: cond[copKey], indicator: cond[cindKey] }
+            if (cond[cperKey] != null) ref.combine.period = cond[cperKey]
+            if (cond[csrcKey] != null) ref.combine.source = cond[csrcKey]
+            if (cond[coffKey]) ref.combine.offset = cond[coffKey]
+        }
         return ref
     }
 
@@ -564,6 +580,11 @@
             left: _buildIndicatorRef(cond, ''),
             operator: cond.operator,
             right: cond.valueIndicator ? _buildIndicatorRef(cond, 'value') : { constant: cond.value },
+        }
+        // valueMultiplier only applies to an indicator RHS, and can itself be
+        // a sweep axis ({ sweep: [...] }) - was previously dropped entirely.
+        if (cond.valueIndicator && cond.valueMultiplier != null && cond.valueMultiplier !== 1) {
+            out.right.multiplier = cond.valueMultiplier
         }
         if (cond.lookback > 1) {
             out.lookback = {
@@ -652,10 +673,31 @@
         return label
     }
 
+    function _describeCombinedRef(cond, prefix) {
+        const copKey  = prefix ? `${prefix}CombineOp` : 'combineOp'
+        const cindKey = prefix ? `${prefix}CombineIndicator` : 'combineIndicator'
+        const cperKey = prefix ? `${prefix}CombinePeriod` : 'combinePeriod'
+        const csrcKey = prefix ? `${prefix}CombineSource` : 'combineSource'
+        let label = _describeRef(cond, prefix)
+        if (cond[copKey]) {
+            const combineRef = { indicator: cond[cindKey], period: cond[cperKey], source: cond[csrcKey] }
+            label += ` ${cond[copKey]} ${_describeRef(combineRef, '')}`
+        }
+        return label
+    }
+
+    function _formatSweepableValue(v) {
+        if (v && typeof v === 'object' && Array.isArray(v.sweep)) return `sweep(${v.sweep.join(', ')})`
+        return v
+    }
+
     function _describeCondition(cond) {
-        const lhs = _describeRef(cond, '')
+        const lhs = _describeCombinedRef(cond, '')
         const op = OPERATOR_LABELS()[cond.operator] || cond.operator
-        const rhs = cond.valueIndicator ? _describeRef(cond, 'value') : cond.value
+        let rhs = cond.valueIndicator ? _describeCombinedRef(cond, 'value') : _formatSweepableValue(cond.value)
+        if (cond.valueIndicator && cond.valueMultiplier != null && cond.valueMultiplier !== 1) {
+            rhs += ` × ${_formatSweepableValue(cond.valueMultiplier)}`
+        }
         let line = `${lhs} ${op} ${rhs}`
         if (cond.lookback > 1) {
             const mode = cond.lookbackMode === 'any' ? t('editor.cond.lookback_any') : t('editor.cond.lookback_all')
@@ -722,11 +764,11 @@
             const val = s.stopLoss ?? s.trailingStopLoss
             const isAtr = (s.slType || 'percent') === 'atr'
             const trailing = s.stopLoss == null && s.trailingStopLoss != null ? ` (${t('export.text.label.trailing')})` : ''
-            lines.push(`    ${t('export.text.label.stop_loss').padEnd(20)}${val}${isAtr ? ' x ATR' : '%'}${trailing}`)
+            lines.push(`    ${t('export.text.label.stop_loss').padEnd(20)}${_formatSweepableValue(val)}${isAtr ? ' x ATR' : '%'}${trailing}`)
         }
         if (hasTP) {
             const isAtr = (s.tpType || 'percent') === 'atr'
-            lines.push(`    ${t('export.text.label.take_profit').padEnd(20)}${s.takeProfit}${isAtr ? ' x ATR' : '%'}`)
+            lines.push(`    ${t('export.text.label.take_profit').padEnd(20)}${_formatSweepableValue(s.takeProfit)}${isAtr ? ' x ATR' : '%'}`)
         }
         const usesAtr = (hasSL && (s.slType || 'percent') === 'atr') || (hasTP && (s.tpType || 'percent') === 'atr')
         if (usesAtr && s.atrPeriod != null) lines.push(`    ${t('export.text.label.atr_period').padEnd(20)}${s.atrPeriod}`)
@@ -737,7 +779,7 @@
         if (s.positionSize == null) return []
         return [
             `  ${t('export.text.section.position_sizing')}:`,
-            `    ${t('export.text.label.position_size').padEnd(20)}${s.positionSize}%`,
+            `    ${t('export.text.label.position_size').padEnd(20)}${_formatSweepableValue(s.positionSize)}%`,
         ]
     }
 

@@ -185,8 +185,7 @@
         <button type="button" class="cp-item ${_working.includes(c.symbol) ? 'active' : ''}" data-symbol="${c.symbol}">
             <span class="cp-item-check"></span>
             <span class="cp-item-logo-wrap">
-            <img class="cp-item-logo" src="${_coinLogo(c.symbol)}" alt=""
-                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
+            <img class="cp-item-logo" src="${_coinLogo(c.symbol)}" alt="">
             <span class="cp-item-logo-fallback" style="display:none;">${c.symbol.slice(0, 2)}</span>
             </span>
             <span class="cp-item-text">
@@ -203,6 +202,14 @@
                 else _working.push(symbol)
                 btn.classList.toggle('active')
                 _renderValidateBtn()
+            })
+        })
+
+        // custom empty bubble on 'error'
+        results.querySelectorAll('.cp-item-logo').forEach(img => {
+            img.addEventListener('error', () => {
+                img.style.display = 'none'
+                img.nextElementSibling.style.display = 'flex'
             })
         })
     }

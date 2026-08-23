@@ -106,17 +106,40 @@ async function loadJob() {
   }
 }
 
+// cloneOriginalBtn shared between two ctx
+// Clone snapshot in case of divergant strategy and
+// clone a sweep combination in a single strategy
+function setCloneOriginalBtnMode(mode) {
+  const cloneOriginalBtn = document.getElementById('cloneOriginalBtn')
+  const key   = mode === 'sweep' ? 'results.clone_snapshot_btn' : 'results.clone_original_btn'
+  const icon  = mode === 'sweep' ? 'copy' : 'history'
+  cloneOriginalBtn.innerHTML = `<i data-icon="${icon}">${ICONS[icon]}</i><span data-i18n="${key}">${t(key)}</span>`
+  cloneOriginalBtn.classList.toggle('btn-primary', mode === 'sweep')
+  cloneOriginalBtn.classList.toggle('btn-surface', mode !== 'sweep')
+}
+
 function renderSnapshotWarning(snap, cur, job) {
   const existing = document.getElementById('snapshotWarning')
   if (existing) existing.remove()
   const cloneOriginalBtn = document.getElementById('cloneOriginalBtn')
+  const cloneAndRunBtn   = document.getElementById('cloneAndRunBtn')
+
+  // Reset both clone buttons to their default state before applying
+  // context-specific behaviour below.
+  cloneAndRunBtn.classList.remove('hidden')
+  setCloneOriginalBtnMode('diverged')
+
   if (!snap) { cloneOriginalBtn.classList.add('hidden'); return }
 
   const isRealSweep = job.sweepGroup && job.sweepGroup.totalRuns > 1
 
   if (isRealSweep) {
-    // Show sweep warning banner
-    cloneOriginalBtn.classList.add('hidden');
+    // If run comes from a sweep
+    // Cloning into a proper single strategy with the resolved values
+    cloneAndRunBtn.classList.add('hidden')
+    setCloneOriginalBtnMode('sweep')
+    cloneOriginalBtn.classList.remove('hidden')
+
     const banner = document.createElement('div')
     banner.id = 'snapshotWarning'
     banner.className = 'snapshot-warning'

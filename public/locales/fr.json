@@ -152,6 +152,7 @@
   "results.back_jobs": "Retour aux jobs",
   "results.clone_btn": "Cloner & modifier",
   "results.clone_original_btn": "Cloner la version précédente",
+  "results.clone_snapshot_btn": "Cloner en stratégie unique",
   "results.export_btn": "Exporter",
   "results.snapshot.warning_title": "La stratégie a été modifiée depuis ce run",
   "results.snapshot.warning_desc": "Champs modifiés",
@@ -478,5 +479,12 @@
   "sweep.category.created": "Catégorie créée",
   "sweep.category.deleted": "Catégorie supprimée",
   "sweep.category.name_req": "Nom requis",
-  "sweep.category.uncategorized": "Non catégorisé"
+  "sweep.category.uncategorized": "Non catégorisé",
+  "sweep.failed_runs.hint": "Cliquer pour voir les runs échoués",
+  "sweep.failed_runs.title": "Runs échoués",
+  "sweep.failed_runs.run_label": "Run {id} :",
+  "sweep.failed_runs.no_message": "Pas de message d'erreur",
+  "sweep.failed_runs.empty": "Aucun run échoué",
+  "sweep.failed_runs.show_more": "Voir {count} de plus",
+  "sweep.failed_runs.show_less": "Voir moins"
 }

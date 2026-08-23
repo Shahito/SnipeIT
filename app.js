@@ -8,7 +8,6 @@ const cron = require('node-cron')
 const { isProd } = require('./src/utils/env')
 
 const authRoutes       = require('./src/routes/auth')
-const userRoutes       = require('./src/routes/user')
 const strategyRoutes   = require('./src/routes/strategy')
 const jobRoutes        = require('./src/routes/job')
 const apikeyRoutes     = require('./src/routes/apikey')
@@ -72,7 +71,6 @@ if (isProd) {
 }
 
 app.use('/api/auth',           authRoutes)
-app.use('/api/user',           userRoutes)
 app.use('/api/strategies',     strategyRoutes)
 app.use('/api/jobs',           jobRoutes)
 app.use('/api/events',         eventsRoutes)

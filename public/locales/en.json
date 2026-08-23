@@ -152,6 +152,7 @@
   "results.back_jobs": "Go back to jobs",
   "results.clone_btn": "Clone & edit",
   "results.clone_original_btn": "Clone previous version",
+  "results.clone_snapshot_btn": "Clone into single strategy",
   "results.export_btn": "Export",
   "results.snapshot.warning_title": "Strategy was modified since this run",
   "results.snapshot.warning_desc": "Changed fields",
@@ -478,5 +479,12 @@
   "sweep.category.created": "Category created",
   "sweep.category.deleted": "Category deleted",
   "sweep.category.name_req": "Name required",
-  "sweep.category.uncategorized": "Uncategorized"
+  "sweep.category.uncategorized": "Uncategorized",
+  "sweep.failed_runs.hint": "Click to see failed runs",
+  "sweep.failed_runs.title": "Failed runs",
+  "sweep.failed_runs.run_label": "Run {id}:",
+  "sweep.failed_runs.no_message": "No error message",
+  "sweep.failed_runs.empty": "No failed runs",
+  "sweep.failed_runs.show_more": "Show {count} more",
+  "sweep.failed_runs.show_less": "Show less"
 }

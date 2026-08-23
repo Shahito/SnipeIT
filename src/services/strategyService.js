@@ -26,7 +26,7 @@ async function listStrategies(userId) {
         take: 1,
         select: {
           id: true, status: true, pnlPercent: true,
-          sweepGroup: { select: { id: true, totalRuns: true } },
+          sweepGroup: { select: { id: true, totalRuns: true, status: true } },
         },
       },
     },

@@ -122,6 +122,17 @@
     <div id="popoverTagList" class="tag-popover-list"></div>
   </div>
 
+  <div id="failedRunsPopover" class="tag-popover failed-runs-popover hidden">
+    <div class="tag-popover-header">
+      <span class="tag-popover-title" data-i18n="sweep.failed_runs.title"></span>
+      <button class="modal-close" id="failedRunsClose"><i data-icon="cross"></i></button>
+    </div>
+    <div id="failedRunsList" class="tag-popover-list"></div>
+    <div class="tag-popover-footer hidden" id="failedRunsFooter">
+      <button class="btn btn-ghost" id="failedRunsToggle"></button>
+    </div>
+  </div>
+
   <div class="toast-container" id="toastContainer"></div>
   <script src="/js/utils.js"></script>
   <script src="/js/api.js"></script>
@@ -135,5 +146,6 @@
   <script src="/js/pages/sweep-results-core.js"></script>
   <script src="/js/pages/sweep-results-render.js"></script>
   <script src="/js/pages/sweep-results-tags.js"></script>
+  <script src="/js/pages/sweep-results-failed.js"></script>
 </body>
 </html>

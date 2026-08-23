@@ -92,7 +92,7 @@ def compute_stoch_rsi(df: pd.DataFrame, period: int = 14, smooth_k: int = 3, smo
 
 def compute_vwap(df: pd.DataFrame) -> pd.Series:
     tp = (df["high"] + df["low"] + df["close"]) / 3
-    return (tp * df["volume"]).cumsum() / df["volume"].cumsum().rename("VWAP")
+    return ((tp * df["volume"]).cumsum() / df["volume"].cumsum()).rename("VWAP")
 
 
 def compute_price(df: pd.DataFrame) -> pd.Series:

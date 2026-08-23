@@ -59,7 +59,20 @@ document.addEventListener('header:ready', async () => {
     return label
     }
 
-    // Libellé d'ENTÊTE d'axe (utilisé dans "Sensitivity by parameter")
+    function describeCombinedRef(cond, prefix) {
+    const copKey  = prefix ? `${prefix}CombineOp` : 'combineOp'
+    const cindKey = prefix ? `${prefix}CombineIndicator` : 'combineIndicator'
+    const cperKey = prefix ? `${prefix}CombinePeriod` : 'combinePeriod'
+    const csrcKey = prefix ? `${prefix}CombineSource` : 'combineSource'
+    let label = describeRef(cond, prefix)
+    if (cond[copKey]) {
+        const combineRef = { indicator: cond[cindKey], period: cond[cperKey], source: cond[csrcKey] }
+        label += ` ${cond[copKey]} ${describeRef(combineRef, '')}`
+    }
+    return label
+    }
+
+
     function describeSweepAxis(path, definition) {
         const hit = resolveConditionFromPath(path, definition)
         if (!hit) return SWEEP_TOP_LEVEL_LABELS[path] || path
@@ -76,6 +89,8 @@ document.addEventListener('header:ready', async () => {
             return `${indicatorName(cond, 'value')} - ${t('editor.cond.source')}`
             case 'valueIndicator':
             return `${describeRef(cond, '')} ${SWEEP_OPERATOR_LABELS[cond.operator] || cond.operator} ${describeRef(cond, 'value')}`
+            case 'valueMultiplier':
+            return `${describeCombinedRef(cond, '')} ${SWEEP_OPERATOR_LABELS[cond.operator] || cond.operator} ${describeCombinedRef(cond, 'value')} × ${t('editor.cond.multiplier')}`
             case 'settings':
             return `${indicatorName(cond, '')} - ${subfield || t('editor.cond.settings')}`
             default:
@@ -94,6 +109,7 @@ document.addEventListener('header:ready', async () => {
     if (field === 'value')               return `${describeRef(cond, '')} ${SWEEP_OPERATOR_LABELS[cond.operator] || cond.operator} ${value}`
     if (field === 'valueIndicatorPeriod') return `${cond.valueIndicator}(${value})`
     if (field === 'valueIndicatorSource') return `${indicatorName(cond, 'value')}[${value}]`
+    if (field === 'valueMultiplier')      return `${describeCombinedRef(cond, '')} ${SWEEP_OPERATOR_LABELS[cond.operator] || cond.operator} ${describeCombinedRef(cond, 'value')} × ${value}`
 
     return `${describeSweepAxis(path, definition)} = ${JSON.stringify(value)}`
     }

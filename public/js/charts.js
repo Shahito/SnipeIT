@@ -57,7 +57,6 @@ function _hideTooltip() {
   _tooltip.classList.remove('visible')
 }
 
-
 // Helpers
 function _cssVar(name) {
   return window.getComputedStyle(document.body).getPropertyValue(name).trim()
@@ -92,6 +91,9 @@ function _i18n(key, fallback) {
   return (key && typeof t === 'function') ? t(key) : (fallback || key || '')
 }
 
+function _toggleChartCard(elementId, hasData) {
+  document.getElementById(elementId)?.closest('.card')?.classList.toggle('hidden', !hasData)
+}
 
 // CanvasLineChart
 /**
@@ -199,7 +201,9 @@ class CanvasLineChart {
     if (!canvas || !r) return
 
     const timestamps = this.config.getTimestamps(r)
+    _toggleChartCard(this.canvasId, !!timestamps?.length)
     if (!timestamps?.length) { canvas.style.display = 'none'; return }
+    canvas.style.display = ''
 
     const W   = canvas.offsetWidth || 800
     const H   = this.config.height
@@ -398,10 +402,8 @@ class BarChart {
     this._data   = this.config.getBars(result)
     const keys   = Object.keys(this._data)
 
-    if (!keys.length) {
-      document.getElementById(this.containerId)?.closest('.card')?.classList.add('hidden')
-      return
-    }
+    _toggleChartCard(this.containerId, !!keys.length)
+    if (!keys.length) return
 
     // Init active state once
     keys.forEach(k => {
@@ -545,7 +547,9 @@ class CanvasHistogram {
     if (!canvas || !this._result) return
 
     const buckets = this._getBuckets()
+    _toggleChartCard(this.canvasId, !!buckets.length)
     if (!buckets.length) { canvas.style.display = 'none'; return }
+    canvas.style.display = ''
 
     const W   = canvas.offsetWidth || 600
     const H   = this.config.height
@@ -776,6 +780,7 @@ class MonthlyPerfChart {
     if (!canvas || !this._result) return
 
     const data = this._visibleData()
+    _toggleChartCard(this.canvasId, !!data?.length)
     if (!data?.length) { canvas.style.display = 'none'; return }
     canvas.style.display = ''
 

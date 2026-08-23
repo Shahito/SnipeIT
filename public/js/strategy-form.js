@@ -37,7 +37,7 @@ const STRATEGY_NAME_NOUNS = [
 ]
 
 function generateStrategyName() {
-  const adj  = STRATEGY_NAME_ADJECTIVES[Math.floor(Math.random() * STRATEGY_NAME_ADJECTIVES.length)]
+  const adj = STRATEGY_NAME_ADJECTIVES[Math.floor(Math.random() * STRATEGY_NAME_ADJECTIVES.length)]
   const noun = STRATEGY_NAME_NOUNS[Math.floor(Math.random() * STRATEGY_NAME_NOUNS.length)]
   return `${adj} ${noun}`
 }
@@ -73,7 +73,7 @@ function updateAtrVisibility() {
 }
 function bindSweepChipGroups() {
   ;['fTimeframeGroup'].forEach(id => bindChipGroup(id, updatePreview))
-  ;['fSlTypeGroup', 'fTpTypeGroup'].forEach(id => bindChipGroup(id, () => { updateAtrVisibility(); updatePreview() }))
+    ;['fSlTypeGroup', 'fTpTypeGroup'].forEach(id => bindChipGroup(id, () => { updateAtrVisibility(); updatePreview() }))
 }
 
 // Coins de base × coins de cotation -> pairs[]. Filtré côté serveur sur ce
@@ -83,7 +83,7 @@ function bindSweepChipGroups() {
 let _currentPairs = []
 
 function cartesianPairs() {
-  const bases  = document.getElementById('fBaseCoins').value
+  const bases = document.getElementById('fBaseCoins').value
   const quotes = document.getElementById('fQuoteCoins').value
   const out = []
   bases.forEach(b => quotes.forEach(q => { if (b !== q) out.push(`${b}/${q}`) }))
@@ -103,8 +103,8 @@ function renderLimitedTags(items, cssClass, limit) {
 
 async function updatePairsPreview() {
   const candidates = cartesianPairs()
-  const emptyMsg  = document.getElementById('pairsEmptyMsg')
-  const validEl   = document.getElementById('pairsValidTags')
+  const emptyMsg = document.getElementById('pairsEmptyMsg')
+  const validEl = document.getElementById('pairsValidTags')
   const invalidEl = document.getElementById('pairsInvalidTags')
 
   if (!candidates.length) {
@@ -121,11 +121,11 @@ async function updatePairsPreview() {
     try {
       const { valid, invalid } = await api('/coins/validate-pairs', { method: 'POST', body: { pairs: candidates } })
       _currentPairs = valid
-      validEl.innerHTML   = valid.map(p => `<span class="tag tag-primary">${p}</span>`).join('')
+      validEl.innerHTML = valid.map(p => `<span class="tag tag-primary">${p}</span>`).join('')
       invalidEl.innerHTML = renderLimitedTags(invalid, 'tag-danger', INVALID_PAIRS_TAG_LIMIT)
     } catch (e) {
       _currentPairs = candidates
-      validEl.innerHTML   = candidates.map(p => `<span class="tag tag-primary">${p}</span>`).join('')
+      validEl.innerHTML = candidates.map(p => `<span class="tag tag-primary">${p}</span>`).join('')
       invalidEl.innerHTML = ''
     }
     updatePreview()
@@ -164,16 +164,19 @@ function addTradingHourSlot(slot = null) {
   div.innerHTML = `
     <div class="th-row-wrap">
       <input type="time" class="th-start" value="${slot?.start || '08:00'}">
-      <input type="time" class="th-end"   value="${slot?.end   || '17:00'}">
+      <input type="time" class="th-end"   value="${slot?.end || '17:00'}">
       <label class="checkbox-label th-block-sell-label">
         <input type="checkbox" class="th-block-sell" ${slot ? !slot.blockSell ? 'checked' : '' : ''}>
         ${t('editor.field.trading_hours_block_sell')}
       </label>
     </div>
-    <button type="button" class="btn btn-danger btn-sm th-remove-btn"
-      onclick="this.parentElement.remove(); updatePreview()">${ICONS.cross}</button>
+    <button type="button" class="btn btn-danger btn-sm th-remove-btn">${ICONS.cross}</button>
   `
   div.querySelectorAll('input').forEach(el => el.addEventListener('change', updatePreview))
+  div.querySelector('.th-remove-btn').addEventListener('click', () => {
+    div.remove()
+    updatePreview()
+  })
   container.appendChild(div)
   updatePreview()
 }
@@ -181,8 +184,8 @@ function addTradingHourSlot(slot = null) {
 function getTradingHours() {
   return Array.from(document.querySelectorAll('#tradingHoursContainer .trading-hour-row'))
     .map(row => ({
-      start:     row.querySelector('.th-start').value,
-      end:       row.querySelector('.th-end').value,
+      start: row.querySelector('.th-start').value,
+      end: row.querySelector('.th-end').value,
       blockSell: !row.querySelector('.th-block-sell').checked,
     }))
     .filter(s => s.start && s.end)
@@ -192,10 +195,10 @@ function getTradingHours() {
 function _resolveConditionDefaults(cond) {
   const c = { ...cond }
   const REFS = [
-    { ind: 'indicator',             per: 'period',              src: 'source',              set: 'settings' },
-    { ind: 'combineIndicator',      per: 'combinePeriod',        src: 'combineSource',        set: 'combineSettings' },
-    { ind: 'valueIndicator',        per: 'valueIndicatorPeriod', src: 'valueIndicatorSource', set: 'valueIndicatorSettings' },
-    { ind: 'valueCombineIndicator', per: 'valueCombinePeriod',   src: 'valueCombineSource',   set: 'valueCombineSettings' },
+    { ind: 'indicator', per: 'period', src: 'source', set: 'settings' },
+    { ind: 'combineIndicator', per: 'combinePeriod', src: 'combineSource', set: 'combineSettings' },
+    { ind: 'valueIndicator', per: 'valueIndicatorPeriod', src: 'valueIndicatorSource', set: 'valueIndicatorSettings' },
+    { ind: 'valueCombineIndicator', per: 'valueCombinePeriod', src: 'valueCombineSource', set: 'valueCombineSettings' },
   ]
   REFS.forEach(({ ind, per, src, set }) => {
     const indicator = c[ind]
@@ -224,29 +227,29 @@ function _resolveConditionGroupsDefaults(groups) {
 
 function buildPayload() {
   return {
-    name:             document.getElementById('fName').value,
-    pairs:            _currentPairs,
-    timeframe:        parseSweepChoice(getChipGroupSelected('fTimeframeGroup')),
-    startDate:        document.getElementById('fStartDate').value,
-    endDate:          document.getElementById('fEndDate').value,
-    initialCapital:   parseFloat(document.getElementById('fCapital').value)      || 1000,
-    positionSize:     parseSweepNumber(document.getElementById('fPositionSize').value) ?? 10,
-    stopLoss:         !document.getElementById('fSlTrailing').checked && document.getElementById('fStopLoss').value
-                        ? parseSweepNumber(document.getElementById('fStopLoss').value) : null,
+    name: document.getElementById('fName').value,
+    pairs: _currentPairs,
+    timeframe: parseSweepChoice(getChipGroupSelected('fTimeframeGroup')),
+    startDate: document.getElementById('fStartDate').value,
+    endDate: document.getElementById('fEndDate').value,
+    initialCapital: parseFloat(document.getElementById('fCapital').value) || 1000,
+    positionSize: parseSweepNumber(document.getElementById('fPositionSize').value) ?? 10,
+    stopLoss: !document.getElementById('fSlTrailing').checked && document.getElementById('fStopLoss').value
+      ? parseSweepNumber(document.getElementById('fStopLoss').value) : null,
     trailingStopLoss: document.getElementById('fSlTrailing').checked && document.getElementById('fStopLoss').value
-                        ? parseSweepNumber(document.getElementById('fStopLoss').value) : null,
-    takeProfit:       document.getElementById('fTakeProfit').value
-                        ? parseSweepNumber(document.getElementById('fTakeProfit').value) : null,
-    slType:           parseSweepChoice(getChipGroupSelected('fSlTypeGroup')),
-    tpType:           parseSweepChoice(getChipGroupSelected('fTpTypeGroup')),
-    atrPeriod:        parseSweepNumber(document.getElementById('fAtrPeriod').value, parseInt) ?? 14,
-    feeTaker:         Number.isNaN(parseFloat(document.getElementById('fFeeTaker').value)) ? 0.1 : parseFloat(document.getElementById('fFeeTaker').value),
-    feeMaker:         Number.isNaN(parseFloat(document.getElementById('fFeeMaker').value)) ? 0.1 : parseFloat(document.getElementById('fFeeMaker').value),
-    tradingHours:     getTradingHours().length ? getTradingHours() : null,
-    description:      document.getElementById('fDescription').value,
+      ? parseSweepNumber(document.getElementById('fStopLoss').value) : null,
+    takeProfit: document.getElementById('fTakeProfit').value
+      ? parseSweepNumber(document.getElementById('fTakeProfit').value) : null,
+    slType: parseSweepChoice(getChipGroupSelected('fSlTypeGroup')),
+    tpType: parseSweepChoice(getChipGroupSelected('fTpTypeGroup')),
+    atrPeriod: parseSweepNumber(document.getElementById('fAtrPeriod').value, parseInt) ?? 14,
+    feeTaker: Number.isNaN(parseFloat(document.getElementById('fFeeTaker').value)) ? 0.1 : parseFloat(document.getElementById('fFeeTaker').value),
+    feeMaker: Number.isNaN(parseFloat(document.getElementById('fFeeMaker').value)) ? 0.1 : parseFloat(document.getElementById('fFeeMaker').value),
+    tradingHours: getTradingHours().length ? getTradingHours() : null,
+    description: document.getElementById('fDescription').value,
     conditions: {
       entry: _resolveConditionGroupsDefaults(conditions.entry),
-      exit:  _resolveConditionGroupsDefaults(conditions.exit),
+      exit: _resolveConditionGroupsDefaults(conditions.exit),
     },
   }
 }
@@ -292,25 +295,25 @@ function updatePreview() {
 async function loadStrategy(id) {
   try {
     const { strategy: s } = await api(`/strategies/${id}`)
-    document.getElementById('fName').value         = s.name
-    document.getElementById('fDescription').value  = s.description || ''
+    document.getElementById('fName').value = s.name
+    document.getElementById('fDescription').value = s.description || ''
     document.getElementById('fBaseCoins').setSilent([...new Set(s.pairs.map(p => p.split('/')[0]))])
     document.getElementById('fQuoteCoins').setSilent([...new Set(s.pairs.map(p => p.split('/')[1]))])
     _currentPairs = s.pairs
     document.getElementById('pairsEmptyMsg').textContent = ''
-    document.getElementById('pairsValidTags').innerHTML   = s.pairs.map(p => `<span class="tag tag-primary">${p}</span>`).join('')
+    document.getElementById('pairsValidTags').innerHTML = s.pairs.map(p => `<span class="tag tag-primary">${p}</span>`).join('')
     document.getElementById('pairsInvalidTags').innerHTML = ''
     renderChipGroup('fTimeframeGroup', TIMEFRAMES_LIST, formatSweepChoice(s.timeframe))
-    document.getElementById('fStartDate').value    = s.startDate.slice(0, 10)
-    document.getElementById('fEndDate').value      = s.endDate.slice(0, 10)
-    document.getElementById('fCapital').value      = s.initialCapital
+    document.getElementById('fStartDate').value = s.startDate.slice(0, 10)
+    document.getElementById('fEndDate').value = s.endDate.slice(0, 10)
+    document.getElementById('fCapital').value = s.initialCapital
     document.getElementById('fPositionSize').value = formatSweepNumber(s.positionSize)
-    document.getElementById('fStopLoss').value     = formatSweepNumber(s.stopLoss ?? s.trailingStopLoss)
-    document.getElementById('fTakeProfit').value   = formatSweepNumber(s.takeProfit)
+    document.getElementById('fStopLoss').value = formatSweepNumber(s.stopLoss ?? s.trailingStopLoss)
+    document.getElementById('fTakeProfit').value = formatSweepNumber(s.takeProfit)
     document.getElementById('fSlTrailing').checked = !!s.trailingStopLoss && !s.stopLoss
     renderChipGroup('fSlTypeGroup', RISK_TYPES, formatSweepChoice(s.slType || 'percent'))
     renderChipGroup('fTpTypeGroup', RISK_TYPES, formatSweepChoice(s.tpType || 'percent'))
-    document.getElementById('fAtrPeriod').value    = formatSweepNumber(s.atrPeriod ?? 14)
+    document.getElementById('fAtrPeriod').value = formatSweepNumber(s.atrPeriod ?? 14)
     updateAtrVisibility()
     document.getElementById('fFeeTaker').value = s.feeTaker ?? 0.1
     document.getElementById('fFeeMaker').value = s.feeMaker ?? 0.1
@@ -319,7 +322,7 @@ async function loadStrategy(id) {
 
     const raw = s.conditions
     conditions.entry = normalizeConditions(raw.entry || [])
-    conditions.exit  = normalizeConditions(raw.exit  || [])
+    conditions.exit = normalizeConditions(raw.exit || [])
     renderConditions(); updatePreview()
   } catch (e) {
     toast(t('editor.not_found'), 'error')
@@ -330,15 +333,15 @@ async function loadStrategy(id) {
 // Save / Save+Run
 
 function _setSaveBtnsState(disabled, labels = null) {
-  const saveBtn       = document.getElementById('saveBtn')
+  const saveBtn = document.getElementById('saveBtn')
   const saveAndRunBtn = document.getElementById('saveAndRunBtn')
-  saveBtn.disabled       = disabled
+  saveBtn.disabled = disabled
   saveAndRunBtn.disabled = disabled
   if (labels) {
-    saveBtn.innerHTML       = labels.save
+    saveBtn.innerHTML = labels.save
     saveAndRunBtn.innerHTML = labels.run
   } else if (disabled) {
-    saveBtn.innerHTML       = '...'
+    saveBtn.innerHTML = '...'
     saveAndRunBtn.innerHTML = '...'
   }
 }
@@ -346,7 +349,7 @@ function _setSaveBtnsState(disabled, labels = null) {
 function _restoreSaveBtnsLabels() {
   _setSaveBtnsState(false, {
     save: `${ICONS.save}<span>${t('editor.save')}</span>`,
-    run:  `${ICONS.play}<span>${t('editor.save_and_run')}</span>`,
+    run: `${ICONS.play}<span>${t('editor.save_and_run')}</span>`,
   })
 }
 
@@ -379,7 +382,7 @@ async function _launchSweepFlow(strategyId) {
   return new Promise((resolve, reject) => {
     document.getElementById('sweepConfirmDesc').textContent = t('editor.sweep_confirm.desc', { n: preview.totalRuns })
     openModal('sweepConfirmModal', 'sweepConfirmCancel')
-    const okBtn     = document.getElementById('sweepConfirmOk')
+    const okBtn = document.getElementById('sweepConfirmOk')
     const cancelBtn = document.getElementById('sweepConfirmCancel')
     const cleanup = () => { okBtn.onclick = null; cancelBtn.onclick = null }
 
@@ -444,13 +447,13 @@ document.getElementById('saveAndRunBtn').addEventListener('click', async () => {
   }
 })
 
-// Field change -> preview
+  // Field change -> preview
 
-;['fName', 'fStartDate', 'fEndDate', 'fCapital',
-  'fPositionSize', 'fStopLoss', 'fTakeProfit', 'fAtrPeriod'].forEach(id => {
-  const el = document.getElementById(id)
-  if (el) { el.addEventListener('input', updatePreview); el.addEventListener('change', updatePreview) }
-})
+  ;['fName', 'fStartDate', 'fEndDate', 'fCapital',
+    'fPositionSize', 'fStopLoss', 'fTakeProfit', 'fAtrPeriod'].forEach(id => {
+      const el = document.getElementById(id)
+      if (el) { el.addEventListener('input', updatePreview); el.addEventListener('change', updatePreview) }
+    })
 document.getElementById('fSlTrailing').addEventListener('change', updatePreview)
 
 document.getElementById('addGroupBtn').addEventListener('click', () => {
@@ -488,9 +491,9 @@ window.addEventListener('resize', () => {
 
 // Exports
 
-window.updatePreview       = updatePreview
-window.buildPayload        = buildPayload
-window.loadStrategy        = loadStrategy
-window.addTradingHourSlot  = addTradingHourSlot
+window.updatePreview = updatePreview
+window.buildPayload = buildPayload
+window.loadStrategy = loadStrategy
+window.addTradingHourSlot = addTradingHourSlot
 window.updateAtrVisibility = updateAtrVisibility
-window.goToStep            = goToStep
+window.goToStep = goToStep

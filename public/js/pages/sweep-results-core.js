@@ -48,13 +48,16 @@ async function loadSweep() {
     document.getElementById('sweepStatusBadge').className = 'status-badge status-' + (sweep.status === 'partial_error' ? 'error' : sweep.status)
     document.getElementById('sweepStatusLabel').textContent = t('sweep.status.' + sweep.status)
     const badge = document.getElementById('sweepStatusBadge')
-    if (sweep.status === 'partial_error') {
-      const msg = `<span>${t('sweep.status.partial_error.hint')}</span>`
+    const hasFailedRuns = sweep.status === 'error' || sweep.status === 'partial_error'
+    badge.classList.toggle('clickable', hasFailedRuns)
+    if (hasFailedRuns) {
+      const msg = `<span>${t('sweep.failed_runs.hint')}</span>`
       badge.onmouseenter = e => _showTooltip(e, msg)
       badge.onmousemove  = e => _showTooltip(e, msg)
       badge.onmouseleave = () => _hideTooltip()
+      badge.onclick = () => { _hideTooltip(); openFailedRunsPopover(badge, sweep.failed || []) }
     } else {
-      badge.onmouseenter = badge.onmousemove = badge.onmouseleave = null
+      badge.onmouseenter = badge.onmousemove = badge.onmouseleave = badge.onclick = null
       _hideTooltip()
     }
 

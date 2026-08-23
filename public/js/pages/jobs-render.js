@@ -182,7 +182,7 @@ function renderJobRow(j) {
     <div class="job-row-main">
       <div class="job-row-left">
         <span class="status-badge status-${j.status} ${j.status === 'error' && j.errorMessage ? 'has-error-msg' : ''}"
-          data-error-msg="${j.status === 'error' && j.errorMessage ? escAttr(j.errorMessage) : ''}">
+          data-error-msg="${j.status === 'error' && j.errorMessage ? `${j.id}: ${escAttr(j.errorMessage)}` : ''}">
           <span class="status-dot"></span>${t('status.' + j.status)}
         </span>
         <div class="job-row-meta">
