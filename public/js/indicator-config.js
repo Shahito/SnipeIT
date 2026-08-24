@@ -80,8 +80,7 @@ INDICATOR_EXTRA_PARAMS.MACD_HIST   = INDICATOR_EXTRA_PARAMS.MACD
 
 // Must stay in sync with the #fTimeframeGroup chip list (TIMEFRAMES_LIST in
 // strategy-form.js) in strategy-editor.html.
-// condition-settings.js filters this down to >= get
-// maryTimeframe()
+// condition-settings.js filters this down to >= getPrimaryTimeframe()
 const TIMEFRAMES = [
   { value: '1m',  minutes: 1 },
   { value: '5m',  minutes: 5 },

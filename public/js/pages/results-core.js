@@ -20,14 +20,14 @@ function unpackTrades(payload, snap) {
   if (!payload?.rows) return []
   const ft = (snap?.feeTaker ?? 0) / 100
   const fm = (snap?.feeMaker ?? 0) / 100
-  return payload.rows.flatMap(([eOff, xOff, ep, xp, a, r]) => {
+  return payload.rows.flatMap(([eOff, xOff, ep, xp, a, r, m, ma]) => {
     const entryDate = new Date((payload.t0 + eOff) * 1000).toISOString()
     const exitDate  = new Date((payload.t0 + xOff) * 1000).toISOString()
     const pnl       = tradePnl(ep, xp, a, ft, fm)
     return [
       { side: 'buy',  date: entryDate, price: ep, quantity: a / ep, value: a,          pnl: null },
       { side: 'sell', date: exitDate,  price: xp, quantity: a / ep, value: xp * a / ep, pnl,
-        entryDate, entryPrice: ep, reason: REASONS[r] },
+        entryDate, entryPrice: ep, reason: REASONS[r], mae: m, maeAtr: ma },
     ]
   })
 }
@@ -89,6 +89,7 @@ async function loadJob() {
     equityChart.render(r)
     exitReasonsChart.render(r)
     pnlDistributionChart.render(r)
+    maeDistributionChart.render(r)
     monthlyChart.render(r)
     renderTrades(r, r.trades || [], r.totalTrades || 0)
     
@@ -107,7 +108,7 @@ async function loadJob() {
 }
 
 // cloneOriginalBtn shared between two ctx
-// Clone snapshot in case of divergant strategy and
+// Clone snapshot in case of divergent strategy and
 // clone a sweep combination in a single strategy
 function setCloneOriginalBtnMode(mode) {
   const cloneOriginalBtn = document.getElementById('cloneOriginalBtn')

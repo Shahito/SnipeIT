@@ -574,6 +574,8 @@ class CanvasHistogram {
     const colorLoss = this.config.colorLoss || _cssVar('--danger')  || '#ef4444'
     const colorWinDim  = this.config.colorWinDim  || _cssVar('--success-dim') || 'rgba(34,197,94,0.35)'
     const colorLossDim = this.config.colorLossDim || _cssVar('--danger-dim')  || 'rgba(239,68,68,0.35)'
+    const labelSuffix   = this.config.labelSuffix   ?? '%'
+    const labelDecimals = this.config.labelDecimals ?? 1
 
     // Grid lines
     ctx.strokeStyle = '#2a2f3d'
@@ -596,10 +598,11 @@ class CanvasHistogram {
       const x      = pad.left + i * gap + (gap - barW) / 2
       const barH   = (b.count / maxCount) * cH
       const y      = pad.top + cH - barH
-      // Determine color: bucket is a win bucket if label starts with '+'
+      // Determine color: single-color mode (e.g. MAE, not a win/loss metric)
+      // bypasses the win/loss split entirely.
       const isWin  = b.label.trimStart().startsWith('+')
-      const fill   = isWin ? colorWin  : colorLoss
-      const dimFill = isWin ? colorWinDim : colorLossDim
+      const fill   = this.config.singleColor    || (isWin ? colorWin    : colorLoss)
+      const dimFill = this.config.singleColorDim || (isWin ? colorWinDim : colorLossDim)
 
       // Bar body
       ctx.fillStyle = (this._hoveredIdx == null || this._hoveredIdx === i) ? fill : dimFill
@@ -617,10 +620,10 @@ class CanvasHistogram {
         ctx.fillStyle   = '#7c84a0'
         ctx.font        = '9px system-ui'
         ctx.textAlign   = 'center'
-        ctx.translate(x + barW / 2, pad.top + cH + 10)
+        ctx.translate(x + barW / 2, pad.top + cH + 18)
         ctx.rotate(-Math.PI / 4)
-        // Show only the left bound of the range for brevity
-        const shortLabel = (b.lo >= 0 ? '+' : '') + b.lo.toFixed(1) + '%'
+         // Show only the left bound of the range for brevity
+        const shortLabel = (b.lo >= 0 ? '+' : '') + b.lo.toFixed(labelDecimals) + labelSuffix
         ctx.fillText(shortLabel, 0, 0)
         ctx.restore()
       }
@@ -688,7 +691,7 @@ class CanvasHistogram {
 
 // MonthlyPerfChart
 /**
- * Grouped bar chart — monthly perf: strategy vs asset, with optional delta line.
+ * Grouped bar chart - monthly perf: strategy vs asset, with optional delta line.
  *
  * @param {string} canvasId
  * @param {object} config
@@ -836,7 +839,7 @@ class MonthlyPerfChart {
       ctx.fillText((v >= 0 ? '+' : '') + v.toFixed(1) + '%', pad.left - 5, y + 4)
     }
 
-    // Secondary axis (trade count) — scale + right-hand labels
+    // Secondary axis (trade count) - scale + right-hand labels
     const colorTrades = _cssVar('--info') || '#5b8def'
     const maxTrades    = Math.max(...data.map(d => d.trades || 0), 1)
     const toTradesY    = v => pad.top + cH - (v / maxTrades) * cH

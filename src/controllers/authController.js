@@ -9,7 +9,7 @@ const COOKIE_OPTS = (isProd) => ({
   path: '/',
 })
 
-// Codes d'erreur connus - le front les traduit via i18n (error.CODE)
+// Known error codes - the front end translates them via i18n (error.CODE)
 const KNOWN_CODES = new Set([
   'USERNAME_TAKEN',
   'USERNAME_LENGTH',

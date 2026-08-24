@@ -691,12 +691,21 @@
         return v
     }
 
+    // Mirrors the number/% toggle in condition-settings.js: valueMultiplier is
+    // always stored as a plain multiplier, '%' is purely a display choice.
+    function _formatMultiplierValue(cond) {
+        const v = cond.valueMultiplier
+        if (cond.valueMultiplierMode !== 'percent') return _formatSweepableValue(v)
+        const scaled = (v && typeof v === 'object' && Array.isArray(v.sweep)) ? { sweep: v.sweep.map(x => x * 100) } : v * 100
+        return `${_formatSweepableValue(scaled)}%`
+    }
+
     function _describeCondition(cond) {
         const lhs = _describeCombinedRef(cond, '')
         const op = OPERATOR_LABELS()[cond.operator] || cond.operator
         let rhs = cond.valueIndicator ? _describeCombinedRef(cond, 'value') : _formatSweepableValue(cond.value)
         if (cond.valueIndicator && cond.valueMultiplier != null && cond.valueMultiplier !== 1) {
-            rhs += ` × ${_formatSweepableValue(cond.valueMultiplier)}`
+            rhs += ` × ${_formatMultiplierValue(cond)}`
         }
         let line = `${lhs} ${op} ${rhs}`
         if (cond.lookback > 1) {

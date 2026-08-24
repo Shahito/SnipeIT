@@ -42,20 +42,20 @@ async function deleteTag(id, userId) {
   await prisma.tag.delete({ where: { id } })
 }
 
-// --- Assigner / retirer des tags d'un job ---
+// Assign / remove tags from a job
 
 async function setJobTags(jobId, userId, tagIds) {
-  // Vérifier que le job appartient à l'user
+  // Check that the job belongs to the user
   const job = await prisma.backtestJob.findFirst({
     where: { id: jobId, strategy: { userId } },
   })
   if (!job) throw new Error('JOB_NOT_FOUND')
 
-  // Vérifier que tous les tagIds appartiennent à l'user
+  // Check that all tagIds belong to the user
   const tags = await prisma.tag.findMany({ where: { id: { in: tagIds }, userId } })
   if (tags.length !== tagIds.length) throw new Error('TAG_NOT_FOUND')
 
-  // Remplacer tous les tags du job
+  // Replace all the job's tags
   await prisma.jobTag.deleteMany({ where: { jobId } })
   if (tagIds.length) {
     await prisma.jobTag.createMany({

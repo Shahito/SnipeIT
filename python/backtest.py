@@ -513,8 +513,9 @@ def run_backtest(strategy: dict) -> dict:
                 f"If you need {tf} resolution, set it as the strategy's timeframe instead."
             )
 
-    if sl_type == "atr" or tp_type == "atr":
-        needed.append(("ATR", atr_period, None, None, None))  # SL/TP ATR is always evaluated on the base timeframe
+    # ATR is always computed: SL/TP may need it, and it's also the reference
+    # unit for MAE expressed in ATR (alongside the % version, for the toggle).
+    needed.append(("ATR", atr_period, None, None, None))  # always evaluated on the base timeframe
 
     base_needed = [n for n in needed if n[3] is None]
     htf_needed  = [n for n in needed if n[3] is not None]
@@ -599,6 +600,12 @@ def run_backtest(strategy: dict) -> dict:
     log.debug(f"Vectorized signals: entry={'yes' if use_vec_entry else 'no (fallback)'}, "
               f"exit={'yes' if use_vec_exit else 'no (fallback)'}")
 
+    def _mae(pos):
+        """Max adverse excursion since entry, in % and in ATR units (fixed at entry)."""
+        mae_pct = round((pos["lowest_low"] - pos["entry_price"]) / pos["entry_price"] * 100, 2)
+        mae_atr = round((pos["lowest_low"] - pos["entry_price"]) / pos["entry_atr"], 2) if pos.get("entry_atr") else None
+        return mae_pct, mae_atr
+
     for idx in range(len(df)):
         price = float(close_arr[idx])
         date  = date_arr[idx]
@@ -613,6 +620,12 @@ def run_backtest(strategy: dict) -> dict:
         equity_dates.append(date)
         equity_raw.append(current_equity)
 
+        # MAE tracking: lowest low reached since entry, updated before any
+        # exit path so the exit candle's own low is included regardless of
+        # which branch closes the trade below.
+        if position is not None:
+            position["lowest_low"] = min(position["lowest_low"], float(low_arr[idx]))
+
         # Execute orders decided on the previous candle
         if pending_entry and position is None:
             if can_buy:
@@ -625,6 +638,8 @@ def run_backtest(strategy: dict) -> dict:
                         "allocated":   allocated,
                         "entry_date":  date,
                         "trailing_high": price,
+                        "lowest_low":  price,
+                        "entry_atr":   resolve_value(df, "ATR", atr_period, idx),
                     }
                     capital -= allocated
                     capital -= allocated * fee_taker
@@ -672,6 +687,7 @@ def run_backtest(strategy: dict) -> dict:
                 "value":      round(position["allocated"], 2),
                 "pnl":        None,
             })
+            mae_pct, mae_atr = _mae(position)
             trades.append({
                 "side":       "sell",
                 "date":       date,
@@ -683,6 +699,8 @@ def run_backtest(strategy: dict) -> dict:
                 "entryPrice": round(position["entry_price"], 4),
                 "allocated": round(position["allocated"], 2),
                 "reason":     "signal",
+                "mae":        mae_pct,
+                "maeAtr":     mae_atr,
             })
             log.debug(f"SELL  {date} @ {price:.4f} PnL {pnl_pct:+.2f}%")
             capital += proceeds
@@ -752,6 +770,7 @@ def run_backtest(strategy: dict) -> dict:
                     "value":    round(position["allocated"], 2),
                     "pnl":      None,
                 })
+                mae_pct, mae_atr = _mae(position)
                 trades.append({
                     "side":       "sell",
                     "date":       date,
@@ -763,6 +782,8 @@ def run_backtest(strategy: dict) -> dict:
                     "entryPrice": round(position["entry_price"], 4),
                     "allocated": round(position["allocated"], 2),
                     "reason":     reason,
+                    "mae":        mae_pct,
+                    "maeAtr":     mae_atr,
                 })
                 log.debug(f"SL/TP {date} @ {exit_price:.4f} PnL {pnl_pct:+.2f}%")
                 capital  += proceeds
@@ -804,6 +825,7 @@ def run_backtest(strategy: dict) -> dict:
             "value": round(position["allocated"], 2),
             "pnl": None
         })
+        mae_pct, mae_atr = _mae(position)
         trades.append({
             "side": "sell",
             "date": last_date,
@@ -814,7 +836,9 @@ def run_backtest(strategy: dict) -> dict:
             "entryDate": position["entry_date"],
             "entryPrice": round(position["entry_price"], 4),
             "allocated": round(position["allocated"], 2),
-            "reason": "end"
+            "reason": "end",
+            "mae": mae_pct,
+            "maeAtr": mae_atr,
         })
         capital += proceeds
     

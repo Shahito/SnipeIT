@@ -1,10 +1,10 @@
 /**
  * form-validate.js
  *
- * Prévalidation dynamique du formulaire de stratégie, purement front. Ne
- * remplace pas la validation serveur (src/services/strategyService.js#validateStrategy),
- * qui reste la source de vérité : ce fichier ne fait que réduire les allers-retours
- * inutiles en signalant les champs invalides avant l'envoi.
+ * Dynamic pre-validation for the strategy form, purely front-end. Does
+ * not replace server-side validation (src/services/strategyService.js#validateStrategy),
+ * which remains the source of truth: this file only reduces unnecessary
+ * round-trips by flagging invalid fields before submission.
  *
  * Depends on (must be loaded after): sweep-parse.js, strategy-form.js, i18n.js
  */

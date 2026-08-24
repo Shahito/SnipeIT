@@ -1,7 +1,7 @@
 {
   "name": "snipeit",
   "version": "1.0.0",
-  "description": "Backtest strategy tool — Node.js + Prisma + vanilla JS",
+  "description": "Backtest strategy tool - Node.js + Prisma + vanilla JS",
   "main": "app.js",
   "scripts": {
     "server": "nodemon app.js",

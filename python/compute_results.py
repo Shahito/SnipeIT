@@ -82,6 +82,34 @@ def _pnl_buckets(sell_trades: list, bucket_count: int = 30) -> list:
     return buckets
 
 
+# MAE distribution (winning trades only)
+def _mae_buckets(sell_trades: list, key: str = "mae", bucket_count: int = 20) -> list:
+    """
+    Distribution of max adverse excursion for trades that closed in profit.
+    `key` selects the unit: "mae" (% of entry price) or "maeAtr" (ATR multiples).
+    Values are negative (or 0): how far price dipped below entry before the
+    trade eventually turned around and closed positive.
+    Returns [{label, count, lo}, ...]
+    """
+    vals = [t[key] for t in sell_trades if t.get("pnl") and t["pnl"] > 0 and t.get(key) is not None]
+    if not vals:
+        return []
+
+    mn, mx = min(vals), max(vals)
+    size   = (mx - mn) / bucket_count or 1
+    fmt    = lambda v: f"{v:.1f}%" if key == "mae" else f"{v:.2f}R"
+    buckets = []
+    for i in range(bucket_count):
+        lo      = mn + i * size
+        hi      = lo + size
+        last    = i == bucket_count - 1
+        in_buck = (lambda v: v >= lo and v <= mx) if last else (lambda v: v >= lo and v < hi)
+        cnt     = sum(1 for v in vals if in_buck(v))
+        if cnt:
+            buckets.append({"label": f"{fmt(lo)} · {fmt(hi)}", "count": cnt, "lo": lo})
+    return buckets
+
+
 # Exit reasons
 def _exit_reasons(sell_trades: list) -> dict:
     total  = len(sell_trades)
@@ -234,7 +262,7 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
     REASON_CODES = {"risk": 0, "tsl": 1, "signal": 2, "end": 3}
 
     if not sell_trades:
-        return {"t0": 0, "cols": ["eOff","xOff","ep","xp","a","r"], "rows": [], "sampled": False, "rate": 1}
+        return {"t0": 0, "cols": ["eOff","xOff","ep","xp","a","r","m","ma"], "rows": [], "sampled": False, "rate": 1}
 
     t0 = int(pd.Timestamp(sell_trades[0]["entryDate"]).timestamp())
 
@@ -246,6 +274,8 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
             t["price"],
             t["allocated"],
             REASON_CODES.get(t.get("reason", "signal"), 2),
+            t.get("mae", 0),
+            t.get("maeAtr"),
         ]
 
     def _encode(stride):
@@ -256,7 +286,7 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
 
     def _size(stride):
         rows = _encode(stride)
-        return len(json.dumps({"t0": t0, "cols": ["eOff","xOff","ep","xp","a","r"], "rows": rows}, separators=(",", ":")))
+        return len(json.dumps({"t0": t0, "cols": ["eOff","xOff","ep","xp","a","r","m","ma"], "rows": rows}, separators=(",", ":")))
 
     # binary search sur le stride optimal
     if _size(1) <= max_bytes:
@@ -274,7 +304,7 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
     rows = _encode(stride)
     return {
         "t0": t0,
-        "cols": ["eOff","xOff","ep","xp","a","r"],
+        "cols": ["eOff","xOff","ep","xp","a","r","m","ma"],
         "rows": rows,
         "sampled": stride > 1,
         "rate": stride,
@@ -363,6 +393,8 @@ def build_result(
         "exitReasons":       _exit_reasons(sell_trades),
         "monthlyPerf":       _monthly_perf(sell_trades, ts_arr, close_arr),
         "pnlBuckets":        _pnl_buckets(sell_trades),
+        "maeBuckets":        _mae_buckets(sell_trades, key="mae"),
+        "maeBucketsAtr":      _mae_buckets(sell_trades, key="maeAtr"),
         "equityCurve":       _equity_curve_ds(equity_dates, equity_raw),
         "priceCurve":        _price_curve_ds(ts_arr, close_arr),
         # uncomment if needed:

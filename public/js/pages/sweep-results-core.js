@@ -68,7 +68,7 @@ async function loadSweep() {
     const worstCard = document.getElementById('worstCard')
     const bestCardTitle = document.getElementById('bestCardTitle')
     if (sweep.all) {
-      // Petit sweep : une seule liste "tous les runs" plutôt que best/worst qui se recoupent.
+      // Small sweep: a single "all runs" list instead of best/worst, which would overlap.
       worstCard.classList.add('hidden')
       bestCardTitle.removeAttribute('data-i18n')
       bestCardTitle.textContent = t('sweep.all_title')

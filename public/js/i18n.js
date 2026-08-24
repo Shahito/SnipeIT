@@ -1,5 +1,3 @@
-// public/js/i18n.js
-
 const SUPPORTED = ['fr', 'en'];
 const DEFAULT_LANG = 'fr';
 
@@ -23,8 +21,8 @@ async function loadLang(lang) {
   document.documentElement.lang = lang;
 }
 
-// Traduit une clé, avec interpolation de variables : t('hello', { name: 'Alice' })
-// La clé peut contenir {name} dans le JSON
+// Translates a key, with variable interpolation: t('hello', { name: 'Alice' })
+// The key can contain {name} in the JSON
 function t(key, vars = {}) {
   let str = translations[key] ?? key;
   for (const [k, v] of Object.entries(vars)) {
@@ -39,7 +37,7 @@ function setLang(lang) {
   location.reload();
 }
 
-// Applique les traductions à tous les éléments data-i18n du DOM
+// Applies translations to all data-i18n elements in the DOM
 function applyToDOM() {
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.dataset.i18n;

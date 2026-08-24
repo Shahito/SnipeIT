@@ -6,19 +6,19 @@ async function register(displayUsername, password) {
   const normalized = displayUsername.toLowerCase().trim()
 
   if (normalized.length < 3 || normalized.length > 24) {
-    throw new Error('USERNAME_LENGTH') // 3–24 caractères
+    throw new Error('USERNAME_LENGTH') // 3-24 characters
   }
   if (!/^[a-z0-9_.-]+$/.test(normalized)) {
-    throw new Error('USERNAME_INVALID') // pas de caractères spéciaux
+    throw new Error('USERNAME_INVALID') // no special characters
   }
   if (password.length < 8) {
-    throw new Error('PASSWORD_TOO_SHORT') // min 8 caractères
+    throw new Error('PASSWORD_TOO_SHORT') // min 8 characters
   }
 
   const exists = await prisma.user.findUnique({ where: { username: normalized } })
   if (exists) throw new Error('USERNAME_TAKEN')
 
-  const hash = await bcrypt.hash(password, 12) // 12 rounds, plus sûr que 10
+  const hash = await bcrypt.hash(password, 12) // 12 rounds, safer than 10
   return prisma.user.create({
     data: {
       username: normalized,
@@ -33,7 +33,7 @@ async function login(username, password) {
 
   const user = await prisma.user.findUnique({ where: { username: normalized } })
 
-  // On compare dans tous les cas pour éviter le timing attack (user discovery)
+  // Always compare in every case to avoid a timing attack (user discovery)
   const fakeHash = '$2b$12$invalidhashfortimingprotectiononly000000000000000000000'
   const hash = user ? user.password : fakeHash
   const ok = await bcrypt.compare(password, hash)

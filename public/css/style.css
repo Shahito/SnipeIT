@@ -1113,7 +1113,7 @@ tbody td {
     font-size: 0.6rem;
 }
 
-/* Inputs taille redo dans l'éditeur */
+/* Input sizing redone in the editor */
 .editor-layout input[type="text"],
 /* .editor-layout input[type="number"], */
 .editor-layout input[type="date"],
@@ -1740,7 +1740,7 @@ select.field-invalid {
     background: var(--border);
 }
 
-/* ── Condition card ─────────────────────────────────────────────────────── */
+/* Condition card */
 .condition-row {
     display: flex;
     flex-direction: column;
@@ -1769,7 +1769,7 @@ select.field-invalid {
     flex-wrap: wrap;
 }
 
-/* Chaque côté indicateur */
+/* Each indicator side */
 .cond-side {
     display: flex;
     flex-direction: column;
@@ -1795,7 +1795,7 @@ select.field-invalid {
     line-height: 0;
 }
 
-/* Select/input principal de chaque côté */
+/* Main select/input for each side */
 .cond-side-main {
     display: flex;
     align-items: center;
@@ -1815,7 +1815,7 @@ select.field-invalid {
     padding: 0.4rem 0.5rem;
 }
 
-/* Paramètres secondaires sous l'indicateur */
+/* Secondary params under the indicator */
 .cond-side-params {
     display: flex;
     flex-wrap: wrap;
@@ -1914,7 +1914,7 @@ select.field-invalid {
     padding: 0.4rem 0.5rem;
 }
 
-/* Opérateur central */
+/* Central operator */
 .cond-op {
     display: flex;
     align-items: center;
@@ -1940,7 +1940,7 @@ select.field-invalid {
     padding: 0.42rem 1.4rem 0.42rem 0.5rem;
 }
 
-/* Toggle valeur/indicateur */
+/* Value/indicator toggle */
 .c-value-toggle {
     flex-shrink: 0;
     width: 2rem;
@@ -4004,7 +4004,7 @@ input[type="color"] {
         width: auto;
     }
 
-    /* Ligne 2 : date | valeur (sous prix) */
+    /* Row 2: date | value (below price) */
     .trade-row .text-muted {
         grid-column: 1;
         grid-row: 2;

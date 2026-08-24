@@ -1,9 +1,9 @@
 /**
  * sweep-labels.js
- * Traduit un chemin d'axe sweep brut (ex: "conditions.entry[0][0].period")
- * en libellé lisible, à partir de definitionSnapshot (le contexte de
- * conditions au lancement du sweep). Le schéma de clés des conditions
- * mirror _refKeys() dans condition-settings.js - garder synchro si ça change.
+ * Translates a raw sweep-axis path (e.g. "conditions.entry[0][0].period")
+ * into a readable label, based on definitionSnapshot (the condition context
+ * at sweep launch time). The condition key schema must
+ * mirror _refKeys() in condition-settings.js - keep them in sync if it changes.
  */
 document.addEventListener('header:ready', async () => {
     const SWEEP_OPERATOR_LABELS = {
@@ -19,8 +19,8 @@ document.addEventListener('header:ready', async () => {
     trailingStopLoss: t('editor.field.stop_loss'),
     atrPeriod:        t('editor.field.atr_period'),
     timeframe:        t('editor.field.timeframe'),
-    slType:           t('sweep.param.sl_type'),   // à ajouter aux locales
-    tpType:           t('sweep.param.tp_type'),   // à ajouter aux locales
+    slType:           t('sweep.param.sl_type'),
+    tpType:           t('sweep.param.tp_type'),
     }
 
     function normalizeGroups(arr) {
@@ -72,6 +72,12 @@ document.addEventListener('header:ready', async () => {
     return label
     }
 
+    // Mirrors the number/% toggle in condition-settings.js: valueMultiplier is
+    // always stored as a plain multiplier, '%' is purely a display choice.
+    function formatMultiplierValue(cond, value) {
+    return cond.valueMultiplierMode === 'percent' ? `${value * 100}%` : `${value}`
+    }
+
 
     function describeSweepAxis(path, definition) {
         const hit = resolveConditionFromPath(path, definition)
@@ -90,7 +96,7 @@ document.addEventListener('header:ready', async () => {
             case 'valueIndicator':
             return `${describeRef(cond, '')} ${SWEEP_OPERATOR_LABELS[cond.operator] || cond.operator} ${describeRef(cond, 'value')}`
             case 'valueMultiplier':
-            return `${describeCombinedRef(cond, '')} ${SWEEP_OPERATOR_LABELS[cond.operator] || cond.operator} ${describeCombinedRef(cond, 'value')} × ${t('editor.cond.multiplier')}`
+            return `${describeCombinedRef(cond, '')} ${SWEEP_OPERATOR_LABELS[cond.operator] || cond.operator} ${describeCombinedRef(cond, 'value')} × ${t('editor.cond.multiplier')}${cond.valueMultiplierMode === 'percent' ? ' (%)' : ''}`
             case 'settings':
             return `${indicatorName(cond, '')} - ${subfield || t('editor.cond.settings')}`
             default:
@@ -98,7 +104,7 @@ document.addEventListener('header:ready', async () => {
         }
         }
 
-    // Libellé PARAM=VALEUR (utilisé dans les lignes du tableau et Best/Worst)
+    // PARAM=VALUE label (used in table rows and Best/Worst)
     function describeSweepValue(path, value, definition) {
     const hit = resolveConditionFromPath(path, definition)
     if (!hit) return `${SWEEP_TOP_LEVEL_LABELS[path] || path} = ${JSON.stringify(value)}`
@@ -109,7 +115,7 @@ document.addEventListener('header:ready', async () => {
     if (field === 'value')               return `${describeRef(cond, '')} ${SWEEP_OPERATOR_LABELS[cond.operator] || cond.operator} ${value}`
     if (field === 'valueIndicatorPeriod') return `${cond.valueIndicator}(${value})`
     if (field === 'valueIndicatorSource') return `${indicatorName(cond, 'value')}[${value}]`
-    if (field === 'valueMultiplier')      return `${describeCombinedRef(cond, '')} ${SWEEP_OPERATOR_LABELS[cond.operator] || cond.operator} ${describeCombinedRef(cond, 'value')} × ${value}`
+    if (field === 'valueMultiplier')      return `${describeCombinedRef(cond, '')} ${SWEEP_OPERATOR_LABELS[cond.operator] || cond.operator} ${describeCombinedRef(cond, 'value')} × ${formatMultiplierValue(cond, value)}`
 
     return `${describeSweepAxis(path, definition)} = ${JSON.stringify(value)}`
     }

@@ -9,8 +9,8 @@ async function listController(req, res) {
   }
 }
 
-// Utilisé par le front pour ne garder, parmi le produit cartésien base×quote
-// choisi dans le picker, que les paires qui existent vraiment sur Binance.
+// Used by the front end to keep, out of the base×quote cartesian product
+// chosen in the picker, only the pairs that actually exist on Binance.
 async function validatePairsController(req, res) {
   try {
     const { pairs } = req.body

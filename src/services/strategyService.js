@@ -1,14 +1,14 @@
 const prisma = require('../utils/prisma')
 const { isSweepMarker } = require('../utils/sweepEngine')
 
-// Retourne les valeurs à valider pour un champ potentiellement sweepable :
-// scalaire -> [valeur] ; { sweep: [...] } -> le tableau lui-même.
+// Returns the values to validate for a potentially sweepable field:
+// scalar -> [value]; { sweep: [...] } -> the array itself.
 function sweepValues(v) {
   return isSweepMarker(v) ? v.sweep : [v]
 }
 
-// Normalise un champ Json sweepable en conservant sa forme (scalaire ou { sweep: [...] })
-// tout en castant chaque valeur numérique (parseFloat par défaut, parser au choix).
+// Normalizes a sweepable Json field while keeping its shape (scalar or { sweep: [...] })
+// while casting each numeric value (parseFloat by default, custom parser optional).
 function normalizeNumber(v, parser = parseFloat) {
   if (isSweepMarker(v)) return { sweep: v.sweep.map(x => parser(x)) }
   return parser(v)
@@ -52,8 +52,8 @@ function validateConditions(conditions) {
   const validSources    = ['VOLUME', 'CLOSE', 'HIGH', 'LOW', 'OPEN']
   const validOperators  = ['>', '<', '>=', '<=', '==', 'cross_above', 'cross_below']
 
-  // Champs structurels (jamais sweepables) : indicator, operator, valueIndicator.
-  // Champs sweepables : period, source, valueIndicatorSource, valueMultiplier, value.
+  // Structural fields (never sweepable): indicator, operator, valueIndicator.
+  // Sweepable fields: period, source, valueIndicatorSource, valueMultiplier, value.
   const validateRule = (rule) => {
     if (isSweepMarker(rule.indicator) || isSweepMarker(rule.operator) || isSweepMarker(rule.valueIndicator))
       throw new Error('CONDITIONS_INVALID')
@@ -95,16 +95,16 @@ function validateConditions(conditions) {
     return true
   }
 
-  // Supporter deux formats :
-  //   - Plat (rétrocompat) : [rule, rule, ...]           → AND implicite
-  //   - Groupes (OR/AND)   : [[rule, rule], [rule], ...] → OR entre groupes, AND dans chaque groupe
+  // Support two formats:
+  //   - Flat (retro-compat): [rule, rule, ...]           -> implicit AND
+  //   - Groups (OR/AND)    : [[rule, rule], [rule], ...] -> OR between groups, AND within each group
   const validateGroup = (group) => {
     if (Array.isArray(group)) {
-      // Groupe AND
+      // AND Group
       if (group.length === 0) return // Ignore empty groups
       group.forEach(validateRule)
     } else {
-      // Règle directe (format plat rétrocompat)
+      // Direct rule (flat retro-compat format)
       validateRule(group)
     }
   }
@@ -119,8 +119,8 @@ function validateStrategy(data) {
   if (!name || name.trim().length < 2)          throw new Error('NAME_REQUIRED')
   if (name.trim().length > 70)                  throw new Error('NAME_TOO_LONG')
 
-  // pairs : toujours un tableau (longueur 1 = run classique). Traité comme un axe
-  // de sweep au même titre que les autres (voir sweepEngine).
+  // pairs: always an array (length 1 = single run). Treated as a sweep axis
+  // just like the others (see sweepEngine).
   if (!Array.isArray(pairs) || pairs.length === 0) throw new Error('PAIRS_INVALID')
   pairs.forEach(p => {
     if (typeof p !== 'string' || !/^[A-Z0-9]+\/[A-Z0-9]+$/.test(p)) throw new Error('PAIRS_INVALID')
@@ -131,7 +131,7 @@ function validateStrategy(data) {
     if (!validTimeframes.includes(tf)) throw new Error('TIMEFRAME_INVALID')
   })
 
-  // Non sweepable : dates fixes pour tout le SweepGroup.
+  // Not sweepable: fixed dates for the whole SweepGroup.
   if (typeof startDate === 'object') throw new Error('DATE_INVALID')
   if (typeof endDate === 'object')   throw new Error('DATE_INVALID')
   const start = new Date(startDate)
@@ -140,7 +140,7 @@ function validateStrategy(data) {
   if (isNaN(end.getTime()))                      throw new Error('DATE_INVALID')
   if (end <= start)                              throw new Error('DATE_RANGE_INVALID')
 
-  // Non sweepable : capital de départ fixe.
+  // Not sweepable: fixed starting capital.
   if (typeof initialCapital === 'object' || !initialCapital || initialCapital <= 0)
     throw new Error('CAPITAL_INVALID')
 
@@ -168,8 +168,9 @@ function validateStrategy(data) {
       if (isNaN(n) || n < 1 || n > 200) throw new Error('ATR_PERIOD_INVALID')
     })
   }
-  // Non sweepable : fees fixes pour tout le SweepGroup (validation existante suffit :
-  // un objet {sweep:[...]} échoue déjà parseFloat -> NaN -> FEE_INVALID).
+  
+  // Not sweepable: fixed fees for the whole SweepGroup (existing validation is enough:
+  // a {sweep:[...]} object already fails parseFloat -> NaN -> FEE_INVALID).
   if (data.feeTaker !== undefined && data.feeTaker !== null) {
     const v = parseFloat(data.feeTaker)
     if (isNaN(v) || v < 0 || v > 10) throw new Error('FEE_INVALID')
@@ -275,7 +276,7 @@ async function cloneFromSnapshot(jobId, userId) {
   if (!job.strategySnapshot) throw new Error('SNAPSHOT_NOT_FOUND')
   
   const snap = job.strategySnapshot
-  // Un snapshot de job est TOUJOURS un run résolu (pair singulière, aucun marqueur sweep).
+  // A job snapshot is ALWAYS a resolved run (single pair, no sweep marker).
   const { id: _id, createdAt: _c, updatedAt: _u, userId: _uid, pair: snapPair, ...rest } = snap
 
   return prisma.strategy.create({

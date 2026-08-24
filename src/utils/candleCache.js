@@ -1,4 +1,3 @@
-// candleCache.js
 // Disk cache for closed OHLCV candles, keyed by exchange/pair/timeframe/year.
 // Mirrors the pattern already used by python/ohlcv_cache.py: only the delta
 // missing from the cache is fetched from the exchange, and only CLOSED
@@ -85,7 +84,7 @@ async function getCachedKlines({ exchange, symbol, pair, timeframe, tfMs, startM
     const cached = loadRange(dir, startMs, endMs)
 
     const now = Date.now()
-    // The candle currently forming is never considered "closed" — never trust
+    // The candle currently forming is never considered "closed" - never trust
     // cache for it, always re-fetch live.
     const lastClosedBoundary = now - (now % tfMs)
 

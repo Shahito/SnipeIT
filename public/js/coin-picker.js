@@ -1,15 +1,15 @@
 /**
  * coin-picker.js
  *
- * <coin-picker></coin-picker> - sélecteur multi-coins (base ou quote) avec
- * overlay façon indicator-picker.js : recherche + catégories fixes (voir
- * src/config/coinCategories.js, servi via GET /api/coins) + logo/titre
- * (nom)/sous-titre (symbole).
+ * <coin-picker></coin-picker> - multi-coin selector (base or quote) with
+ * an overlay like indicator-picker.js: search + fixed categories (see
+ * src/config/coinCategories.js, served via GET /api/coins) + logo/title
+ * (name)/subtitle (symbol).
  *
- * Contrairement à <indicator-picker> (mono-sélection, ferme au clic), c'est
- * multi-sélection : chaque clic sur une carte toggle son état actif dans une
- * sélection de travail, et il faut cliquer "Valider" pour committer (Echap/
- * clic dehors annule les changements en cours).
+ * Unlike <indicator-picker> (single-select, closes on click), this is a
+ * multi-select: each click on a card toggles its active state within a
+ * working selection, and you must click "Confirm" to commit it (Escape/
+ * clicking outside cancels the pending changes).
  *
  * API JS :
  *   picker.value = ['BTC', 'ETH']   // set (array de symboles)
@@ -21,8 +21,8 @@
     let _activePicker = null
     let _searchTerm = ''
     let _overlayReady = false
-    let _working = []          // sélection de travail (avant validation)
-    let _coinsData = null      // { coins, categories } - chargé une seule fois
+    let _working = []          // working selection (before confirmation)
+    let _coinsData = null      // { coins, categories } - loaded only once
     let _coinsPromise = null
     const isMobileWidth = () => ((window.innerWidth > 0) ? window.innerWidth : screen.width) <= 640
 

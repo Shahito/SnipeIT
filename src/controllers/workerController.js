@@ -15,7 +15,7 @@ async function heartbeatController(req, res) {
 
 async function pollController(req, res) {
   try {
-    // Le poll compte aussi comme heartbeat
+    // The poll also counts as a heartbeat
     await prisma.apiKey.update({
       where: { id: req.apiKey.id },
       data:  { lastHeartbeat: new Date(), lastUsedAt: new Date() },
@@ -40,7 +40,7 @@ async function resultController(req, res) {
   }
 }
 
-// Appelé depuis l'UI (JWT user) pour savoir si un worker est actif
+// Called from the UI (JWT user) to check whether a worker is active
 async function statusController(req, res) {
   try {
     const threshold = new Date(Date.now() - 45_000) // 45s

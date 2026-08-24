@@ -1,19 +1,19 @@
 /**
  * sweep-parse.js
  *
- * Convention commune à tout le front pour les champs sweepables :
+ * Convention shared across the front end for sweepable fields:
  *   - Un champ NUMÉRIQUE (positionSize, stopLoss, period, value...) accepte
- *     soit une valeur unique ("14"), soit une liste séparée par des virgules
+ *     accepts either a single value ("14") or a comma-separated list
  *     ("14, 15, 16") -> { sweep: [14,15,16] }.
- *   - Un champ ÉNUMÉRÉ (pairs, timeframe, slType, tpType, source) se choisit
- *     via un groupe de chips (.toggle-group/.toggle-btn) : une seule chip
- *     cochée = valeur scalaire, plusieurs = { sweep: [...] }.
+ *   - An ENUM field (pairs, timeframe, slType, tpType, source) is chosen
+ *     via a chip group (.toggle-group/.toggle-btn): a single chip
+ *     checked = scalar value, several checked = { sweep: [...] }.
  *
  * Exposes:
  *   window.parseSweepNumber(raw, parser?)   -> number | {sweep:[...]} | null
- *   window.formatSweepNumber(value)         -> string (pour <input type=text>)
+ *   window.formatSweepNumber(value)         -> string (for <input type=text>)
  *   window.parseSweepChoice(selectedArray)   -> string | {sweep:[...]} | null
- *   window.formatSweepChoice(value)          -> string[] (valeurs cochées)
+ *   window.formatSweepChoice(value)          -> string[] (checked values)
  *   window.renderChipGroup(containerId, options[], selectedValues[])
  *   window.getChipGroupSelected(containerId) -> string[]
  *   window.bindChipGroup(containerId, onChange)
@@ -43,9 +43,9 @@ function formatSweepChoice(value) {
   return [value]
 }
 
-// Groupe de chips réutilisant .toggle-group/.toggle-btn (déjà utilisé pour
-// les filtres de jobs.html) : simple multi-sélection, chaque chip toggle
-// indépendamment (pas de "un seul actif à la fois").
+// Chip group reusing .toggle-group/.toggle-btn (already used for
+// the jobs.html filters): simple multi-select, each chip toggles
+// independently (no "only one active at a time").
 function renderChipGroup(containerId, options, selectedValues = []) {
   const el = document.getElementById(containerId)
   if (!el) return
@@ -70,7 +70,7 @@ function bindChipGroup(containerId, onChange) {
     const btn = e.target.closest('.toggle-btn')
     if (!btn) return
     const willBeActive = !btn.classList.contains('active')
-    // Empêche de tout décocher : au moins une valeur doit rester sélectionnée.
+    // Prevents unchecking everything: at least one value must stay selected.
     if (!willBeActive && el.querySelectorAll('.toggle-btn.active').length <= 1) return
     btn.classList.toggle('active')
     onChange(getChipGroupSelected(containerId))

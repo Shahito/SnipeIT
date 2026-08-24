@@ -29,7 +29,7 @@ model ApiKey {
   keyHash       String    @unique
   keyPrefix     String
   lastUsedAt    DateTime?
-  lastHeartbeat DateTime?   // mis à jour par le worker toutes les N secondes
+  lastHeartbeat DateTime?   // updated by the worker every N seconds
   createdAt     DateTime  @default(now())
 
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -41,20 +41,20 @@ model Strategy {
   userId         Int
   name           String
   description    String?       @db.Text
-  pairs          Json          // string[] — ex: ["BTC/USDT"] (run classique) ou ["BTC/USDT","ETH/USDT",...] (sweep)
-  // Champs sweepables : scalaire OU { sweep: [v1, v2, ...] }. Résolus en scalaire
-  // pur dans BacktestJob.strategySnapshot au lancement (voir sweepEngine).
-  timeframe      Json          // String ou { sweep: [...] }
+  pairs          Json          // string[] - e.g. ["BTC/USDT"] (single run) or ["BTC/USDT","ETH/USDT",...] (sweep)
+  // Sweepable fields: scalar OR { sweep: [v1, v2, ...] }. Resolved to a pure
+  // scalar in BacktestJob.strategySnapshot at launch time (see sweepEngine).
+  timeframe      Json          // String or { sweep: [...] }
   startDate      DateTime
   endDate        DateTime
   initialCapital Float         @default(1000)
-  positionSize   Json          // Float ou { sweep: [...] }
-  stopLoss       Json?         // Float ou { sweep: [...] }
-  takeProfit     Json?         // Float ou { sweep: [...] }
-  trailingStopLoss Json?       // Float ou { sweep: [...] }
-  slType         Json?         // "percent"|"atr" ou { sweep: [...] }
-  tpType         Json?         // "percent"|"atr" ou { sweep: [...] }
-  atrPeriod      Json?         // Int ou { sweep: [...] }
+  positionSize   Json          // Float or { sweep: [...] }
+  stopLoss       Json?         // Float or { sweep: [...] }
+  takeProfit     Json?         // Float or { sweep: [...] }
+  trailingStopLoss Json?       // Float or { sweep: [...] }
+  slType         Json?         // "percent"|"atr" or { sweep: [...] }
+  tpType         Json?         // "percent"|"atr" or { sweep: [...] }
+  atrPeriod      Json?         // Int or { sweep: [...] }
   feeTaker       Float         @default(0.0)
   feeMaker       Float         @default(0.0)
   tradingHours   Json?                          // [{start:"08:00", end:"17:00", blockSell:false}]
@@ -73,8 +73,8 @@ model BacktestJob {
   strategyId     Int
   apiKeyId       Int?
   sweepGroupId   Int?
-  pair           String?   // pair résolue pour ce run précis (colonne réelle, tri/filtre)
-  paramValues    Json?     // valeurs résolues des axes sweep pour ce run (hors pair)
+  pair           String?   // resolved pair for this specific run (real column, for sort/filter)
+  paramValues    Json?     // resolved sweep-axis values for this run (excluding pair)
   resultHash     String?   @db.VarChar(64) // sha256(strategySnapshot)
   reusedFromJobId Int?
   status         String    @default("pending")
@@ -112,7 +112,7 @@ model SweepGroup {
   strategyId         Int
   userId             Int
   name               String?
-  definitionSnapshot Json      // définition complète de la stratégie au lancement (avec axes sweep)
+  definitionSnapshot Json      // full strategy definition at launch time (including sweep axes)
   totalRuns          Int
   status             String    @default("pending") // pending | running | done | partial_error | error
   createdAt          DateTime  @default(now())

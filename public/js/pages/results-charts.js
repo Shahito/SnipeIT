@@ -55,6 +55,27 @@ const pnlDistributionChart = new CanvasHistogram('pnlDistributionCanvas', {
   getBuckets: r => r.pnlBuckets,
 })
 
+// MAE distribution (winning trades only) - toggle between % of entry and ATR units
+let _maeUnit = 'pct'
+const maeDistributionChart = new CanvasHistogram('maeDistributionCanvas', {
+  getBuckets:     r => (_maeUnit === 'atr' ? r.maeBucketsAtr : r.maeBuckets) || [],
+  singleColor:    _cssVar('--primary'),
+  singleColorDim: _cssVar('--primary-dim'),
+  labelSuffix:    '%',
+  labelDecimals:  1,
+})
+
+function setMaeUnit(unit) {
+  _maeUnit = unit
+  maeDistributionChart.config.labelSuffix   = unit === 'atr' ? 'R' : '%'
+  maeDistributionChart.config.labelDecimals = unit === 'atr' ? 2 : 1
+  document.getElementById('maeToggleUnitPct').classList.toggle('active', unit === 'pct')
+  document.getElementById('maeToggleUnitAtr').classList.toggle('active', unit === 'atr')
+  maeDistributionChart.render(maeDistributionChart._result)
+}
+document.getElementById('maeToggleUnitPct').addEventListener('click', () => setMaeUnit('pct'))
+document.getElementById('maeToggleUnitAtr').addEventListener('click', () => setMaeUnit('atr'))
+
 const monthlyChart = new MonthlyPerfChart('monthlyPerfCanvas', {
   getData: r => r.monthlyPerf,
   showDelta: true,

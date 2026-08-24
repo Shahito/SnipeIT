@@ -1,7 +1,3 @@
-// src/utils/eventBus.js — remplace tout le fichier
-
-// eventBus.js
-//
 // In-memory pub/sub used to push job/sweep status updates to open SSE
 // connections (see controllers/eventsController.js).
 //

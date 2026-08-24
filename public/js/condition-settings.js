@@ -173,10 +173,10 @@
     `
   }
 
-  // Version sweepable de _numberField : accepte "14" ou "14, 15, 16" -> voir
-  // sweep-parse.js. Utilisée uniquement pour period/valueMultiplier (champs
-  // reconnus comme sweepables par strategyService) - PAS pour offset, les
-  // extra-params d'indicateur (MACD fast/slow/signal...) ni combine*, qui
+  // Sweepable version of _numberField: accepts "14" or "14, 15, 16" -> see
+  // sweep-parse.js. Used only for period/valueMultiplier (fields
+  // recognized as sweepable by strategyService) - NOT for offset, the
+  // indicator extra-params (MACD fast/slow/signal...), or combine*, which
   // restent volontairement scalaires (_numberField ci-dessus).
   function _sweepNumberField(id, label, value) {
     return `
@@ -251,11 +251,11 @@
       const willBeActive = !btn.classList.contains('active')
 
       if (!willBeActive) {
-        // Décocher : au moins une valeur doit rester sélectionnée.
+        // Unchecking: at least one value must remain selected.
         if (el.querySelectorAll('.toggle-btn.active').length <= 1) return
         btn.classList.remove('active')
       } else if (isClose) {
-        // "close" exclut toute autre source sélectionnée.
+        // "close" excludes any other selected source.
         el.querySelectorAll('.toggle-btn.active').forEach(b => b.classList.remove('active'))
         btn.classList.add('active')
       } else {

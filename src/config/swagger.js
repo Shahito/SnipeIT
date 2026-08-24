@@ -1,4 +1,3 @@
-// src/config/swagger.js
 const swaggerJsdoc = require('swagger-jsdoc');
 
 module.exports = swaggerJsdoc({

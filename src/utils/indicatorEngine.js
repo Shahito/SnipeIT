@@ -1,4 +1,3 @@
-// indicatorEngine.js
 // JS port of python/indicators.py - must stay numerically consistent with it.
 // Used to overlay the exact indicators a strategy's conditions rely on, on top
 // of the chart candles fetched from Binance.

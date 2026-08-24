@@ -26,7 +26,7 @@ async function loadKeys() {
         <div class="apikey-info">
           <div class="apikey-name">${escHtml(k.name)}</div>
           <div class="apikey-meta">
-            ${t('apikeys.item.prefix')} <code>${k.keyPrefix}…</code> ·
+            ${t('apikeys.item.prefix')} <code>${k.keyPrefix}...</code> ·
             ${t('apikeys.item.created')} ${fmtDate(k.createdAt)} ·
             ${k.lastUsedAt ? t('apikeys.item.last_used') + ' ' + fmtDate(k.lastUsedAt) : t('apikeys.item.never_used')}
           </div>

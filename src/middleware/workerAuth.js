@@ -14,15 +14,15 @@ async function workerAuthRequired(req, res, next) {
     const rawKey = authHeader.slice(7).trim()
     if (!rawKey) return res.status(401).json({ error: 'MISSING_API_KEY' })
 
-    // Fast check in cache
-    const cached = tokenCache.get(rawKey)
+    const hash = crypto.createHash('sha256').update(rawKey).digest('hex')
+
+    // Fast check in cache (keyed by hash, not raw key)
+    const cached = tokenCache.get(hash)
     if (cached && cached.expiresAt > Date.now()) {
       req.apiKey = cached.apiKey
       req.workerUser = cached.workerUser
       return next()
     }
-
-    const hash = crypto.createHash('sha256').update(rawKey).digest('hex')
 
     const apiKeyRecord = await prisma.apiKey.findUnique({
       where: { keyHash: hash },
@@ -34,7 +34,7 @@ async function workerAuthRequired(req, res, next) {
     }
 
     // Store valid result in cache for next requests
-    tokenCache.set(rawKey, {
+    tokenCache.set(hash, {
       apiKey: apiKeyRecord,
       workerUser: apiKeyRecord.user,
       expiresAt: Date.now() + CACHE_TTL
@@ -62,4 +62,9 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000)
 
+function invalidateApiKeyCache(keyHash) {
+  tokenCache.delete(keyHash)
+}
+
 module.exports = workerAuthRequired
+module.exports.invalidateApiKeyCache = invalidateApiKeyCache

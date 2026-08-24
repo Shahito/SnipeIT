@@ -6,10 +6,10 @@
  * ATR visibility, mobile step nav, and the leave-page guard.
  *
  * Sweep refonte : pairs/timeframe/positionSize/stopLoss/takeProfit/
- * trailingStopLoss/slType/tpType/atrPeriod peuvent tous être des listes
- * (sweep) plutôt qu'une valeur unique - voir sweep-parse.js pour la
- * convention (chips multi-select pour les énumérés, "a, b, c" pour les
- * champs numériques).
+ * trailingStopLoss/slType/tpType/atrPeriod can all be lists
+ * (sweep) rather than a single value - see sweep-parse.js for the
+ * convention (multi-select chips for enums, "a, b, c" for
+ * numeric fields).
  *
  * Depends on (must be loaded before this file):
  *   - sweep-parse.js         (parseSweepNumber, formatSweepNumber, chip-group helpers)
@@ -22,7 +22,7 @@
  * Entry point: call initStrategyForm() once inside the 'header:ready' handler.
  */
 
-// Constantes de listes (remplacent les anciennes <option> statiques)
+// List constants (replace the old static <option> elements)
 
 const TIMEFRAMES_LIST = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d', '3d', '1w']
 const RISK_TYPES = [{ value: 'percent', label: '%' }, { value: 'atr', label: '× ATR' }]
@@ -43,9 +43,9 @@ function generateStrategyName() {
 }
 window.generateStrategyName = generateStrategyName
 
-// Garde-fou d'avertissement, purement indicatif côté front (l'API refait le
-// calcul et applique la vraie limite - voir src/config/sweep.js, à garder
-// synchronisé si la valeur change côté serveur).
+// Warning guard rail, purely indicative on the front end (the API redoes the
+// calculation and applies the real limit - see src/config/sweep.js, keep
+// this in sync if the value changes server-side).
 const SWEEP_WARNING_THRESHOLD_CLIENT = 200
 
 // Leave-page guard
@@ -55,7 +55,7 @@ window.addEventListener('beforeunload', confirmLeave)
 document.querySelector('a[href="/strategies.html"]')
   .addEventListener('click', () => window.removeEventListener('beforeunload', confirmLeave))
 
-// ATR visibility / trailing visibility (dépend des chips slType/tpType)
+// ATR visibility / trailing visibility (depends on the slType/tpType chips)
 
 function updateAtrVisibility() {
   const slTypes = getChipGroupSelected('fSlTypeGroup')
@@ -76,10 +76,10 @@ function bindSweepChipGroups() {
     ;['fSlTypeGroup', 'fTpTypeGroup'].forEach(id => bindChipGroup(id, () => { updateAtrVisibility(); updatePreview() }))
 }
 
-// Coins de base × coins de cotation -> pairs[]. Filtré côté serveur sur ce
-// qui existe vraiment sur Binance (voir POST /api/coins/validate-pairs) -
-// toutes les combinaisons base×quote ne sont pas forcément des paires
-// tradables réelles (ex: deux coins qui ne se cotent jamais l'un contre l'autre).
+// Base coins × quote coins -> pairs[]. Filtered server-side on what
+// actually exists on Binance (see POST /api/coins/validate-pairs) -
+// not every base×quote combination is necessarily a
+// real tradable pair (e.g. two coins that never trade against each other).
 let _currentPairs = []
 
 function cartesianPairs() {
@@ -140,12 +140,12 @@ function bindCoinPickers() {
   })
 }
 
-// Timeframe "de référence" utilisé uniquement par l'overlay de réglages de
-// condition (condition-settings.js) pour filtrer les timeframes proposées à
-// >= celle-ci - purement indicatif côté UI, aucun rapport avec la résolution
-// réelle du sweep (qui se fait côté serveur, combinaison par combinaison).
-// Si plusieurs timeframes sont sweepées, on prend la plus courte des deux
-// pour ne jamais masquer une option valide pour l'une des combinaisons.
+// "Reference" timeframe used only by the settings overlay for the
+// condition (condition-settings.js) to filter which timeframes are offered,
+// >= this one - purely indicative on the UI side, unrelated to the actual
+// sweep resolution (which happens server-side, combination by combination).
+// If several timeframes are swept, the shorter of the two is used
+// so a valid option is never hidden for one of the combinations.
 function getPrimaryTimeframe() {
   const selected = getChipGroupSelected('fTimeframeGroup')
   if (!selected.length) return '1h'
@@ -254,9 +254,9 @@ function buildPayload() {
   }
 }
 
-// Compte le nombre de combinaisons côté client, purement informatif (l'API
-// refait le calcul exact - voir sweepEngine.js). Parcourt tout marqueur
-// { sweep: [...] } dans le payload + pairs[].
+// Counts the number of combinations client-side, purely informational (the API
+// redoes the exact calculation - see sweepEngine.js). Walks every
+// { sweep: [...] } marker in the payload + pairs[].
 function countCombinationsClientSide(payload) {
   const { pairs, ...rest } = payload
   let count = Math.max(Array.isArray(pairs) ? pairs.length : 1, 1)
@@ -369,9 +369,9 @@ async function _savePayload() {
   }
 }
 
-// Lance le sweep (point d'entrée unique, run classique = totalRuns 1). Si le
-// nombre de combinaisons dépasse le seuil d'avertissement côté serveur,
-// demande confirmation via sweepConfirmModal avant de relancer avec confirmLarge.
+// Launches the sweep (single entry point, single run = totalRuns 1). If the
+// number of combinations exceeds the server-side warning threshold,
+// asks for confirmation via sweepConfirmModal before retrying with confirmLarge.
 async function _launchSweepFlow(strategyId) {
   const preview = await api(`/strategies/${strategyId}/sweep/preview`)
 

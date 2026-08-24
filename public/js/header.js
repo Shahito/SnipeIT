@@ -166,7 +166,7 @@ document.addEventListener('i18n:ready', async () => {
     </button>
   `
 
-  // // Injecter overlay mobile après le header
+  // Inject mobile overlay after the header
   const overlay = document.createElement('div')
   overlay.innerHTML = mobileNavHTML
   const mobileNode = overlay.firstElementChild
@@ -201,7 +201,7 @@ document.addEventListener('i18n:ready', async () => {
     }
   })
 
-  // Fermer sur navigation
+  // Close on navigation
   mobileNav.querySelectorAll('.nav-link').forEach(link => {
     link.addEventListener('click', () => mobileNav.classList.remove('open'))
   })

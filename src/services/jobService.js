@@ -17,10 +17,10 @@ const JOB_SELECT = {
 const VALID_SORTS  = ['createdAt', 'pnlPercent', 'winRate', 'maxDrawdown', 'sharpeRatio', 'totalTrades']
 const VALID_STATUS = ['pending', 'running', 'done', 'error']
 
-// sortField (whitelisted contre VALID_SORTS avant usage) -> fragment SQL.
-// 'job'   : colonne directe sur BacktestJob
-// 'sweep' : moyenne sur les jobs 'done' du groupe (même sémantique que sweepAverages()),
-//           sauf createdAt qui reste la date de création du groupe.
+// sortField (whitelisted against VALID_SORTS before use) -> SQL fragment.
+// 'job'   : direct column on BacktestJob
+// 'sweep' : average over the group's 'done' jobs (same semantics as sweepAverages()),
+//           except createdAt, which stays the group's creation date.
 const SORT_SQL = {
   createdAt:   { job: 'bj.createdAt',   sweep: 'sg.createdAt' },
   pnlPercent:  { job: 'bj.pnlPercent',  sweep: "AVG(CASE WHEN bj.status = 'done' THEN bj.pnlPercent END)" },
@@ -98,8 +98,8 @@ const orderSql   = sortOrder === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`
   const sweepIds = pageRows.filter(r => r.itemType === 'sweep').map(r => r.id)
   const jobIds   = pageRows.filter(r => r.itemType === 'job').map(r => r.id)
 
-  // Hydratation : uniquement pour les éléments de la page courante (bornés par `take`),
-  // pas pour l'historique complet comme avant.
+  // Hydration: only for the items on the current page (bounded by `take`),
+  // not for the full history like before.
   const [sweepGroups, standaloneJobs] = await Promise.all([
     sweepIds.length ? prisma.sweepGroup.findMany({
       where: { id: { in: sweepIds } },
@@ -117,7 +117,7 @@ const orderSql   = sortOrder === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`
   }]))
   const jobById = new Map(standaloneJobs.map(j => [j.id, { itemType: 'job', ...j }]))
 
-  // On respecte l'ordre déterminé par la requête SQL (celui-ci porte le vrai tri).
+  // The order determined by the SQL query is respected (it carries the real sort).
   const jobs = pageRows
     .map(r => (r.itemType === 'sweep' ? sweepById.get(r.id) : jobById.get(r.id)))
     .filter(Boolean)

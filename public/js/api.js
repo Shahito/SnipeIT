@@ -1,11 +1,11 @@
-// Helper global pour tous les appels API
+// Global helper for all API calls
 // Usage : const data = await api('/auth/me')
 //         await api('/auth/login', { method: 'POST', body: { username, password } })
 //
-// En cas d'erreur, throw un objet avec :
-//   err.message → le code brut ex: "INVALID_CREDENTIALS"
-//   err.code    → idem (pour t('error.' + err.code))
-//   err.status  → le HTTP status
+// On error, throws an object with:
+//   err.message -> the raw code, e.g. "INVALID_CREDENTIALS"
+//   err.code    -> same (for t('error.' + err.code))
+//   err.status  -> the HTTP status
 async function api(path, options = {}) {
   const { method = 'GET', body } = options
 

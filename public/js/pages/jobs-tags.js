@@ -43,7 +43,7 @@ function openTagPopover(jobId, anchorEl) {
   document.getElementById('popoverTitle').textContent = `#${jobId} - ${job.strategy.name}`
   assignPopover.render(jobId)
 
-  // Positionner le popover près du bouton
+  // Position the popover near the button
   const popover = document.getElementById('tagPopover')
   popover.classList.remove('hidden')
 

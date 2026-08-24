@@ -1,5 +1,6 @@
 const prisma = require('../utils/prisma')
 const crypto = require('crypto')
+const { invalidateApiKeyCache } = require('../middleware/workerAuth')
 
 const MAX_API_KEYS_PER_USER = 5
 
@@ -47,6 +48,7 @@ async function deleteApiKey(id, userId) {
   const key = await prisma.apiKey.findFirst({ where: { id, userId } })
   if (!key) throw new Error('API_KEY_NOT_FOUND')
   await prisma.apiKey.delete({ where: { id } })
+  invalidateApiKeyCache(key.keyHash)
   return true
 }
 

@@ -1,7 +1,21 @@
 const { SWEEP_MAX_COMBINATIONS } = require('../config/sweep')
 
-// Un axe sweep est repéré par la forme exacte : { sweep: [v1, v2, ...] }
-// (un objet avec UNIQUEMENT cette clé). Toute autre forme d'objet est traversée normalement.
+// Whitelist of field names a sweep axis path may traverse.
+// Anything outside this set is rejected, independent of the cloning strategy used downstream.
+const ALLOWED_SWEEP_KEYS = new Set([
+  'timeframe', 'positionSize', 'stopLoss', 'takeProfit', 'trailingStopLoss',
+  'slType', 'tpType', 'atrPeriod', 'conditions',
+  'entry', 'exit',
+  'indicator', 'operator', 'period', 'source',
+  'valueIndicator', 'valueIndicatorSource', 'valueMultiplier', 'value',
+])
+
+function assertAllowedKey(key) {
+  if (!ALLOWED_SWEEP_KEYS.has(key)) throw new Error(`SWEEP_KEY_NOT_ALLOWED:${key}`)
+}
+
+// A sweep axis is identified by the exact shape: { sweep: [v1, v2, ...] }
+// (an object with ONLY this key). Any other object shape is traversed normally.
 function isSweepMarker(node) {
   return (
     node !== null &&
@@ -12,8 +26,8 @@ function isSweepMarker(node) {
   )
 }
 
-// Parcourt récursivement `definition` (hors `pairs`, traité à part) et retourne
-// la liste des axes trouvés : [{ path: "conditions.entry[0].period", values: [14,15,16] }, ...]
+// Recursively walks `definition` (excluding `pairs`, handled separately) and returns
+// the list of axes found: [{ path: "conditions.entry[0].period", values: [14,15,16] }, ...]
 function findSweepAxes(node, path = '') {
   let axes = []
 
@@ -32,6 +46,7 @@ function findSweepAxes(node, path = '') {
 
   if (node !== null && typeof node === 'object') {
     for (const key of Object.keys(node)) {
+      assertAllowedKey(key)
       const childPath = path ? `${path}.${key}` : key
       axes = axes.concat(findSweepAxes(node[key], childPath))
     }
@@ -41,9 +56,11 @@ function findSweepAxes(node, path = '') {
   return axes
 }
 
-// Remplace la valeur à `path` (notation "a.b[0].c") dans un clone de `root` par `value`.
+// Replaces the value at `path` (notation "a.b[0].c") in a clone of `root` with `value`.
 function setAtPath(root, path, value) {
   const tokens = path.match(/[^.[\]]+/g)
+  tokens.forEach(t => { if (!/^\d+$/.test(t)) assertAllowedKey(t) })
+
   let cur = root
   for (let i = 0; i < tokens.length - 1; i++) {
     const t = tokens[i]
@@ -57,10 +74,10 @@ function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj))
 }
 
-// Point d'entrée. `strategyLikeDefinition` = objet stratégie (pairs[] + champs
-// éventuellement porteurs de marqueurs {sweep:[...]}).
-// Retourne { totalRuns, axes, combinations }
-//   combinations[i] = { pair, paramValues: {path: value, ...}, resolved: <définition 100% scalaire> }
+// Entry point. `strategyLikeDefinition` = strategy-like object (pairs[] + fields
+// possibly carrying {sweep:[...]} markers).
+// Returns { totalRuns, axes, combinations }
+//   combinations[i] = { pair, paramValues: {path: value, ...}, resolved: <100% scalar definition> }
 function resolveSweep(strategyLikeDefinition) {
   const { pairs, ...rest } = strategyLikeDefinition
 
@@ -96,7 +113,7 @@ function resolveSweep(strategyLikeDefinition) {
 
     combinations.push({ pair, paramValues, resolved })
 
-    // incrémentation façon compteur à bases mixtes (odometer)
+    // odometer-style mixed-radix counter increment
     for (let a = allAxes.length - 1; a >= 0; a--) {
       indices[a]++
       if (indices[a] < allAxes[a].values.length) break

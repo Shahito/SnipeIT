@@ -162,7 +162,7 @@ async function getCandlesController(req, res) {
         fetchFn: fetchKlines,
       })
       if (!rawHtf.length) {
-        console.warn(`No HTF data for ${snap.pair} ${tf} — skipping ${items.length} indicator(s)`)
+        console.warn(`No HTF data for ${snap.pair} ${tf} - skipping ${items.length} indicator(s)`)
         continue
       }
 

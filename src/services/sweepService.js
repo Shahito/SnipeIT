@@ -18,7 +18,7 @@ function computeResultHash(snapshot) {
   return crypto.createHash('sha256').update(stableStringify(snapshot)).digest('hex')
 }
 
-// Champs potentiellement sweepables (voir strategyService.validateStrategy).
+// Potentially sweepable fields (see strategyService.validateStrategy).
 function buildDefinition(strategy) {
   return {
     pairs:             strategy.pairs,
@@ -34,8 +34,8 @@ function buildDefinition(strategy) {
   }
 }
 
-// Reconstruit un strategySnapshot 100% résolu (aucun marqueur sweep) pour UN run.
-// C'est ce snapshot, jamais la ligne `Strategy` vivante, qui est envoyé au worker.
+// Rebuilds a 100% resolved strategySnapshot (no sweep marker) for ONE run.
+// It's this snapshot, never the live `Strategy` row, that is sent to the worker.
 function buildSnapshot(strategy, combo) {
   return {
     name:             strategy.name,
@@ -58,7 +58,7 @@ function buildSnapshot(strategy, combo) {
   }
 }
 
-// Aperçu (pour le front, avant confirmation) : nombre de combinaisons + détail des axes.
+// Preview (for the front end, before confirmation): number of combinations + axis details.
 async function previewSweep(strategyId, userId) {
   const strategy = await prisma.strategy.findFirst({ where: { id: strategyId, userId } })
   if (!strategy) throw new Error('STRATEGY_NOT_FOUND')
@@ -246,11 +246,11 @@ async function getSweepGroup(id, userId) {
   }))
   byCategory.push({
     categoryId: null,
-    name:       'Non catégorisé',
+    name:       'Uncategorized',
     stats:      statsFor(uncategorized),
   })
 
-  // Sensibilité par paramètre : PnL moyen groupé par valeur, pour chaque axe sweepé (hors pair).
+  // Sensitivity by parameter: average PnL grouped by value, for each swept axis (excluding pair).
   const paramPaths = [...new Set(jobs.flatMap(j => Object.keys(j.paramValues || {})))]
   const sensitivity = paramPaths.map(path => {
     const byValue = new Map()

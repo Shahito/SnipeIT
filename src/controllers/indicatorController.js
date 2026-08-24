@@ -206,7 +206,7 @@ async function getIndicatorsController(req, res) {
     let needed = extractNeeded(conditions)
     // A ref pointing at the strategy's own timeframe behaves like "no timeframe" (base)
     needed = needed.map(n => ({ ...n, timeframe: (!n.timeframe || n.timeframe === baseTf) ? null : n.timeframe }))
-    // Only HTF (slower) refs are valid — same rule as backtest.py
+    // Only HTF (slower) refs are valid - same rule as backtest.py
     needed = needed.filter(n => !n.timeframe || tfMinutes(n.timeframe) >= tfMinutes(baseTf))
 
     if (snap.slType === 'atr' || snap.tpType === 'atr') {

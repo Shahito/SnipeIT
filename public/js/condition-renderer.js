@@ -5,7 +5,7 @@
  * events back to the `conditions` state object, and keeping the two in sync.
  *
  * Depends on (must be loaded before this file):
- *   - indicator-config.js  (INDICATORS, OPERATORS, INDICATORS_WITH_PERIOD, …)
+ *   - indicator-config.js  (INDICATORS, OPERATORS, INDICATORS_WITH_PERIOD, ...)
  *   - indicator-picker.js  (<indicator-picker> custom element)
  *   - i18n (t())
  *   - ICONS global
@@ -26,7 +26,7 @@ function getRule(type, gIdx, rIdx) {
   return conditions[type][parseInt(gIdx)][parseInt(rIdx)]
 }
 
-// Normalise flat [rule, …] → [[rule, …]] (retro-compat with old save format)
+// Normalize flat [rule, ...] -> [[rule, ...]] (retro-compat with old save format)
 function normalizeConditions(arr) {
   if (!arr.length) return []
   if (Array.isArray(arr[0])) return arr
