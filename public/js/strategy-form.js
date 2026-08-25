@@ -439,7 +439,7 @@ document.getElementById('saveAndRunBtn').addEventListener('click', async () => {
       setTimeout(() => window.location.href = `/sweep-results.html?id=${sweepGroup.id}`, 800)
     } else {
       toast(t('strategies.job_launched'), 'success')
-      setTimeout(() => window.location.href = '/strategies.html', 800)
+      setTimeout(() => window.location.href = '/jobs.html', 800)
     }
   } catch (e) {
     if (!e._silent) toast(t('error.' + e.code, { requested: e.data?.totalRuns, limit: e.data?.limit }), 'error')

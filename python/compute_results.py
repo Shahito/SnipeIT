@@ -110,6 +110,70 @@ def _mae_buckets(sell_trades: list, key: str = "mae", bucket_count: int = 20) ->
     return buckets
 
 
+# MAE vs PnL scatter (winning trades only)
+def _mae_scatter(sell_trades: list, key: str = "mae") -> list:
+    """
+    One point per winning trade: x = max adverse excursion (pain endured
+    before the trade turned around), y = final pnl % (reward), reason = why
+    the trade closed (used for per-point coloring on the frontend). Same
+    winning-trades filter as _mae_buckets, so the two stay consistent when
+    toggled together on the frontend.
+    `key` selects the unit for x: "mae" (% of entry price) or "maeAtr" (ATR multiples).
+    Returns [{x, y, reason}, ...]
+    """
+    return [
+        {"x": t[key], "y": t["pnl"], "reason": t.get("reason")}
+        for t in sell_trades
+        if t.get("pnl") and t["pnl"] > 0 and t.get(key) is not None
+    ]
+
+
+# MFE distribution (losing trades only) - inverse of MAE
+def _mfe_buckets(sell_trades: list, key: str = "mfe", bucket_count: int = 20) -> list:
+    """
+    Distribution of max favorable excursion for trades that closed at a
+    loss. `key` selects the unit: "mfe" (% of entry price) or "mfeAtr" (ATR
+    multiples). Values are positive (or 0): how much unrealized profit was
+    on the table before the trade eventually turned around and closed negative.
+    Returns [{label, count, lo}, ...]
+    """
+    vals = [t[key] for t in sell_trades if t.get("pnl") and t["pnl"] < 0 and t.get(key) is not None]
+    if not vals:
+        return []
+
+    mn, mx = min(vals), max(vals)
+    size   = (mx - mn) / bucket_count or 1
+    fmt    = lambda v: f"{v:.1f}%" if key == "mfe" else f"{v:.2f}R"
+    buckets = []
+    for i in range(bucket_count):
+        lo      = mn + i * size
+        hi      = lo + size
+        last    = i == bucket_count - 1
+        in_buck = (lambda v: v >= lo and v <= mx) if last else (lambda v: v >= lo and v < hi)
+        cnt     = sum(1 for v in vals if in_buck(v))
+        if cnt:
+            buckets.append({"label": f"{fmt(lo)} · {fmt(hi)}", "count": cnt, "lo": lo})
+    return buckets
+
+
+# MFE vs PnL scatter (losing trades only)
+def _mfe_scatter(sell_trades: list, key: str = "mfe") -> list:
+    """
+    One point per losing trade: x = max favorable excursion (profit that
+    was on the table before the trade turned around), y = final pnl %
+    (always negative here), reason = why the trade closed (used for
+    per-point coloring on the frontend). Same losing-trades filter as
+    _mfe_buckets, so the two stay consistent when toggled together on the frontend.
+    `key` selects the unit for x: "mfe" (% of entry price) or "mfeAtr" (ATR multiples).
+    Returns [{x, y, reason}, ...]
+    """
+    return [
+        {"x": t[key], "y": t["pnl"], "reason": t.get("reason")}
+        for t in sell_trades
+        if t.get("pnl") and t["pnl"] < 0 and t.get(key) is not None
+    ]
+
+
 # Exit reasons
 def _exit_reasons(sell_trades: list) -> dict:
     total  = len(sell_trades)
@@ -395,6 +459,12 @@ def build_result(
         "pnlBuckets":        _pnl_buckets(sell_trades),
         "maeBuckets":        _mae_buckets(sell_trades, key="mae"),
         "maeBucketsAtr":      _mae_buckets(sell_trades, key="maeAtr"),
+        "maeScatter":        _mae_scatter(sell_trades, key="mae"),
+        "maeScatterAtr":     _mae_scatter(sell_trades, key="maeAtr"),
+        "mfeBuckets":        _mfe_buckets(sell_trades, key="mfe"),
+        "mfeBucketsAtr":     _mfe_buckets(sell_trades, key="mfeAtr"),
+        "mfeScatter":        _mfe_scatter(sell_trades, key="mfe"),
+        "mfeScatterAtr":     _mfe_scatter(sell_trades, key="mfeAtr"),
         "equityCurve":       _equity_curve_ds(equity_dates, equity_raw),
         "priceCurve":        _price_curve_ds(ts_arr, close_arr),
         # uncomment if needed:

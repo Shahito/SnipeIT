@@ -4,6 +4,9 @@
  * Classes:
  *   CanvasLineChart  - multi-curve canvas chart with toggles & hover tooltip
  *   BarChart         - generic horizontal bar chart; segments are fully configurable
+ *   CanvasHistogram  - bucketed distribution chart (win/loss or single-color)
+ *   CanvasScatter    - X/Y scatter plot with nearest-point hover tooltip
+ *   MonthlyPerfChart - grouped bar chart, strategy vs asset, optional delta line
  *
  * Adding a new line chart
  *   const myChart = new CanvasLineChart('myCanvasId', {
@@ -63,10 +66,17 @@ function _cssVar(name) {
 }
 
 function _scaleY(values, padTop, cH) {
-  const mn  = Math.min(...values)
-  const mx  = Math.max(...values)
+  const mn = Math.min(...values)
+  const mx = Math.max(...values)
   const rng = mx - mn || 1
   return { mn, mx, rng, toY: v => padTop + cH - ((v - mn) / rng) * cH }
+}
+
+function _scaleX(values, padLeft, cW) {
+  const mn = Math.min(...values)
+  const mx = Math.max(...values)
+  const rng = mx - mn || 1
+  return { mn, mx, rng, toX: v => padLeft + ((v - mn) / rng) * cW }
 }
 
 function _drawPolyline(ctx, pts, color, fillColor, lineWidth, padTop, cH) {
@@ -83,7 +93,7 @@ function _drawPolyline(ctx, pts, color, fillColor, lineWidth, padTop, cH) {
     pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y))
   }
   ctx.strokeStyle = color
-  ctx.lineWidth   = lineWidth
+  ctx.lineWidth = lineWidth
   ctx.stroke()
 }
 
@@ -93,6 +103,28 @@ function _i18n(key, fallback) {
 
 function _toggleChartCard(elementId, hasData) {
   document.getElementById(elementId)?.closest('.card')?.classList.toggle('hidden', !hasData)
+}
+
+// Re-run a canvas chart's draw whenever the canvas's actual box size
+// changes - covers window resizes AND layout shifts caused by something
+// else entirely (e.g. a sibling card in the same row growing taller),
+// which a plain window 'resize' listener can't see since the viewport
+// itself didn't change.
+function _observeCanvasResize(canvas, onResize) {
+  let lastW = canvas.offsetWidth
+  let lastH = canvas.offsetHeight
+  const ro = new ResizeObserver(entries => {
+    const { width, height } = entries[0].contentRect
+    // Round + compare to avoid a feedback loop: onResize() itself sets
+    // canvas.style.width/height, which would otherwise re-trigger this.
+    const w = Math.round(width)
+    const h = Math.round(height)
+    if (w === lastW && h === lastH) return
+    lastW = w; lastH = h
+    onResize()
+  })
+  ro.observe(canvas)
+  return ro
 }
 
 // CanvasLineChart
@@ -123,9 +155,9 @@ function _toggleChartCard(elementId, hasData) {
 class CanvasLineChart {
   constructor(canvasId, config) {
     this.canvasId = canvasId
-    this.config   = { height: 300, gridLines: 4, ...config }
-    this._result  = null
-    this._active  = Object.fromEntries(
+    this.config = { height: 300, gridLines: 4, ...config }
+    this._result = null
+    this._active = Object.fromEntries(
       config.curves.map(c => [c.key, c.defaultActive !== false])
     )
     this._togglesReady = false
@@ -142,10 +174,37 @@ class CanvasLineChart {
   }
 
   // Private
-  _getPad(W) {
-    return W < 640
-      ? { top: 16, right: 50, bottom: 24, left: 52 }
-      : { top: 20, right: 70, bottom: 30, left: 70 }
+  _measurePad(canvas, r) {
+    const W     = canvas.offsetWidth || 800
+    const small = W < 640
+    const ctx   = canvas.getContext('2d')
+    ctx.font    = '10px system-ui'
+
+    const widestLabel = axis => {
+      let max = 0
+      this.config.curves.forEach(c => {
+        if (c.axis !== axis || !this._active[c.key]) return
+        const vals = c.getData(r)
+        if (!vals?.length) return
+        const mn = Math.min(...vals), mx = Math.max(...vals)
+        const fmtVal = v => (c.prefix || '') + v.toFixed(v > 100 ? 0 : 2) + (c.suffix || '')
+        for (let i = 0; i <= this.config.gridLines; i++) {
+          const v = mx - ((mx - mn) / this.config.gridLines) * i
+          max = Math.max(max, ctx.measureText(fmtVal(v)).width)
+        }
+      })
+      return max
+    }
+
+    const margin  = 0 // small ? 20 : 25
+    const wLeft   = widestLabel('left')
+    const wRight  = widestLabel('right')
+    return {
+      top:    small ? 16 : 20,
+      right:  wRight ? wRight + margin : 8,
+      bottom: small ? 24 : 30,
+      left:   wLeft  ? wLeft  + margin : 8,
+    }
   }
 
   _initToggles() {
@@ -175,11 +234,11 @@ class CanvasLineChart {
       window.addEventListener('resize', () => {
         const canvas = document.getElementById(this.canvasId)
         if (!canvas) return
-        canvas.style.width  = ''
+        canvas.style.width = ''
         canvas.style.height = ''
         this._draw()
       })
-      canvas.addEventListener('mousemove',  e => this._onMouseMove(e))
+      canvas.addEventListener('mousemove', e => this._onMouseMove(e))
       canvas.addEventListener('mouseleave', () => this._onMouseLeave())
       canvas.addEventListener('touchmove', e => {
         e.preventDefault()
@@ -196,7 +255,7 @@ class CanvasLineChart {
   }
 
   _draw() {
-    const r      = this._result
+    const r = this._result
     const canvas = document.getElementById(this.canvasId)
     if (!canvas || !r) return
 
@@ -205,17 +264,21 @@ class CanvasLineChart {
     if (!timestamps?.length) { canvas.style.display = 'none'; return }
     canvas.style.display = ''
 
+    canvas.style.width = ''
+    canvas.style.height = ''
+    canvas.width = 0
+    canvas.height = 0
     const W   = canvas.offsetWidth || 800
     const H   = this.config.height
-    const pad = this._getPad(W)
-    const cW  = W - pad.left - pad.right
-    const cH  = H - pad.top  - pad.bottom
-    const n   = timestamps.length
+    const pad = this._measurePad(canvas, r)
+    const cW = W - pad.left - pad.right
+    const cH = H - pad.top - pad.bottom
+    const n = timestamps.length
     const toX = i => pad.left + (i / Math.max(n - 1, 1)) * cW
 
-    canvas.width        = W * devicePixelRatio
-    canvas.height       = H * devicePixelRatio
-    canvas.style.width  = W + 'px'
+    canvas.width = W * devicePixelRatio
+    canvas.height = H * devicePixelRatio
+    canvas.style.width = W + 'px'
     canvas.style.height = H + 'px'
     const ctx = canvas.getContext('2d')
     ctx.scale(devicePixelRatio, devicePixelRatio)
@@ -223,7 +286,7 @@ class CanvasLineChart {
 
     // Grid
     ctx.strokeStyle = '#2a2f3d'
-    ctx.lineWidth   = 1
+    ctx.lineWidth = 1
     for (let i = 0; i <= this.config.gridLines; i++) {
       const y = pad.top + (cH / this.config.gridLines) * i
       ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cW, y); ctx.stroke()
@@ -242,12 +305,12 @@ class CanvasLineChart {
         y: toY(v),
       }))
 
-      let color     = c.color     || 'rgba(108,142,255,0.8)'
+      let color = c.color || 'rgba(108,142,255,0.8)'
       let fillColor = c.fillColor !== undefined ? c.fillColor : null
 
       if (c.dynamic) {
         const isPos = vals[vals.length - 1] >= vals[0]
-        color     = _cssVar(isPos ? '--success' : '--danger')
+        color = _cssVar(isPos ? '--success' : '--danger')
         fillColor = _cssVar(isPos ? '--success-dim' : '--danger-dim')
         const btn = document.querySelector(`#${this.config.togglesContainerId} [data-curve="${c.key}"]`)
         if (btn) {
@@ -275,36 +338,36 @@ class CanvasLineChart {
         }
       }
     })
-    
-    // Reference lines (e.g. initial capital)
-    ;(this.config.referenceLines || []).forEach(rl => {
-      const curve = this.config.curves.find(c => c.key === rl.curveKey)
-      if (!curve || !this._active[curve.key]) return
-      const vals = curve.getData(r)
-      if (!vals?.length) return
-      const { toY } = _scaleY(vals, pad.top, cH)
-      const y = toY(rl.value)
 
-      ctx.save()
-      ctx.setLineDash(rl.dash || [5, 4])
-      ctx.strokeStyle = rl.color || '#7c84a0'
-      ctx.lineWidth   = rl.lineWidth || 1
-      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cW, y); ctx.stroke()
-      ctx.restore()
-      if (rl.label) {
-        ctx.fillStyle = rl.color || '#7c84a0'
-        ctx.font      = '10px system-ui'
-        ctx.textAlign = 'left'
-        ctx.fillText(rl.label, pad.left + 4, y - 4)
-      }
-    })
+      // Reference lines (e.g. initial capital)
+      ; (this.config.referenceLines || []).forEach(rl => {
+        const curve = this.config.curves.find(c => c.key === rl.curveKey)
+        if (!curve || !this._active[curve.key]) return
+        const vals = curve.getData(r)
+        if (!vals?.length) return
+        const { toY } = _scaleY(vals, pad.top, cH)
+        const y = toY(rl.value)
+
+        ctx.save()
+        ctx.setLineDash(rl.dash || [5, 4])
+        ctx.strokeStyle = rl.color || '#7c84a0'
+        ctx.lineWidth = rl.lineWidth || 1
+        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cW, y); ctx.stroke()
+        ctx.restore()
+        if (rl.label) {
+          ctx.fillStyle = rl.color || '#7c84a0'
+          ctx.font = '10px system-ui'
+          ctx.textAlign = 'left'
+          ctx.fillText(rl.label, pad.left + 4, y - 4)
+        }
+      })
 
     // X-axis labels
     const fmtDate = this.config.formatDate || (ts => new Date(ts).toLocaleDateString())
     ctx.fillStyle = '#7c84a0'; ctx.font = '10px system-ui'; ctx.textAlign = 'center'
     const sampleLabelW = ctx.measureText(fmtDate(timestamps[0])).width + 12
-    const maxLabels    = Math.max(2, Math.floor(cW / sampleLabelW))
-    const step         = Math.max(1, Math.floor(n / maxLabels))
+    const maxLabels = Math.max(2, Math.floor(cW / sampleLabelW))
+    const step = Math.max(1, Math.floor(n / maxLabels))
     for (let i = 0; i < n; i += step) {
       ctx.fillText(fmtDate(timestamps[i]), toX(i), pad.top + cH + 18)
     }
@@ -319,9 +382,9 @@ class CanvasLineChart {
     const canvas  = document.getElementById(this.canvasId)
     const rect    = canvas.getBoundingClientRect()
     const W       = canvas.offsetWidth
-    const pad     = this._getPad(W)
-    const ratio   = Math.max(0, Math.min(1, (e.clientX - rect.left - pad.left) / (W - pad.left - pad.right)))
-    const idx     = Math.round(ratio * (timestamps.length - 1))
+    const pad     = this._measurePad(canvas, r)
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left - pad.left) / (W - pad.left - pad.right)))
+    const idx = Math.round(ratio * (timestamps.length - 1))
     const fmtDate = this.config.formatTooltipDate || this.config.formatDate || (ts => new Date(ts).toLocaleDateString())
 
     const lines = this.config.curves
@@ -331,8 +394,8 @@ class CanvasLineChart {
         if (!vals?.length) return null
         const v = vals[Math.round(ratio * (vals.length - 1))]
         if (v == null) return null
-        const valStr  = (c.prefix || '') + (typeof v === 'number' ? v.toFixed(2) : v) + (c.suffix || '')
-        const label   = _i18n(c.i18nKey, c.label || c.key)
+        const valStr = (c.prefix || '') + (typeof v === 'number' ? v.toFixed(2) : v) + (c.suffix || '')
+        const label = _i18n(c.i18nKey, c.label || c.key)
         const classes = ['tt-' + c.key]
         if (c.dynamic) {
           const btn = document.querySelector(`#${this.config.togglesContainerId} [data-curve="${c.key}"]`)
@@ -346,14 +409,14 @@ class CanvasLineChart {
 
     // Cursor line overlay
     this._draw()
-    const ctx  = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d')
     const pad2 = this._getPad(W)
-    const cH   = this.config.height - pad2.top - pad2.bottom
-    const x    = pad2.left + ratio * (W - pad2.left - pad2.right)
+    const cH = this.config.height - pad2.top - pad2.bottom
+    const x = pad2.left + ratio * (W - pad2.left - pad2.right)
     ctx.save()
     ctx.setLineDash([4, 3])
     ctx.strokeStyle = 'rgba(255,255,255,0.15)'
-    ctx.lineWidth   = 1
+    ctx.lineWidth = 1
     ctx.beginPath(); ctx.moveTo(x, pad2.top); ctx.lineTo(x, pad2.top + cH); ctx.stroke()
     ctx.restore()
   }
@@ -390,17 +453,17 @@ class CanvasLineChart {
 class BarChart {
   constructor(containerId, filtersId, config) {
     this.containerId = containerId
-    this.filtersId   = filtersId
-    this.config      = config
-    this._result     = null
-    this._active     = {}
-    this._data       = null
+    this.filtersId = filtersId
+    this.config = config
+    this._result = null
+    this._active = {}
+    this._data = null
   }
 
   render(result) {
     this._result = result
-    this._data   = this.config.getBars(result)
-    const keys   = Object.keys(this._data)
+    this._data = this.config.getBars(result)
+    const keys = Object.keys(this._data)
 
     _toggleChartCard(this.containerId, !!keys.length)
     if (!keys.length) return
@@ -430,7 +493,7 @@ class BarChart {
     if (!el) return
 
     // Only re-build DOM if the key set changed (avoids resetting button state)
-    const keys   = this._sortedKeys(Object.keys(this._data))
+    const keys = this._sortedKeys(Object.keys(this._data))
     const newHtml = keys.map(k => {
       const { title } = this.config.getLabel(k, this._data[k])
       return `<button class="toggle-btn ${this._active[k] ? 'active' : ''}" data-key="${k}">${title}</button>`
@@ -469,14 +532,14 @@ class BarChart {
     const maxVal = Math.max(...allValues) || 1
 
     container.innerHTML = activeKeys.map(k => {
-      const d              = this._data[k]
+      const d = this._data[k]
       const { title, sub } = this.config.getLabel(k, d)
 
       const barsHtml = this.config.segments.map(s => {
-        const val    = s.getValue(d) || 0
-        const pct    = (val / maxVal * 100).toFixed(1)
+        const val = s.getValue(d) || 0
+        const pct = (val / maxVal * 100).toFixed(1)
         const valStr = (s.prefix || '') + (Number.isInteger(val) ? val : val.toFixed(1)) + (s.suffix || '')
-        const color  = s.color || 'var(--accent)'
+        const color = s.color || 'var(--accent)'
         return `
           <div class="er-bar-wrap">
             <div class="er-bar" style="width:${pct}%; background:${color}"></div>
@@ -520,8 +583,8 @@ class BarChart {
 class CanvasHistogram {
   constructor(canvasId, config) {
     this.canvasId = canvasId
-    this.config   = { height: 240, gridLines: 4, ...config }
-    this._result  = null
+    this.config = { height: 240, gridLines: 4, ...config }
+    this._result = null
     this._bindEvents()
   }
 
@@ -551,35 +614,39 @@ class CanvasHistogram {
     if (!buckets.length) { canvas.style.display = 'none'; return }
     canvas.style.display = ''
 
-    const W   = canvas.offsetWidth || 600
-    const H   = this.config.height
-    
-    const pad = this._getPad()
-    const cW  = W - pad.left - pad.right
-    const cH  = H - pad.top  - pad.bottom
+    canvas.style.width = ''
+    canvas.style.height = ''
+    canvas.width = 0
+    canvas.height = 0
+    const W = canvas.offsetWidth || 600
+    const H = canvas.offsetHeight || this.config.height
 
-    canvas.width        = W * devicePixelRatio
-    canvas.height       = H * devicePixelRatio
-    canvas.style.width  = W + 'px'
+    const pad = this._getPad()
+    const cW = W - pad.left - pad.right
+    const cH = H - pad.top - pad.bottom
+
+    canvas.width = W * devicePixelRatio
+    canvas.height = H * devicePixelRatio
+    canvas.style.width = W + 'px'
     canvas.style.height = H + 'px'
     const ctx = canvas.getContext('2d')
     ctx.scale(devicePixelRatio, devicePixelRatio)
     ctx.clearRect(0, 0, W, H)
 
-    const maxCount  = Math.max(...buckets.map(b => b.count))
-    const n         = buckets.length
-    const barW      = Math.max(2, (cW / n) * 0.72)
-    const gap       = cW / n
-    const colorWin  = this.config.colorWin  || _cssVar('--success') || '#22c55e'
-    const colorLoss = this.config.colorLoss || _cssVar('--danger')  || '#ef4444'
-    const colorWinDim  = this.config.colorWinDim  || _cssVar('--success-dim') || 'rgba(34,197,94,0.35)'
-    const colorLossDim = this.config.colorLossDim || _cssVar('--danger-dim')  || 'rgba(239,68,68,0.35)'
-    const labelSuffix   = this.config.labelSuffix   ?? '%'
+    const maxCount = Math.max(...buckets.map(b => b.count))
+    const n = buckets.length
+    const barW = Math.max(2, (cW / n) * 0.72)
+    const gap = cW / n
+    const colorWin = this.config.colorWin || _cssVar('--success') || '#22c55e'
+    const colorLoss = this.config.colorLoss || _cssVar('--danger') || '#ef4444'
+    const colorWinDim = this.config.colorWinDim || _cssVar('--success-dim') || 'rgba(34,197,94,0.35)'
+    const colorLossDim = this.config.colorLossDim || _cssVar('--danger-dim') || 'rgba(239,68,68,0.35)'
+    const labelSuffix = this.config.labelSuffix ?? '%'
     const labelDecimals = this.config.labelDecimals ?? 1
 
     // Grid lines
     ctx.strokeStyle = '#2a2f3d'
-    ctx.lineWidth   = 1
+    ctx.lineWidth = 1
     for (let i = 0; i <= this.config.gridLines; i++) {
       const y = pad.top + (cH / this.config.gridLines) * i
       ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cW, y); ctx.stroke()
@@ -595,13 +662,13 @@ class CanvasHistogram {
 
     // Bars
     buckets.forEach((b, i) => {
-      const x      = pad.left + i * gap + (gap - barW) / 2
-      const barH   = (b.count / maxCount) * cH
-      const y      = pad.top + cH - barH
+      const x = pad.left + i * gap + (gap - barW) / 2
+      const barH = (b.count / maxCount) * cH
+      const y = pad.top + cH - barH
       // Determine color: single-color mode (e.g. MAE, not a win/loss metric)
       // bypasses the win/loss split entirely.
-      const isWin  = b.label.trimStart().startsWith('+')
-      const fill   = this.config.singleColor    || (isWin ? colorWin    : colorLoss)
+      const isWin = b.label.trimStart().startsWith('+')
+      const fill = this.config.singleColor || (isWin ? colorWin : colorLoss)
       const dimFill = this.config.singleColorDim || (isWin ? colorWinDim : colorLossDim)
 
       // Bar body
@@ -617,12 +684,12 @@ class CanvasHistogram {
       // X label - show every other if tight
       if (n <= 12 || i % 2 === 0) {
         ctx.save()
-        ctx.fillStyle   = '#7c84a0'
-        ctx.font        = '9px system-ui'
-        ctx.textAlign   = 'center'
+        ctx.fillStyle = '#7c84a0'
+        ctx.font = '9px system-ui'
+        ctx.textAlign = 'center'
         ctx.translate(x + barW / 2, pad.top + cH + 18)
         ctx.rotate(-Math.PI / 4)
-         // Show only the left bound of the range for brevity
+        // Show only the left bound of the range for brevity
         const shortLabel = (b.lo >= 0 ? '+' : '') + b.lo.toFixed(labelDecimals) + labelSuffix
         ctx.fillText(shortLabel, 0, 0)
         ctx.restore()
@@ -630,10 +697,10 @@ class CanvasHistogram {
     })
 
     this._buckets = buckets
-    this._pad     = pad
-    this._gap     = gap
-    this._barW    = barW
-    this._cH      = cH
+    this._pad = pad
+    this._gap = gap
+    this._barW = barW
+    this._cH = cH
   }
 
   _bindEvents() {
@@ -643,17 +710,17 @@ class CanvasHistogram {
       window.addEventListener('resize', () => {
         const canvas = document.getElementById(this.canvasId)
         if (!canvas) return
-        canvas.style.width  = ''
+        canvas.style.width = ''
         canvas.style.height = ''
         this._draw()
       })
       canvas.addEventListener('mousemove', e => {
-        const rect  = canvas.getBoundingClientRect()
+        const rect = canvas.getBoundingClientRect()
         const mouseX = e.clientX - rect.left
-        const pad   = this._getPad()
-        const n     = this._buckets?.length || 0
-        const gap   = (canvas.offsetWidth - pad.left - pad.right) / (n || 1)
-        const idx   = Math.floor((mouseX - pad.left) / gap)
+        const pad = this._getPad()
+        const n = this._buckets?.length || 0
+        const gap = (canvas.offsetWidth - pad.left - pad.right) / (n || 1)
+        const idx = Math.floor((mouseX - pad.left) / gap)
         if (idx >= 0 && idx < n) {
           const b = this._buckets[idx]
           _showTooltip(e,
@@ -664,6 +731,193 @@ class CanvasHistogram {
             this._hoveredIdx = idx
             this._draw()
           }
+        } else {
+          _hideTooltip()
+          if (this._hoveredIdx != null) { this._hoveredIdx = null; this._draw() }
+        }
+      })
+      canvas.addEventListener('mouseleave', () => {
+        _hideTooltip()
+        if (this._hoveredIdx != null) { this._hoveredIdx = null; this._draw() }
+      })
+      canvas.addEventListener('touchmove', e => {
+        e.preventDefault()
+        const touch = e.touches[0]
+        canvas.dispatchEvent(new MouseEvent('mousemove', {
+          clientX: touch.clientX,
+          clientY: touch.clientY,
+        }))
+      }, { passive: false })
+      canvas.addEventListener('touchend', () => canvas.dispatchEvent(new MouseEvent('mouseleave')))
+    }
+    document.readyState === 'loading'
+      ? document.addEventListener('DOMContentLoaded', bind)
+      : bind()
+  }
+}
+
+// CanvasScatter
+/**
+ * Scatter plot - one point per item (e.g. MAE on X vs PnL on Y for winning trades).
+ *
+ * @param {string} canvasId
+ * @param {object} config
+ *   getPoints       (r) => Array<{x:number, y:number}>
+ *   height?         number   default 240
+ *   gridLines?      number   default 4
+ *   pointColor?     string   CSS color, used when getColor is not set
+ *   getColor?       (p) => string   CSS color per point - overrides pointColor,
+ *                    lets points be colored by category (e.g. exit reason)
+ *   pointRadius?    number   default 3
+ *   labelSuffixX?   string   default '%'
+ *   labelSuffixY?   string   default '%'
+ *   labelDecimalsX? number   default 1
+ *   labelDecimalsY? number   default 1
+ *   yAxisSide?      'left'|'right'  default 'left'. Use 'right' when the X
+ *                    domain is always <= 0 (e.g. MAE), so the Y axis sits
+ *                    next to the natural 0 column instead of far from it.
+ *   tooltip?        (p) => string   HTML for a point's tooltip; defaults to "x / y"
+ */
+class CanvasScatter {
+  constructor(canvasId, config) {
+    this.canvasId = canvasId
+    this.config = { height: 240, gridLines: 4, pointRadius: 3, ...config }
+    this._result = null
+    this._bindEvents()
+  }
+
+  render(result) {
+    this._result = result
+    this._draw()
+  }
+
+  // Private
+  _getPad() {
+    return this.config.yAxisSide === 'right'
+      ? { top: 16, right: 40, bottom: 32, left: 16 }
+      : { top: 16, right: 16, bottom: 32, left: 40 }
+  }
+
+  _draw() {
+    const canvas = document.getElementById(this.canvasId)
+    if (!canvas || !this._result) return
+
+    const points = this.config.getPoints(this._result) || []
+    _toggleChartCard(this.canvasId, !!points.length)
+    if (!points.length) { canvas.style.display = 'none'; return }
+    canvas.style.display = ''
+
+    canvas.style.width = ''
+    canvas.style.height = ''
+    canvas.width = 0
+    canvas.height = 0
+    const W = canvas.offsetWidth || 600
+    const H = canvas.offsetHeight || this.config.height
+
+    const pad = this._getPad()
+    const cW = W - pad.left - pad.right
+    const cH = H - pad.top - pad.bottom
+
+    canvas.width = W * devicePixelRatio
+    canvas.height = H * devicePixelRatio
+    canvas.style.width = W + 'px'
+    canvas.style.height = H + 'px'
+    const ctx = canvas.getContext('2d')
+    ctx.scale(devicePixelRatio, devicePixelRatio)
+    ctx.clearRect(0, 0, W, H)
+
+    const xScale = _scaleX(points.map(p => p.x), pad.left, cW)
+    const yScale = _scaleY(points.map(p => p.y), pad.top, cH)
+
+    const color = this.config.pointColor || _cssVar('--primary') || '#6c8eff'
+    const radius = this.config.pointRadius
+    const suffixX = this.config.labelSuffixX ?? '%'
+    const suffixY = this.config.labelSuffixY ?? '%'
+    const decX = this.config.labelDecimalsX ?? 1
+    const decY = this.config.labelDecimalsY ?? 1
+
+    // Grid lines
+    ctx.strokeStyle = '#2a2f3d'
+    ctx.lineWidth = 1
+    for (let i = 0; i <= this.config.gridLines; i++) {
+      const y = pad.top + (cH / this.config.gridLines) * i
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cW, y); ctx.stroke()
+    }
+
+    // Y axis labels
+    const onRight = this.config.yAxisSide === 'right'
+    ctx.fillStyle = '#7c84a0'; ctx.font = '10px system-ui'
+    ctx.textAlign = onRight ? 'left' : 'right'
+    const labelX = onRight ? pad.left + cW + 6 : pad.left - 6
+    for (let i = 0; i <= this.config.gridLines; i++) {
+      const v = yScale.mx - (yScale.rng / this.config.gridLines) * i
+      const y = pad.top + (cH / this.config.gridLines) * i
+      ctx.fillText(v.toFixed(decY) + suffixY, labelX, y + 4)
+    }
+
+    // X axis labels
+    ctx.textAlign = 'center'
+    for (let i = 0; i <= this.config.gridLines; i++) {
+      const v = xScale.mn + (xScale.rng / this.config.gridLines) * i
+      const x = pad.left + (cW / this.config.gridLines) * i
+      ctx.fillText(v.toFixed(decX) + suffixX, x, pad.top + cH + 16)
+    }
+
+    // Points - colored per-point via getColor when provided (e.g. by exit
+    // reason), otherwise the single pointColor. Non-hovered points fade via
+    // opacity instead of swapping color, so this works the same whether
+    // points share one color or many.
+    points.forEach((p, i) => {
+      const x = xScale.toX(p.x)
+      const y = yScale.toY(p.y)
+      ctx.fillStyle = this.config.getColor ? this.config.getColor(p) : color
+      ctx.globalAlpha = (this._hoveredIdx == null || this._hoveredIdx === i) ? 1 : 0.35
+      ctx.beginPath()
+      ctx.arc(x, y, radius, 0, Math.PI * 2)
+      ctx.fill()
+    })
+    ctx.globalAlpha = 1
+
+    this._points = points
+    this._pad = pad
+    this._cW = cW
+    this._cH = cH
+    this._xScale = xScale
+    this._yScale = yScale
+  }
+
+  _bindEvents() {
+    const bind = () => {
+      const canvas = document.getElementById(this.canvasId)
+      if (!canvas) return
+      window.addEventListener('resize', () => {
+        const canvas = document.getElementById(this.canvasId)
+        if (!canvas) return
+        canvas.style.width = ''
+        canvas.style.height = ''
+        this._draw()
+      })
+      canvas.addEventListener('mousemove', e => {
+        const rect = canvas.getBoundingClientRect()
+        const mx = e.clientX - rect.left
+        const my = e.clientY - rect.top
+        const pts = this._points || []
+        // Nearest point within a small pixel radius (screen space, not data
+        // space, so the hit-test feels consistent regardless of axis scale).
+        let bestIdx = -1, bestDist = 12
+        pts.forEach((p, i) => {
+          const x = this._xScale.toX(p.x)
+          const y = this._yScale.toY(p.y)
+          const d = Math.hypot(mx - x, my - y)
+          if (d < bestDist) { bestDist = d; bestIdx = i }
+        })
+        if (bestIdx >= 0) {
+          const p = pts[bestIdx]
+          const html = this.config.tooltip
+            ? this.config.tooltip(p)
+            : `<span>X : <strong>${p.x}</strong></span><br><span>Y : <strong>${p.y}</strong></span>`
+          _showTooltip(e, html)
+          if (this._hoveredIdx !== bestIdx) { this._hoveredIdx = bestIdx; this._draw() }
         } else {
           _hideTooltip()
           if (this._hoveredIdx != null) { this._hoveredIdx = null; this._draw() }
@@ -702,18 +956,18 @@ class CanvasHistogram {
  */
 class MonthlyPerfChart {
   constructor(canvasId, config) {
-    this.canvasId    = canvasId
+    this.canvasId = canvasId
     // this.config      = { height: 220, gridLines: 4, showDelta: true, windowSize: 12, ...config }
-    this.config = { height: 220, gridLines: 4, showDelta: true, windowSize: 12, desktopWindowSize: 24, ...config }
-    this._result     = null
-    this._data       = []
-    this._winStart   = 0
-    this._isMobile   = false
+    this.config = { height: 220, gridLines: 4, showDelta: true, windowSize: 6, desktopWindowSize: 24, ...config }
+    this._result = null
+    this._data = []
+    this._winStart = 0
+    this._isMobile = false
     this._showTrades = false
-    this._showDelta  = this.config.showDelta
+    this._showDelta = this.config.showDelta
     this._bindEvents()
   }
- 
+
   _isWindowed() {
     return this._isMobileNow() || this._data.length > this.config.desktopWindowSize
   }
@@ -721,7 +975,7 @@ class MonthlyPerfChart {
     return this._isMobileNow() ? this.config.windowSize : this.config.desktopWindowSize
   }
 
-   toggleTrades(force) {
+  toggleTrades(force) {
     this._showTrades = force ?? !this._showTrades
     this._draw()
   }
@@ -732,43 +986,43 @@ class MonthlyPerfChart {
   }
 
   render(result) {
-    this._result  = result
-    this._data    = this.config.getData(result) || []
+    this._result = result
+    this._data = this.config.getData(result) || []
     if (this._isWindowed()) this._winStart = Math.max(0, this._data.length - this._activeWindowSize())
     this._syncNav()
     this._draw()
   }
 
   _isMobileNow() {
-      const c = document.getElementById(this.canvasId)
-      const w = c?.offsetWidth || 0
-      return w > 0 && w < 640
-    }
+    const c = document.getElementById(this.canvasId)
+    const w = c?.offsetWidth || 0
+    return w > 0 && w < 640
+  }
 
-    _visibleData() {
-      if (!this._isWindowed()) return this._data
-      const size  = this._activeWindowSize()
-      const start = Math.max(0, this._winStart)
-      const slice = this._data.slice(start, start + size)
-      return slice.length ? slice : this._data.slice(0, size)
-    }
+  _visibleData() {
+    if (!this._isWindowed()) return this._data
+    const size = this._activeWindowSize()
+    const start = Math.max(0, this._winStart)
+    const slice = this._data.slice(start, start + size)
+    return slice.length ? slice : this._data.slice(0, size)
+  }
 
-    _syncNav() {
-      const nav = document.getElementById(this.canvasId + 'Nav')
-      if (!nav) return
-      const windowed = this._isWindowed()
-      nav.style.display = windowed ? 'flex' : 'none'
-      if (!windowed) return
-      const size  = this._activeWindowSize()
-      const total = this._data.length
-      const end   = Math.min(this._winStart + size, total)
-      nav.querySelector('.mpf-range').textContent =
-        `${this._data[this._winStart]?.month} - ${this._data[end - 1]?.month}`
-      nav.querySelector('#mpfPrev').disabled = this._winStart === 0
-      nav.querySelector('#mpfNext').disabled = end >= total
-      nav.querySelector('#mpfPrevFast').disabled = this._winStart === 0
-      nav.querySelector('#mpfNextFast').disabled = end >= total
-    }
+  _syncNav() {
+    const nav = document.getElementById(this.canvasId + 'Nav')
+    if (!nav) return
+    const windowed = this._isWindowed()
+    nav.style.display = windowed ? 'flex' : 'none'
+    if (!windowed) return
+    const size = this._activeWindowSize()
+    const total = this._data.length
+    const end = Math.min(this._winStart + size, total)
+    nav.querySelector('.mpf-range').textContent =
+      `${this._data[this._winStart]?.month} - ${this._data[end - 1]?.month}`
+    nav.querySelector('#mpfPrev').disabled = this._winStart === 0
+    nav.querySelector('#mpfNext').disabled = end >= total
+    nav.querySelector('#mpfPrevFast').disabled = this._winStart === 0
+    nav.querySelector('#mpfNextFast').disabled = end >= total
+  }
 
   // Private
   _getPad(W) {
@@ -787,38 +1041,42 @@ class MonthlyPerfChart {
     if (!data?.length) { canvas.style.display = 'none'; return }
     canvas.style.display = ''
 
-    const W   = canvas.offsetWidth || 700
-    const H   = this.config.height
+    canvas.style.width = ''
+    canvas.style.height = ''
+    canvas.width = 0
+    canvas.height = 0
+    const W = canvas.offsetWidth || 700
+    const H = canvas.offsetHeight || this.config.height
     const pad = this._getPad(W)
-    const cW  = W - pad.left - pad.right
-    const cH  = H - pad.top  - pad.bottom
+    const cW = W - pad.left - pad.right
+    const cH = H - pad.top - pad.bottom
 
     const dpr = devicePixelRatio || 1
-    canvas.width        = W * dpr
-    canvas.height       = H * dpr
-    canvas.style.width  = W + 'px'
+    canvas.width = W * dpr
+    canvas.height = H * dpr
+    canvas.style.width = W + 'px'
     canvas.style.height = H + 'px'
     const ctx = canvas.getContext('2d')
     ctx.scale(dpr, dpr)
     ctx.clearRect(0, 0, W, H)
 
-    const n      = data.length
+    const n = data.length
     const allVals = data.flatMap(d => [d.strat, d.asset ?? 0, this._showDelta ? d.strat - (d.asset ?? 0) : 0])
-    const mn     = Math.min(...allVals, 0)
-    const mx     = Math.max(...allVals, 0)
-    const rng    = mx - mn || 1
-    const toY    = v => pad.top + cH - ((v - mn) / rng) * cH
-    const zeroY  = toY(0)
+    const mn = Math.min(...allVals, 0)
+    const mx = Math.max(...allVals, 0)
+    const rng = mx - mn || 1
+    const toY = v => pad.top + cH - ((v - mn) / rng) * cH
+    const zeroY = toY(0)
 
-    const colorStrat    = _cssVar('--success') || '#22c55e'
+    const colorStrat = _cssVar('--success') || '#22c55e'
     const colorStratNeg = _cssVar('--danger') || '#ef4444'
-    const colorAsset    = '#c8cdd8'
+    const colorAsset = '#c8cdd8'
     const colorAssetNeg = '#5a6075'
-    const colorDelta    = _cssVar('--warning') || '#e8a838'
+    const colorDelta = _cssVar('--warning') || '#e8a838'
 
     // Grid
     ctx.strokeStyle = '#2a2f3d'
-    ctx.lineWidth   = 1
+    ctx.lineWidth = 1
     for (let i = 0; i <= this.config.gridLines; i++) {
       const y = pad.top + (cH / this.config.gridLines) * i
       ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cW, y); ctx.stroke()
@@ -827,7 +1085,7 @@ class MonthlyPerfChart {
     // Zero line
     if (zeroY > pad.top && zeroY < pad.top + cH) {
       ctx.strokeStyle = '#4a5068'
-      ctx.lineWidth   = 1
+      ctx.lineWidth = 1
       ctx.beginPath(); ctx.moveTo(pad.left, zeroY); ctx.lineTo(pad.left + cW, zeroY); ctx.stroke()
     }
 
@@ -841,8 +1099,8 @@ class MonthlyPerfChart {
 
     // Secondary axis (trade count) - scale + right-hand labels
     const colorTrades = _cssVar('--info') || '#5b8def'
-    const maxTrades    = Math.max(...data.map(d => d.trades || 0), 1)
-    const toTradesY    = v => pad.top + cH - (v / maxTrades) * cH
+    const maxTrades = Math.max(...data.map(d => d.trades || 0), 1)
+    const toTradesY = v => pad.top + cH - (v / maxTrades) * cH
     if (this._showTrades) {
       ctx.fillStyle = colorTrades; ctx.font = '10px system-ui'; ctx.textAlign = 'left'
       for (let i = 0; i <= this.config.gridLines; i++) {
@@ -853,21 +1111,21 @@ class MonthlyPerfChart {
     }
 
     // Bars
-    const slotW   = cW / n
-    const barW    = Math.max(2, slotW * 0.38)
+    const slotW = cW / n
+    const barW = Math.max(2, slotW * 0.38)
     const spacing = 0
 
     this._bars = []
     data.forEach((d, i) => {
-      const cx      = pad.left + i * slotW + slotW / 2
-      const xA      = cx - barW - spacing / 2
-      const xS      = cx + spacing / 2
-      const dimmed  = hoveredIdx >= 0 && i !== hoveredIdx
-      const alpha   = dimmed ? '55' : ''
+      const cx = pad.left + i * slotW + slotW / 2
+      const xA = cx - barW - spacing / 2
+      const xS = cx + spacing / 2
+      const dimmed = hoveredIdx >= 0 && i !== hoveredIdx
+      const alpha = dimmed ? '55' : ''
 
       const drawBar = (x, v, pos, neg) => {
         if (v === null || v === undefined) return
-        const y  = toY(Math.max(v, 0))
+        const y = toY(Math.max(v, 0))
         const y2 = toY(Math.min(v, 0))
         const bH = Math.abs(y2 - y) || 1
         ctx.fillStyle = (v >= 0 ? pos : neg) + alpha
@@ -892,7 +1150,7 @@ class MonthlyPerfChart {
       ctx.beginPath()
       pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y))
       ctx.strokeStyle = hoveredIdx >= 0 ? colorDelta + '33' : colorDelta
-      ctx.lineWidth   = 1.5
+      ctx.lineWidth = 1.5
       ctx.setLineDash([3, 3])
       ctx.stroke()
       ctx.setLineDash([])
@@ -906,7 +1164,7 @@ class MonthlyPerfChart {
           ctx.beginPath()
           ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2)
           ctx.strokeStyle = colorDelta
-          ctx.lineWidth   = 1.5
+          ctx.lineWidth = 1.5
           ctx.stroke()
         }
       })
@@ -922,7 +1180,7 @@ class MonthlyPerfChart {
       ctx.beginPath()
       tPts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y))
       ctx.strokeStyle = hoveredIdx >= 0 ? colorTrades + '33' : colorTrades
-      ctx.lineWidth   = 1.5
+      ctx.lineWidth = 1.5
       ctx.setLineDash([3, 3])
       ctx.stroke()
       ctx.setLineDash([])
@@ -936,7 +1194,7 @@ class MonthlyPerfChart {
           ctx.beginPath()
           ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2)
           ctx.strokeStyle = colorTrades
-          ctx.lineWidth   = 1.5
+          ctx.lineWidth = 1.5
           ctx.stroke()
         }
       })
@@ -945,9 +1203,9 @@ class MonthlyPerfChart {
     // X labels
     ctx.fillStyle = '#7c84a0'; ctx.font = '10px system-ui'; ctx.textAlign = 'center'
     let lastLabelX = -Infinity
-    const minGap   = 8
+    const minGap = 8
     data.forEach((d, i) => {
-      const x   = pad.left + i * slotW + slotW / 2
+      const x = pad.left + i * slotW + slotW / 2
       const lbl = n > 14
         ? d.month.slice(2).replace('-', '/')
         : new Date(d.month + '-01').toLocaleDateString(undefined, { month: 'short', year: '2-digit' })
@@ -957,10 +1215,10 @@ class MonthlyPerfChart {
       lastLabelX = x + w / 2
     })
 
-    this._pad   = pad
+    this._pad = pad
     this._slotW = slotW
-    this._toY   = toY
-    this._mn    = mn; this._mx = mx
+    this._toY = toY
+    this._mn = mn; this._mx = mx
   }
 
   _bindEvents() {
@@ -1016,30 +1274,30 @@ class MonthlyPerfChart {
       canvas.addEventListener('mousemove', e => {
         const visible = this._visibleData()
         if (!visible?.length) return
-        const rect  = canvas.getBoundingClientRect()
+        const rect = canvas.getBoundingClientRect()
         const mouseX = e.clientX - rect.left
-        const pad   = this._getPad(canvas.offsetWidth)
+        const pad = this._getPad(canvas.offsetWidth)
         const i = Math.floor((mouseX - pad.left) / this._slotW)
         if (i >= 0 && i < visible.length) {
           const d = visible[i]
           const delta = d.strat - (d.asset ?? 0)
-          const fmt   = v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%'
+          const fmt = v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%'
           _showTooltip(e,
             `<div class="tt-date">${d.month}</div>` +
-            `<span>Asset : <span class="${(d.asset ?? 0 ) < 0 ? 'pnl-negative':'pnl-positive'}">${fmt(d.asset ?? 0)}</span></span>` +
-            `<span>Strat : <span class="${d.strat < 0 ? 'pnl-negative':'pnl-positive'}">${fmt(d.strat)}</span></span>` +
+            `<span>Asset : <span class="${(d.asset ?? 0) < 0 ? 'pnl-negative' : 'pnl-positive'}">${fmt(d.asset ?? 0)}</span></span>` +
+            `<span>Strat : <span class="${d.strat < 0 ? 'pnl-negative' : 'pnl-positive'}">${fmt(d.strat)}</span></span>` +
             (this._showDelta ? `<span>Delta : <span class="pnl-delta">${fmt(delta)}</span></span>` : '') +
-            (d.trades !== undefined ? `<span>Trades : ${d.trades}</span>` : '')
+            (d.trades !== undefined ? `<span>Trades : <span trades-count>${d.trades}</span></span>` : '')
           )
           // Cursor line
           this._draw(i)
           const ctx2 = canvas.getContext('2d')
-          const x    = pad.left + i * this._slotW + this._slotW / 2
-          const cH   = this.config.height - pad.top - pad.bottom
+          const x = pad.left + i * this._slotW + this._slotW / 2
+          const cH = this.config.height - pad.top - pad.bottom
           ctx2.save()
           ctx2.setLineDash([4, 3])
           ctx2.strokeStyle = 'rgba(255,255,255,0.15)'
-          ctx2.lineWidth   = 1
+          ctx2.lineWidth = 1
           ctx2.beginPath(); ctx2.moveTo(x, pad.top); ctx2.lineTo(x, pad.top + cH); ctx2.stroke()
           ctx2.restore()
         } else {

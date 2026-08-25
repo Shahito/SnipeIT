@@ -14,6 +14,8 @@ function isJunkSymbol(symbol) {
 let _cache = { symbols: null, fetchedAt: 0 }
 let _volumeCache = { volumes: null, fetchedAt: 0 }
 
+
+
 // { symbol: "BTCUSDT", base: "BTC", quote: "USDT" }[] - only the pairs
 // currently tradable (status TRADING) on Binance.
 async function getTradingSymbols() {

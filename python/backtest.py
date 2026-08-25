@@ -606,6 +606,14 @@ def run_backtest(strategy: dict) -> dict:
         mae_atr = round((pos["lowest_low"] - pos["entry_price"]) / pos["entry_atr"], 2) if pos.get("entry_atr") else None
         return mae_pct, mae_atr
 
+    def _mfe(pos):
+        """Max favorable excursion since entry, in % and in ATR units (fixed at entry).
+        The inverse of MAE: how much unrealized profit was on the table before
+        the trade eventually turned around and closed at a loss."""
+        mfe_pct = round((pos["highest_high"] - pos["entry_price"]) / pos["entry_price"] * 100, 2)
+        mfe_atr = round((pos["highest_high"] - pos["entry_price"]) / pos["entry_atr"], 2) if pos.get("entry_atr") else None
+        return mfe_pct, mfe_atr
+
     for idx in range(len(df)):
         price = float(close_arr[idx])
         date  = date_arr[idx]
@@ -620,11 +628,12 @@ def run_backtest(strategy: dict) -> dict:
         equity_dates.append(date)
         equity_raw.append(current_equity)
 
-        # MAE tracking: lowest low reached since entry, updated before any
-        # exit path so the exit candle's own low is included regardless of
-        # which branch closes the trade below.
+        # MAE/MFE tracking: lowest low / highest high reached since entry,
+        # updated before any exit path so the exit candle's own low/high is
+        # included regardless of which branch closes the trade below.
         if position is not None:
-            position["lowest_low"] = min(position["lowest_low"], float(low_arr[idx]))
+            position["lowest_low"]   = min(position["lowest_low"],   float(low_arr[idx]))
+            position["highest_high"] = max(position["highest_high"], float(high_arr[idx]))
 
         # Execute orders decided on the previous candle
         if pending_entry and position is None:
@@ -639,6 +648,7 @@ def run_backtest(strategy: dict) -> dict:
                         "entry_date":  date,
                         "trailing_high": price,
                         "lowest_low":  price,
+                        "highest_high": price,
                         "entry_atr":   resolve_value(df, "ATR", atr_period, idx),
                     }
                     capital -= allocated
@@ -688,6 +698,7 @@ def run_backtest(strategy: dict) -> dict:
                 "pnl":        None,
             })
             mae_pct, mae_atr = _mae(position)
+            mfe_pct, mfe_atr = _mfe(position)
             trades.append({
                 "side":       "sell",
                 "date":       date,
@@ -701,6 +712,8 @@ def run_backtest(strategy: dict) -> dict:
                 "reason":     "signal",
                 "mae":        mae_pct,
                 "maeAtr":     mae_atr,
+                "mfe":        mfe_pct,
+                "mfeAtr":     mfe_atr,
             })
             log.debug(f"SELL  {date} @ {price:.4f} PnL {pnl_pct:+.2f}%")
             capital += proceeds
@@ -771,6 +784,7 @@ def run_backtest(strategy: dict) -> dict:
                     "pnl":      None,
                 })
                 mae_pct, mae_atr = _mae(position)
+                mfe_pct, mfe_atr = _mfe(position)
                 trades.append({
                     "side":       "sell",
                     "date":       date,
@@ -784,6 +798,8 @@ def run_backtest(strategy: dict) -> dict:
                     "reason":     reason,
                     "mae":        mae_pct,
                     "maeAtr":     mae_atr,
+                    "mfe":        mfe_pct,
+                    "mfeAtr":     mfe_atr,
                 })
                 log.debug(f"SL/TP {date} @ {exit_price:.4f} PnL {pnl_pct:+.2f}%")
                 capital  += proceeds
@@ -826,6 +842,7 @@ def run_backtest(strategy: dict) -> dict:
             "pnl": None
         })
         mae_pct, mae_atr = _mae(position)
+        mfe_pct, mfe_atr = _mfe(position)
         trades.append({
             "side": "sell",
             "date": last_date,
@@ -839,6 +856,8 @@ def run_backtest(strategy: dict) -> dict:
             "reason": "end",
             "mae": mae_pct,
             "maeAtr": mae_atr,
+            "mfe": mfe_pct,
+            "mfeAtr": mfe_atr,
         })
         capital += proceeds
     

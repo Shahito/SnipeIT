@@ -90,6 +90,9 @@ async function loadJob() {
     exitReasonsChart.render(r)
     pnlDistributionChart.render(r)
     maeDistributionChart.render(r)
+    maeScatterChart.render(r)
+    mfeDistributionChart.render(r)
+    mfeScatterChart.render(r)
     monthlyChart.render(r)
     renderTrades(r, r.trades || [], r.totalTrades || 0)
     

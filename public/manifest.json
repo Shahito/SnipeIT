@@ -4,7 +4,7 @@
   "description": "Backtest strategy tool for crypto and other markets",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0d0f14",
+  "background_color": "#08090D",
   "theme_color": "#6c8eff",
   "lang": "fr",
   "icons": [
@@ -12,13 +12,25 @@
       "src": "/images/icons/192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/images/icons/512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/images/icons/192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/images/icons/512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

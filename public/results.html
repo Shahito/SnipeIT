@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/css/style.css">
   <script src="/js/i18n.js"></script>
   <script src="/js/icons.js"></script>
+  <script src="/js/register-sw.js"></script>
 </head>
 <body>
   <div class="app-layout">
@@ -90,6 +91,39 @@
             </div>
           </div>
           <canvas id="maeDistributionCanvas"></canvas>
+        </div>
+
+        <div class="card" id="maeScatterCard">
+          <div class="card-header">
+            <div class="card-title" data-i18n="results.mae_scatter.title"></div>
+            <div class="chart-toggles">
+              <button class="toggle-btn active" id="maeToggleColorReason" data-i18n="results.mae_scatter.toggle_color_reason"></button>
+            </div>
+          </div>
+          <canvas id="maeScatterCanvas"></canvas>
+          <div class="scatter-legend" id="maeScatterLegend"></div>
+        </div>
+
+        <div class="card" id="mfeDistributionCard">
+          <div class="card-header">
+            <div class="card-title" data-i18n="results.mfe_distribution.title"></div>
+            <div class="chart-toggles">
+              <button class="toggle-btn active" id="mfeToggleUnitPct" data-i18n="results.mfe_distribution.toggle_pct"></button>
+              <button class="toggle-btn" id="mfeToggleUnitAtr" data-i18n="results.mfe_distribution.toggle_atr"></button>
+            </div>
+          </div>
+          <canvas id="mfeDistributionCanvas"></canvas>
+        </div>
+
+        <div class="card" id="mfeScatterCard">
+          <div class="card-header">
+            <div class="card-title" data-i18n="results.mfe_scatter.title"></div>
+            <div class="chart-toggles">
+              <button class="toggle-btn active" id="mfeToggleColorReason" data-i18n="results.mfe_scatter.toggle_color_reason"></button>
+            </div>
+          </div>
+          <canvas id="mfeScatterCanvas"></canvas>
+          <div class="scatter-legend" id="mfeScatterLegend"></div>
         </div>
 
         <div class="card" id="monthlyPerfCard">
