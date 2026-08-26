@@ -38,7 +38,13 @@ def _lttb_idx(x_arr, y_arr, threshold):
 
 CURVE_THRESHOLD = 300
 
-REASON_LABELS = {"risk": "risk", "tsl": "tsl", "signal": "signal", "end": "end"}
+# Grid size for MAE/MFE scatter binning. Payload size ~ O(SCATTER_BINS_X * SCATTER_BINS_Y),
+# independent of trade count.
+SCATTER_BINS_X = 16
+SCATTER_BINS_Y = 12
+
+# Shared exit-reason code mapping
+REASON_CODES = {"risk": 0, "tsl": 1, "signal": 2, "end": 3}
 
 # Pnl buckets (histogram) 
 def _pnl_buckets(sell_trades: list, bucket_count: int = 30) -> list:
@@ -82,96 +88,72 @@ def _pnl_buckets(sell_trades: list, bucket_count: int = 30) -> list:
     return buckets
 
 
-# MAE distribution (winning trades only)
-def _mae_buckets(sell_trades: list, key: str = "mae", bucket_count: int = 20) -> list:
+# Generic 2D-binned scatter (used by both MAE and MFE scatters)
+def _scatter_binned(sell_trades: list, key: str, want_wins: bool,
+                     nx: int = SCATTER_BINS_X, ny: int = SCATTER_BINS_Y) -> dict:
     """
-    Distribution of max adverse excursion for trades that closed in profit.
-    `key` selects the unit: "mae" (% of entry price) or "maeAtr" (ATR multiples).
-    Values are negative (or 0): how far price dipped below entry before the
-    trade eventually turned around and closed positive.
-    Returns [{label, count, lo}, ...]
+    Bins (x=key value, y=pnl%) into a fixed nx*ny grid and returns only the
+    non-empty cells, each with a count and a per-reason breakdown. Payload
+    size is O(nx*ny * len(REASON_CODES)), independent of the number of
+    trades - unlike a raw per-trade scatter.
+    Returns {xMin, xW, yMin, yW, cells: [{ix, iy, n, br}, ...]}
+    `br` is a fixed-length array of counts, one slot per REASON_CODES entry
+    (index = reason code), so the frontend can still color/split by reason.
     """
-    vals = [t[key] for t in sell_trades if t.get("pnl") and t["pnl"] > 0 and t.get(key) is not None]
-    if not vals:
-        return []
+    pnl_ok = (lambda p: p > 0) if want_wins else (lambda p: p < 0)
+    n_reasons = len(REASON_CODES)
+    pts = [
+        (t[key], t["pnl"], REASON_CODES.get(t.get("reason", "signal"), 2))
+        for t in sell_trades
+        if t.get("pnl") and pnl_ok(t["pnl"]) and t.get(key) is not None
+    ]
+    if not pts:
+        return {"xMin": 0, "xW": 0, "yMin": 0, "yW": 0, "cells": []}
 
-    mn, mx = min(vals), max(vals)
-    size   = (mx - mn) / bucket_count or 1
-    fmt    = lambda v: f"{v:.1f}%" if key == "mae" else f"{v:.2f}R"
-    buckets = []
-    for i in range(bucket_count):
-        lo      = mn + i * size
-        hi      = lo + size
-        last    = i == bucket_count - 1
-        in_buck = (lambda v: v >= lo and v <= mx) if last else (lambda v: v >= lo and v < hi)
-        cnt     = sum(1 for v in vals if in_buck(v))
-        if cnt:
-            buckets.append({"label": f"{fmt(lo)} · {fmt(hi)}", "count": cnt, "lo": lo})
-    return buckets
+    xs, ys, _ = zip(*pts)
+    xmin, xmax = min(xs), max(xs)
+    ymin, ymax = min(ys), max(ys)
+    xw = (xmax - xmin) / nx or 1
+    yw = (ymax - ymin) / ny or 1
+
+    cells = {}
+    for x, y, rcode in pts:
+        ix = min(int((x - xmin) / xw), nx - 1)
+        iy = min(int((y - ymin) / yw), ny - 1)
+        cell = cells.setdefault((ix, iy), [0] * n_reasons)
+        cell[rcode] += 1
+
+    return {
+        "xMin": xmin, "xW": xw, "yMin": ymin, "yW": yw,
+        "cells": [
+            {"ix": ix, "iy": iy, "n": sum(br), "br": br}
+            for (ix, iy), br in cells.items()
+        ],
+    }
 
 
 # MAE vs PnL scatter (winning trades only)
-def _mae_scatter(sell_trades: list, key: str = "mae") -> list:
+def _mae_scatter(sell_trades: list, key: str = "mae") -> dict:
     """
-    One point per winning trade: x = max adverse excursion (pain endured
-    before the trade turned around), y = final pnl % (reward), reason = why
-    the trade closed (used for per-point coloring on the frontend). Same
+    2D-binned mae/pnl heatmap for trades that closed in profit. Same
     winning-trades filter as _mae_buckets, so the two stay consistent when
     toggled together on the frontend.
     `key` selects the unit for x: "mae" (% of entry price) or "maeAtr" (ATR multiples).
-    Returns [{x, y, reason}, ...]
+    Grid size is controlled by SCATTER_BINS_X / SCATTER_BINS_Y.
     """
-    return [
-        {"x": t[key], "y": t["pnl"], "reason": t.get("reason")}
-        for t in sell_trades
-        if t.get("pnl") and t["pnl"] > 0 and t.get(key) is not None
-    ]
-
-
-# MFE distribution (losing trades only) - inverse of MAE
-def _mfe_buckets(sell_trades: list, key: str = "mfe", bucket_count: int = 20) -> list:
-    """
-    Distribution of max favorable excursion for trades that closed at a
-    loss. `key` selects the unit: "mfe" (% of entry price) or "mfeAtr" (ATR
-    multiples). Values are positive (or 0): how much unrealized profit was
-    on the table before the trade eventually turned around and closed negative.
-    Returns [{label, count, lo}, ...]
-    """
-    vals = [t[key] for t in sell_trades if t.get("pnl") and t["pnl"] < 0 and t.get(key) is not None]
-    if not vals:
-        return []
-
-    mn, mx = min(vals), max(vals)
-    size   = (mx - mn) / bucket_count or 1
-    fmt    = lambda v: f"{v:.1f}%" if key == "mfe" else f"{v:.2f}R"
-    buckets = []
-    for i in range(bucket_count):
-        lo      = mn + i * size
-        hi      = lo + size
-        last    = i == bucket_count - 1
-        in_buck = (lambda v: v >= lo and v <= mx) if last else (lambda v: v >= lo and v < hi)
-        cnt     = sum(1 for v in vals if in_buck(v))
-        if cnt:
-            buckets.append({"label": f"{fmt(lo)} · {fmt(hi)}", "count": cnt, "lo": lo})
-    return buckets
+    return _scatter_binned(sell_trades, key, want_wins=True)
 
 
 # MFE vs PnL scatter (losing trades only)
-def _mfe_scatter(sell_trades: list, key: str = "mfe") -> list:
+def _mfe_scatter(sell_trades: list, key: str = "mfe") -> dict:
     """
-    One point per losing trade: x = max favorable excursion (profit that
-    was on the table before the trade turned around), y = final pnl %
-    (always negative here), reason = why the trade closed (used for
-    per-point coloring on the frontend). Same losing-trades filter as
-    _mfe_buckets, so the two stay consistent when toggled together on the frontend.
+    2D-binned mfe/pnl heatmap for trades that closed at a loss. Same
+    losing-trades filter as _mfe_buckets, so the two stay consistent when
+    toggled together on the frontend.
     `key` selects the unit for x: "mfe" (% of entry price) or "mfeAtr" (ATR multiples).
-    Returns [{x, y, reason}, ...]
+    Grid size is controlled by SCATTER_BINS_X / SCATTER_BINS_Y.
     """
-    return [
-        {"x": t[key], "y": t["pnl"], "reason": t.get("reason")}
-        for t in sell_trades
-        if t.get("pnl") and t["pnl"] < 0 and t.get(key) is not None
-    ]
+    return _scatter_binned(sell_trades, key, want_wins=False)
 
 
 # Exit reasons
@@ -319,14 +301,12 @@ def _exposure_pct(trades: list, equity_dates: list) -> float:
 def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
     """
     Columnar encoding of all sell trades.
-    Cols: [entryDateOffset, exitDateOffset, entryPrice, exitPrice, qty, pnl, reasonCode]
+    Cols: [entryDateOffset, exitDateOffset, entryPrice, exitPrice, qty, reasonCode]
     Offsets are integer seconds relative to t0 (first entry date).
     Falls back to stride-sampling only if the full set exceeds max_bytes.
     """
-    REASON_CODES = {"risk": 0, "tsl": 1, "signal": 2, "end": 3}
-
     if not sell_trades:
-        return {"t0": 0, "cols": ["eOff","xOff","ep","xp","a","r","m","ma"], "rows": [], "sampled": False, "rate": 1}
+        return {"t0": 0, "cols": ["eOff","xOff","ep","xp","a","r"], "rows": [], "sampled": False, "rate": 1}
 
     t0 = int(pd.Timestamp(sell_trades[0]["entryDate"]).timestamp())
 
@@ -338,8 +318,6 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
             t["price"],
             t["allocated"],
             REASON_CODES.get(t.get("reason", "signal"), 2),
-            t.get("mae", 0),
-            t.get("maeAtr"),
         ]
 
     def _encode(stride):
@@ -350,7 +328,7 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
 
     def _size(stride):
         rows = _encode(stride)
-        return len(json.dumps({"t0": t0, "cols": ["eOff","xOff","ep","xp","a","r","m","ma"], "rows": rows}, separators=(",", ":")))
+        return len(json.dumps({"t0": t0, "cols": ["eOff","xOff","ep","xp","a","r"], "rows": rows}, separators=(",", ":")))
 
     # binary search sur le stride optimal
     if _size(1) <= max_bytes:
@@ -368,7 +346,7 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
     rows = _encode(stride)
     return {
         "t0": t0,
-        "cols": ["eOff","xOff","ep","xp","a","r","m","ma"],
+        "cols": ["eOff","xOff","ep","xp","a","r"],
         "rows": rows,
         "sampled": stride > 1,
         "rate": stride,
@@ -457,12 +435,8 @@ def build_result(
         "exitReasons":       _exit_reasons(sell_trades),
         "monthlyPerf":       _monthly_perf(sell_trades, ts_arr, close_arr),
         "pnlBuckets":        _pnl_buckets(sell_trades),
-        "maeBuckets":        _mae_buckets(sell_trades, key="mae"),
-        "maeBucketsAtr":      _mae_buckets(sell_trades, key="maeAtr"),
         "maeScatter":        _mae_scatter(sell_trades, key="mae"),
         "maeScatterAtr":     _mae_scatter(sell_trades, key="maeAtr"),
-        "mfeBuckets":        _mfe_buckets(sell_trades, key="mfe"),
-        "mfeBucketsAtr":     _mfe_buckets(sell_trades, key="mfeAtr"),
         "mfeScatter":        _mfe_scatter(sell_trades, key="mfe"),
         "mfeScatterAtr":     _mfe_scatter(sell_trades, key="mfeAtr"),
         "equityCurve":       _equity_curve_ds(equity_dates, equity_raw),
@@ -471,6 +445,11 @@ def build_result(
         # "drawdownCurve":     _drawdown_curve_ds(equity_raw),
         # "pnlCurve":          _pnl_curve_ds(equity_dates, sell_trades),
     }
+
+    # DEBUG - à retirer
+    for k in ("maeScatter", "maeScatterAtr", "mfeScatter", "mfeScatterAtr"):
+        print(f"DEBUG {k} size (B): {len(json.dumps(result[k], separators=(',', ':')))} "
+              f"({len(result[k]['cells'])} cells)")
 
     result_size = sum(len(json.dumps(v, separators=(",", ":"), default=str)) for v in result.values())
     log.debug(f"Results size (no trades) (B): {result_size}")

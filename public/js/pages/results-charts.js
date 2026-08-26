@@ -64,7 +64,9 @@ const MAE_MIN_WINS = 8
 let _maeUnit = 'pct'
 const maeDistributionChart = new CanvasHistogram('maeDistributionCanvas', {
   getBuckets: r => {
-    const b = (_maeUnit === 'atr' ? r.maeBucketsAtr : r.maeBuckets) || []
+    const decimals = _maeUnit === 'atr' ? 2 : 1
+    const suffix   = _maeUnit === 'atr' ? 'R' : '%'
+    const b = _bucketsFromBinned(_maeUnit === 'atr' ? r.maeScatterAtr : r.maeScatter, decimals, suffix)
     const winCount = b.reduce((sum, bucket) => sum + bucket.count, 0)
     return winCount >= MAE_MIN_WINS ? b : []
   },
@@ -93,13 +95,25 @@ function _renderReasonLegend(containerId) {
 // against the reward instead of counted. Points are colored by exit reason.
 let _maeColorByReason = true
 const maeScatterChart = new CanvasScatter('maeScatterCanvas', {
-  getPoints:      r => (_maeUnit === 'atr' ? r.maeScatterAtr : r.maeScatter) || [],
+  getPoints:      r => _binnedToPoints(_maeUnit === 'atr' ? r.maeScatterAtr : r.maeScatter),
+  getMarginal:    r => {
+    const b = _marginalFromBinned(_maeUnit === 'atr' ? r.maeScatterAtr : r.maeScatter)
+    const total = b.reduce((sum, bin) => sum + bin.n, 0)
+    return total >= MAE_MIN_WINS ? b : []
+  },
   labelSuffixX:   '%',
   labelSuffixY:   '%',
   labelDecimalsX: 1,
   labelDecimalsY: 1,
-  getColor:       p => _maeColorByReason ? (REASON_COLORS[p.reason] || REASON_COLORS.unknown) : DEFAULT_POINT_COLOR,
-  tooltip:        p => `<span>MAE : <strong>${p.x}${_maeUnit === 'atr' ? 'R' : '%'}</strong></span><span>PnL : <strong>${p.y}%</strong></span><span>${REASON_LABELS[p.reason] || REASON_LABELS.unknown}</span>`,
+  pointRadius:    p => 3 + p._radiusScale * 7,
+  pointColor:     DEFAULT_POINT_COLOR,
+  colorByReason:  () => _maeColorByReason,
+  tooltip:        p => {
+    const breakdown = p.br
+      .map((count, idx) => count ? `${REASON_LABELS[SCATTER_REASON_ORDER[idx]]}: ${count}` : null)
+      .filter(Boolean).join(' · ')
+    return `<span>MAE: <strong>${p.x.toFixed(_maeUnit === 'atr' ? 2 : 1)}${_maeUnit === 'atr' ? 'R' : '%'}</strong></span><span>PnL: <strong>${p.y.toFixed(1)}%</strong></span><span>Trade${p.n > 1 ? 's' : ''}: <strong>${p.n}</strong> (${breakdown})</span>`
+  },
 })
 _renderReasonLegend('maeScatterLegend')
 
@@ -125,27 +139,50 @@ function setMaeUnit(unit) {
 document.getElementById('maeToggleUnitPct').addEventListener('click', () => setMaeUnit('pct'))
 document.getElementById('maeToggleUnitAtr').addEventListener('click', () => setMaeUnit('atr'))
 
-// MFE distribution (losing trades only) - inverse of MAE, same % / ATR toggle pattern
+// MFE distribution (losing trades only) - inverse of MAE, same % / ATR toggle
+// pattern AND same minimum sample size logic: below it, neither MFE chart
+// is reliable, so the whole MFE pair hides together.
+const MFE_MIN_LOSSES = 8
 let _mfeUnit = 'pct'
 const mfeDistributionChart = new CanvasHistogram('mfeDistributionCanvas', {
-  getBuckets:     r => (_mfeUnit === 'atr' ? r.mfeBucketsAtr : r.mfeBuckets) || [],
+  getBuckets: r => {
+    const decimals = _mfeUnit === 'atr' ? 2 : 1
+    const suffix   = _mfeUnit === 'atr' ? 'R' : '%'
+    return _bucketsFromBinned(_mfeUnit === 'atr' ? r.mfeScatterAtr : r.mfeScatter, decimals, suffix)
+  },
   singleColor:    _cssVar('--primary'),
   singleColorDim: _cssVar('--primary-dim'),
   labelSuffix:    '%',
   labelDecimals:  1,
 })
 
-// MFE vs PnL scatter (losing trades only) - points colored by exit reason
+// MFE vs PnL scatter (losing trades only) - binned cells, colored by exit reason breakdown
 let _mfeColorByReason = true
 const mfeScatterChart = new CanvasScatter('mfeScatterCanvas', {
-  getPoints:      r => (_mfeUnit === 'atr' ? r.mfeScatterAtr : r.mfeScatter) || [],
+  getPoints: r => {
+    const buckets   = (_mfeUnit === 'atr' ? r.mfeBucketsAtr : r.mfeBuckets) || []
+    const lossCount = buckets.reduce((sum, b) => sum + b.count, 0)
+    return lossCount >= MFE_MIN_LOSSES ? _binnedToPoints(_mfeUnit === 'atr' ? r.mfeScatterAtr : r.mfeScatter) : []
+  },
+  getMarginal: r => {
+    const buckets   = (_mfeUnit === 'atr' ? r.mfeBucketsAtr : r.mfeBuckets) || []
+    const lossCount = buckets.reduce((sum, b) => sum + b.count, 0)
+    return lossCount >= MFE_MIN_LOSSES ? _marginalFromBinned(_mfeUnit === 'atr' ? r.mfeScatterAtr : r.mfeScatter) : []
+  },
   labelSuffixX:   '%',
   labelSuffixY:   '%',
   labelDecimalsX: 1,
   labelDecimalsY: 1,
-  yAxisSide:      'left', // domaine X toujours >= 0 (MFE)
-  getColor:       p => _mfeColorByReason ? (REASON_COLORS[p.reason] || REASON_COLORS.unknown) : DEFAULT_POINT_COLOR,
-  tooltip:        p => `<span>MFE : <strong>${p.x}${_mfeUnit === 'atr' ? 'R' : '%'}</strong></span><span>PnL : <strong>${p.y}%</strong></span><span>${REASON_LABELS[p.reason] || REASON_LABELS.unknown}</span>`,
+  yAxisSide:      'left', // X domain always >= 0 (MFE)
+  pointRadius:    p => 3 + p._radiusScale * 7,
+  pointColor:     DEFAULT_POINT_COLOR,
+  colorByReason:  () => _mfeColorByReason,
+  tooltip:        p => {
+    const breakdown = p.br
+      .map((count, idx) => count ? `${REASON_LABELS[SCATTER_REASON_ORDER[idx]]}: ${count}` : null)
+      .filter(Boolean).join(' · ')
+    return `<span>MFE: <strong>${p.x.toFixed(_mfeUnit === 'atr' ? 2 : 1)}${_mfeUnit === 'atr' ? 'R' : '%'}</strong></span><span>PnL: <strong>${p.y.toFixed(1)}%</strong></span><span>Trade${p.n > 1 ? 's' : ''} ${p.n} (${breakdown})</span>`
+  },
 })
 _renderReasonLegend('mfeScatterLegend')
 

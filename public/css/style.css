@@ -90,14 +90,14 @@
     --danger-dim: rgba(255, 92, 92, .15);
     --danger-dim-strong: rgba(255, 92, 92, .4);
 
-    --infograpgic1: #6c8eff;
-    --infograpic1-dim: color-mix(in srgb, var(--infograpgic1) 8%, transparent);
-    --infograpgic2: #ff9632;
-    --infograpic2-dim: color-mix(in srgb, var(--infograpgic2) 8%, transparent);
-    --infograpgic3: #c878ff;
-    --infograpic3-dim: color-mix(in srgb, var(--infograpgic3) 8%, transparent);
-    --infograpgic-neutral: #aaa;
-    --infograpic-neutral-dim: color-mix(in srgb, var(--infograpgic-neutral) 4%, transparent);
+    --infographic1: #6c8eff;
+    --infographic1-dim: color-mix(in srgb, var(--infographic1) 8%, transparent);
+    --infographic2: #ff9632;
+    --infographic2-dim: color-mix(in srgb, var(--infographic2) 8%, transparent);
+    --infographic3: #c878ff;
+    --infographic3-dim: color-mix(in srgb, var(--infographic3) 8%, transparent);
+    --infographic-neutral: #aaa;
+    --infographic-neutral-dim: color-mix(in srgb, var(--infographic-neutral) 4%, transparent);
 
     --text: #F2F3F6;
     --text-muted: #979CA6;
@@ -214,8 +214,8 @@ a:hover {
 }
 
 svg {
-    width: 0.85rem;
-    height: 0.85rem;
+    width: 0.9rem;
+    height: 0.9rem;
     stroke: currentColor;
 }
 
@@ -2268,43 +2268,43 @@ select.field-invalid {
 }
 
 .toggle-btn.active[data-key="risk"] {
-    border-color: var(--infograpgic1);
-    color: var(--infograpgic1);
-    background: var(--infograpic1-dim);
+    border-color: var(--infographic1);
+    color: var(--infographic1);
+    background: var(--infographic1-dim);
 }
 
 .toggle-btn.active[data-key="tsl"] {
-    border-color: var(--infograpgic3);
-    color: var(--infograpgic3);
-    background: var(--infograpic3-dim);
+    border-color: var(--infographic3);
+    color: var(--infographic3);
+    background: var(--infographic3-dim);
 }
 
 .toggle-btn.active[data-key="signal"] {
-    border-color: var(--infograpgic2);
-    color: var(--infograpgic2);
-    background: var(--infograpic2-dim);
+    border-color: var(--infographic2);
+    color: var(--infographic2);
+    background: var(--infographic2-dim);
 }
 
 .toggle-btn.active[data-key="end"] {
-    border-color: var(--infograpgic-neutral);
-    color: var(--infograpgic-neutral);
-    background: var(--infograpic-neutral-dim);
+    border-color: var(--infographic-neutral);
+    color: var(--infographic-neutral);
+    background: var(--infographic-neutral-dim);
 }
 
 .er-risk-title {
-    color: var(--infograpgic1);
+    color: var(--infographic1);
 }
 
 .er-tsl-title {
-    color: var(--infograpgic3);
+    color: var(--infographic3);
 }
 
 .er-signal-title {
-    color: var(--infograpgic2);
+    color: var(--infographic2);
 }
 
 .er-end-title {
-    color: var(--infograpgic-neutral);
+    color: var(--infographic-neutral);
 }
 
 .er-label {
@@ -3170,29 +3170,29 @@ select.field-invalid {
 #mpfToggleTrades.active,
 #maeToggleUnitPct.active, #mfeToggleUnitPct.active,
 #maeToggleColorReason.active, #mfeToggleColorReason.active {
-    border-color: var(--infograpgic1);
-    color: var(--infograpgic1);
-    background: var(--infograpic1-dim);
+    border-color: var(--infographic1);
+    color: var(--infographic1);
+    background: var(--infographic1-dim);
 }
 
 .toggle-btn.active[data-curve="drawdown"],
 #mpfToggleDelta.active {
-    border-color: var(--infograpgic2);
-    color: var(--infograpgic2);
-    background: var(--infograpic2-dim);
+    border-color: var(--infographic2);
+    color: var(--infographic2);
+    background: var(--infographic2-dim);
 }
 
 .toggle-btn.active[data-curve="pnl"],
 #maeToggleUnitAtr.active, #mfeToggleUnitAtr.active {
-    border-color: var(--infograpgic3);
-    color: var(--infograpgic3);
-    background: var(--infograpic3-dim);
+    border-color: var(--infographic3);
+    color: var(--infographic3);
+    background: var(--infographic3-dim);
 }
 
 .toggle-btn.active[data-curve="exposure"] {
-    border-color: var(--infograpgic-neutral);
-    color: var(--infograpgic-neutral);
-    background: var(--infograpic-neutral-dim);
+    border-color: var(--infographic-neutral);
+    color: var(--infographic-neutral);
+    background: var(--infographic-neutral-dim);
 }
 
 .scatter-legend {
@@ -3720,12 +3720,12 @@ input[type="color"] {
 }
 
 .pnl-delta {
-    color: var(--infograpgic2);
+    color: var(--infographic2);
     font-weight: 700;
 }
 
 .trades-count {
-    color: var(--infograpic1);
+    color: var(--infographic1);
     font-weight: 700;
 }
 

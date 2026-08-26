@@ -18,6 +18,9 @@ function _showTooltip(e, html) {
 }
 
 function _hideTooltip() { _tooltip.classList.remove('visible') }
+window.addEventListener('scroll', () => _hideTooltip(), { passive: true })
+window.addEventListener('wheel', () => _hideTooltip(), { passive: true })
+window.addEventListener('touchmove', () => _hideTooltip(), { passive: true })
 
 function fmtPct(v) { return v != null ? `${v >= 0 ? '+' : ''}${v.toFixed(2)}%` : '-' }
 

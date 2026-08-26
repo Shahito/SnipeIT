@@ -59,6 +59,9 @@ function _showTooltip(e, html) {
 function _hideTooltip() {
   _tooltip.classList.remove('visible')
 }
+window.addEventListener('scroll', () => _hideTooltip(), { passive: true })
+window.addEventListener('wheel', () => _hideTooltip(), { passive: true })
+window.addEventListener('touchmove', () => _hideTooltip(), { passive: true })
 
 // Helpers
 function _cssVar(name) {
@@ -175,10 +178,10 @@ class CanvasLineChart {
 
   // Private
   _measurePad(canvas, r) {
-    const W     = canvas.offsetWidth || 800
+    const W = canvas.offsetWidth || 800
     const small = W < 640
-    const ctx   = canvas.getContext('2d')
-    ctx.font    = '10px system-ui'
+    const ctx = canvas.getContext('2d')
+    ctx.font = '10px system-ui'
 
     const widestLabel = axis => {
       let max = 0
@@ -196,14 +199,14 @@ class CanvasLineChart {
       return max
     }
 
-    const margin  = 0 // small ? 20 : 25
-    const wLeft   = widestLabel('left')
-    const wRight  = widestLabel('right')
+    const margin = 0 // small ? 20 : 25
+    const wLeft = widestLabel('left')
+    const wRight = widestLabel('right')
     return {
-      top:    small ? 16 : 20,
-      right:  wRight ? wRight + margin : 8,
+      top: small ? 16 : 20,
+      right: wRight ? wRight + margin : 8,
       bottom: small ? 24 : 30,
-      left:   wLeft  ? wLeft  + margin : 8,
+      left: wLeft ? wLeft + margin : 8,
     }
   }
 
@@ -268,8 +271,8 @@ class CanvasLineChart {
     canvas.style.height = ''
     canvas.width = 0
     canvas.height = 0
-    const W   = canvas.offsetWidth || 800
-    const H   = this.config.height
+    const W = canvas.offsetWidth || 800
+    const H = this.config.height
     const pad = this._measurePad(canvas, r)
     const cW = W - pad.left - pad.right
     const cH = H - pad.top - pad.bottom
@@ -371,6 +374,12 @@ class CanvasLineChart {
     for (let i = 0; i < n; i += step) {
       ctx.fillText(fmtDate(timestamps[i]), toX(i), pad.top + cH + 18)
     }
+    // Cache the fully rendered chart so hover can restore it with a cheap raster copy
+    // instead of a full vector redraw (grid/curves/labels) on every pointer move
+    if (!this._baseSnapshot) this._baseSnapshot = document.createElement('canvas')
+    this._baseSnapshot.width = canvas.width
+    this._baseSnapshot.height = canvas.height
+    this._baseSnapshot.getContext('2d').drawImage(canvas, 0, 0)
   }
 
   _onMouseMove(e) {
@@ -379,10 +388,10 @@ class CanvasLineChart {
     const timestamps = this.config.getTimestamps(r)
     if (!timestamps?.length) return
 
-    const canvas  = document.getElementById(this.canvasId)
-    const rect    = canvas.getBoundingClientRect()
-    const W       = canvas.offsetWidth
-    const pad     = this._measurePad(canvas, r)
+    const canvas = document.getElementById(this.canvasId)
+    const rect = canvas.getBoundingClientRect()
+    const W = canvas.offsetWidth
+    const pad = this._measurePad(canvas, r)
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left - pad.left) / (W - pad.left - pad.right)))
     const idx = Math.round(ratio * (timestamps.length - 1))
     const fmtDate = this.config.formatTooltipDate || this.config.formatDate || (ts => new Date(ts).toLocaleDateString())
@@ -407,23 +416,38 @@ class CanvasLineChart {
 
     _showTooltip(e, `<div class="tt-date">${fmtDate(timestamps[idx])}</div>` + lines.join(''))
 
-    // Cursor line overlay
-    this._draw()
+    // Cursor line overlay - restore the cached base render (cheap raster copy) instead
+    // of redoing the full vector redraw on every pointer move
     const ctx = canvas.getContext('2d')
-    const pad2 = this._getPad(W)
-    const cH = this.config.height - pad2.top - pad2.bottom
-    const x = pad2.left + ratio * (W - pad2.left - pad2.right)
+    if (this._baseSnapshot) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(this._baseSnapshot, 0, 0)
+    } else {
+      this._draw()
+    }
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0)
+    const cH = this.config.height - pad.top - pad.bottom
+    const x = pad.left + ratio * (W - pad.left - pad.right)
     ctx.save()
     ctx.setLineDash([4, 3])
     ctx.strokeStyle = 'rgba(255,255,255,0.15)'
     ctx.lineWidth = 1
-    ctx.beginPath(); ctx.moveTo(x, pad2.top); ctx.lineTo(x, pad2.top + cH); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + cH); ctx.stroke()
     ctx.restore()
   }
 
   _onMouseLeave() {
     _hideTooltip()
-    this._draw()
+    const canvas = document.getElementById(this.canvasId)
+    const ctx = canvas?.getContext('2d')
+    if (ctx && this._baseSnapshot) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(this._baseSnapshot, 0, 0)
+    } else {
+      this._draw()
+    }
   }
 }
 
@@ -725,7 +749,7 @@ class CanvasHistogram {
           const b = this._buckets[idx]
           _showTooltip(e,
             `<div class="tt-date">${b.label}</div>` +
-            `<span>Trades : <strong>${b.count}</strong></span>`
+            `<span>Trade${b.count > 1 ? 's' : ''}: <strong>${b.count}</strong></span>`
           )
           if (this._hoveredIdx !== idx) {
             this._hoveredIdx = idx
@@ -754,6 +778,59 @@ class CanvasHistogram {
       ? document.addEventListener('DOMContentLoaded', bind)
       : bind()
   }
+}
+
+/**
+ * Converts a binned scatter payload ({xMin, xW, yMin, yW, cells: [{ix, iy, n}]})
+ * into pseudo-points usable by CanvasScatter: {x, y, n} at each cell's center.
+ * Radius is scaled by sqrt(n) so area (not radius) is proportional to count.
+ */
+// REASON_CODES order must match python's REASON_CODES: risk, tsl, signal, end.
+const SCATTER_REASON_ORDER = ['risk', 'tsl', 'signal', 'end']
+
+function _binnedToPoints(binned) {
+  if (!binned || !binned.cells || !binned.cells.length) return []
+  const maxN = Math.max(...binned.cells.map(c => c.n))
+  return binned.cells.map(c => ({
+    x: binned.xMin + (c.ix + 0.5) * binned.xW,
+    y: binned.yMin + (c.iy + 0.5) * binned.yW,
+    n: c.n,
+    br: c.br, // [riskCount, tslCount, signalCount, endCount]
+    _radiusScale: Math.sqrt(c.n / maxN),
+  }))
+}
+
+function _marginalFromBinned(binned) {
+  if (!binned || !binned.cells || !binned.cells.length) return []
+  const nx = Math.max(...binned.cells.map(c => c.ix)) + 1
+  const counts = new Array(nx).fill(0)
+  binned.cells.forEach(c => { counts[c.ix] += c.n })
+  return counts.map((n, ix) => ({
+    x0: binned.xMin + ix * binned.xW,
+    x1: binned.xMin + (ix + 1) * binned.xW,
+    n,
+  }))
+}
+
+/**
+ * Collapses a binned scatter payload into a 1D histogram over x (sums `n`
+ * across all iy for each ix), shaped to match what CanvasHistogram expects
+ * ({label, count, lo}) - same shape the backend's _mae_buckets/_mfe_buckets
+ * used to return, but computed client-side from the scatter cells.
+ */
+function _bucketsFromBinned(binned, decimals = 1, suffix = '%') {
+  if (!binned || !binned.cells || !binned.cells.length) return []
+  const nx = Math.max(...binned.cells.map(c => c.ix)) + 1
+  const counts = new Array(nx).fill(0)
+  binned.cells.forEach(c => { counts[c.ix] += c.n })
+  const fmt = v => (v >= 0 ? '+' : '') + v.toFixed(decimals) + suffix
+  return counts
+    .map((count, ix) => {
+      const lo = binned.xMin + ix * binned.xW
+      const hi = lo + binned.xW
+      return { label: `${fmt(lo)} · ${fmt(hi)}`, count, lo }
+    })
+    .filter(b => b.count > 0)
 }
 
 // CanvasScatter
@@ -830,7 +907,9 @@ class CanvasScatter {
     const yScale = _scaleY(points.map(p => p.y), pad.top, cH)
 
     const color = this.config.pointColor || _cssVar('--primary') || '#6c8eff'
-    const radius = this.config.pointRadius
+    const radiusFn = typeof this.config.pointRadius === 'function'
+      ? this.config.pointRadius
+      : () => this.config.pointRadius
     const suffixX = this.config.labelSuffixX ?? '%'
     const suffixY = this.config.labelSuffixY ?? '%'
     const decX = this.config.labelDecimalsX ?? 1
@@ -870,11 +949,29 @@ class CanvasScatter {
     points.forEach((p, i) => {
       const x = xScale.toX(p.x)
       const y = yScale.toY(p.y)
-      ctx.fillStyle = this.config.getColor ? this.config.getColor(p) : color
+      const r = radiusFn(p)
       ctx.globalAlpha = (this._hoveredIdx == null || this._hoveredIdx === i) ? 1 : 0.35
-      ctx.beginPath()
-      ctx.arc(x, y, radius, 0, Math.PI * 2)
-      ctx.fill()
+
+      if (this.config.colorByReason?.() && p.br) {
+        // Multi-color donut: one arc slice per reason, proportional to its count.
+        let angle = -Math.PI / 2
+        p.br.forEach((count, idx) => {
+          if (!count) return
+          const slice = (count / p.n) * Math.PI * 2
+          ctx.fillStyle = REASON_COLORS[SCATTER_REASON_ORDER[idx]] || REASON_COLORS.unknown
+          ctx.beginPath()
+          ctx.moveTo(x, y)
+          ctx.arc(x, y, r, angle, angle + slice)
+          ctx.closePath()
+          ctx.fill()
+          angle += slice
+        })
+      } else {
+        ctx.fillStyle = this.config.getColor ? this.config.getColor(p) : color
+        ctx.beginPath()
+        ctx.arc(x, y, r, 0, Math.PI * 2)
+        ctx.fill()
+      }
     })
     ctx.globalAlpha = 1
 
@@ -915,7 +1012,7 @@ class CanvasScatter {
           const p = pts[bestIdx]
           const html = this.config.tooltip
             ? this.config.tooltip(p)
-            : `<span>X : <strong>${p.x}</strong></span><br><span>Y : <strong>${p.y}</strong></span>`
+            : `<span>X: <strong>${p.x}</strong></span><br><span>Y: <strong>${p.y}</strong></span>`
           _showTooltip(e, html)
           if (this._hoveredIdx !== bestIdx) { this._hoveredIdx = bestIdx; this._draw() }
         } else {
@@ -958,7 +1055,7 @@ class MonthlyPerfChart {
   constructor(canvasId, config) {
     this.canvasId = canvasId
     // this.config      = { height: 220, gridLines: 4, showDelta: true, windowSize: 12, ...config }
-    this.config = { height: 220, gridLines: 4, showDelta: true, windowSize: 6, desktopWindowSize: 24, ...config }
+    this.config = { height: 280, gridLines: 4, showDelta: true, minSlotWidth: 34, minWindowSize: 3, ...config }
     this._result = null
     this._data = []
     this._winStart = 0
@@ -969,10 +1066,16 @@ class MonthlyPerfChart {
   }
 
   _isWindowed() {
-    return this._isMobileNow() || this._data.length > this.config.desktopWindowSize
+    return this._data.length > this._activeWindowSize()
   }
+
   _activeWindowSize() {
-    return this._isMobileNow() ? this.config.windowSize : this.config.desktopWindowSize
+    const c = document.getElementById(this.canvasId)
+    const W = c?.offsetWidth || 700
+    const pad = this._getPad(W)
+    const cW = W - pad.left - pad.right
+    const fit = Math.floor(cW / this.config.minSlotWidth)
+    return Math.max(this.config.minWindowSize, Math.min(fit, this._data.length || fit))
   }
 
   toggleTrades(force) {
@@ -1025,11 +1128,38 @@ class MonthlyPerfChart {
   }
 
   // Private
+  // Left/right margins sized to the widest axis label, same approach as CanvasLineChart._measurePad
   _getPad(W) {
-    const right = this._showTrades ? (W < 640 ? 34 : 40) : 8
-    return W < 640
-      ? { top: 16, right, bottom: 28, left: 42 }
-      : { top: 16, right, bottom: 28, left: 48 }
+    const small = W < 640
+    const fallbackRight = this._showTrades ? (small ? 34 : 40) : 8
+    const ctx = document.getElementById(this.canvasId)?.getContext('2d')
+    if (!ctx || !this._data.length) {
+      return { top: 16, right: fallbackRight, bottom: 28, left: small ? 42 : 48 }
+    }
+    ctx.font = '10px system-ui'
+
+    const allVals = this._data.flatMap(d => [d.strat, d.asset ?? 0, this._showDelta ? d.strat - (d.asset ?? 0) : 0])
+    const mn = Math.min(...allVals, 0)
+    const mx = Math.max(...allVals, 0)
+    const rng = mx - mn || 1
+    let wLeft = 0
+    for (let i = 0; i <= this.config.gridLines; i++) {
+      const v = mx - (rng / this.config.gridLines) * i
+      wLeft = Math.max(wLeft, ctx.measureText((v >= 0 ? '+' : '') + v.toFixed(1) + '%').width)
+    }
+
+    let wRight = 0
+    if (this._showTrades) {
+      const maxTrades = Math.max(...this._data.map(d => d.trades || 0), 1)
+      wRight = ctx.measureText(Math.round(maxTrades).toString()).width
+    }
+
+    return {
+      top: 16,
+      right: this._showTrades ? wRight + 10 : 8,
+      bottom: 28,
+      left: wLeft + 10,
+    }
   }
 
   _draw(hoveredIdx = -1) {
@@ -1284,10 +1414,10 @@ class MonthlyPerfChart {
           const fmt = v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%'
           _showTooltip(e,
             `<div class="tt-date">${d.month}</div>` +
-            `<span>Asset : <span class="${(d.asset ?? 0) < 0 ? 'pnl-negative' : 'pnl-positive'}">${fmt(d.asset ?? 0)}</span></span>` +
-            `<span>Strat : <span class="${d.strat < 0 ? 'pnl-negative' : 'pnl-positive'}">${fmt(d.strat)}</span></span>` +
-            (this._showDelta ? `<span>Delta : <span class="pnl-delta">${fmt(delta)}</span></span>` : '') +
-            (d.trades !== undefined ? `<span>Trades : <span trades-count>${d.trades}</span></span>` : '')
+            `<span>Asset: <span class="${(d.asset ?? 0) < 0 ? 'pnl-negative' : 'pnl-positive'}">${fmt(d.asset ?? 0)}</span></span>` +
+            `<span>Strat: <span class="${d.strat < 0 ? 'pnl-negative' : 'pnl-positive'}">${fmt(d.strat)}</span></span>` +
+            (this._showDelta ? `<span>Delta: <span class="pnl-delta">${fmt(delta)}</span></span>` : '') +
+            (d.trades !== undefined && this._showTrades ? `<span>Trade${d.trades > 1 ? 's' : ''}: <span class="trades-count">${d.trades}</span></span>` : '')
           )
           // Cursor line
           this._draw(i)
