@@ -64,11 +64,10 @@ const MAE_MIN_WINS = 8
 let _maeUnit = 'pct'
 const maeDistributionChart = new CanvasHistogram('maeDistributionCanvas', {
   getBuckets: r => {
-    const decimals = _maeUnit === 'atr' ? 2 : 1
-    const suffix   = _maeUnit === 'atr' ? 'R' : '%'
-    const b = _bucketsFromBinned(_maeUnit === 'atr' ? r.maeScatterAtr : r.maeScatter, decimals, suffix)
-    const winCount = b.reduce((sum, bucket) => sum + bucket.count, 0)
-    return winCount >= MAE_MIN_WINS ? b : []
+    const binned    = _maeUnit === 'atr' ? r.maeScatterAtr : r.maeScatter
+    const decimals  = _maeUnit === 'atr' ? 2 : 1
+    const suffix    = _maeUnit === 'atr' ? 'R' : '%'
+    return _binnedTotalCount(binned) >= MAE_MIN_WINS ? _bucketsFromBinned(binned, decimals, suffix) : []
   },
   singleColor:    _cssVar('--primary'),
   singleColorDim: _cssVar('--primary-dim'),
@@ -95,16 +94,15 @@ function _renderReasonLegend(containerId) {
 // against the reward instead of counted. Points are colored by exit reason.
 let _maeColorByReason = true
 const maeScatterChart = new CanvasScatter('maeScatterCanvas', {
-  getPoints:      r => _binnedToPoints(_maeUnit === 'atr' ? r.maeScatterAtr : r.maeScatter),
-  getMarginal:    r => {
-    const b = _marginalFromBinned(_maeUnit === 'atr' ? r.maeScatterAtr : r.maeScatter)
-    const total = b.reduce((sum, bin) => sum + bin.n, 0)
-    return total >= MAE_MIN_WINS ? b : []
+  getPoints: r => {
+    const binned = _maeUnit === 'atr' ? r.maeScatterAtr : r.maeScatter
+    return _binnedTotalCount(binned) >= MAE_MIN_WINS ? _binnedToPoints(binned) : []
   },
   labelSuffixX:   '%',
   labelSuffixY:   '%',
   labelDecimalsX: 1,
   labelDecimalsY: 1,
+  yAxisSide:      'right', // X domain always <= 0 (MAE)
   pointRadius:    p => 3 + p._radiusScale * 7,
   pointColor:     DEFAULT_POINT_COLOR,
   colorByReason:  () => _maeColorByReason,
@@ -146,9 +144,10 @@ const MFE_MIN_LOSSES = 8
 let _mfeUnit = 'pct'
 const mfeDistributionChart = new CanvasHistogram('mfeDistributionCanvas', {
   getBuckets: r => {
+    const binned   = _mfeUnit === 'atr' ? r.mfeScatterAtr : r.mfeScatter
     const decimals = _mfeUnit === 'atr' ? 2 : 1
     const suffix   = _mfeUnit === 'atr' ? 'R' : '%'
-    return _bucketsFromBinned(_mfeUnit === 'atr' ? r.mfeScatterAtr : r.mfeScatter, decimals, suffix)
+    return _binnedTotalCount(binned) >= MFE_MIN_LOSSES ? _bucketsFromBinned(binned, decimals, suffix) : []
   },
   singleColor:    _cssVar('--primary'),
   singleColorDim: _cssVar('--primary-dim'),
@@ -160,14 +159,8 @@ const mfeDistributionChart = new CanvasHistogram('mfeDistributionCanvas', {
 let _mfeColorByReason = true
 const mfeScatterChart = new CanvasScatter('mfeScatterCanvas', {
   getPoints: r => {
-    const buckets   = (_mfeUnit === 'atr' ? r.mfeBucketsAtr : r.mfeBuckets) || []
-    const lossCount = buckets.reduce((sum, b) => sum + b.count, 0)
-    return lossCount >= MFE_MIN_LOSSES ? _binnedToPoints(_mfeUnit === 'atr' ? r.mfeScatterAtr : r.mfeScatter) : []
-  },
-  getMarginal: r => {
-    const buckets   = (_mfeUnit === 'atr' ? r.mfeBucketsAtr : r.mfeBuckets) || []
-    const lossCount = buckets.reduce((sum, b) => sum + b.count, 0)
-    return lossCount >= MFE_MIN_LOSSES ? _marginalFromBinned(_mfeUnit === 'atr' ? r.mfeScatterAtr : r.mfeScatter) : []
+    const binned = _mfeUnit === 'atr' ? r.mfeScatterAtr : r.mfeScatter
+    return _binnedTotalCount(binned) >= MFE_MIN_LOSSES ? _binnedToPoints(binned) : []
   },
   labelSuffixX:   '%',
   labelSuffixY:   '%',

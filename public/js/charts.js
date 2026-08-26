@@ -788,6 +788,11 @@ class CanvasHistogram {
 // REASON_CODES order must match python's REASON_CODES: risk, tsl, signal, end.
 const SCATTER_REASON_ORDER = ['risk', 'tsl', 'signal', 'end']
 
+/** Total trade count across all cells of a binned scatter payload. */
+function _binnedTotalCount(binned) {
+  return (binned?.cells || []).reduce((sum, c) => sum + c.n, 0)
+}
+
 function _binnedToPoints(binned) {
   if (!binned || !binned.cells || !binned.cells.length) return []
   const maxN = Math.max(...binned.cells.map(c => c.n))
@@ -797,18 +802,6 @@ function _binnedToPoints(binned) {
     n: c.n,
     br: c.br, // [riskCount, tslCount, signalCount, endCount]
     _radiusScale: Math.sqrt(c.n / maxN),
-  }))
-}
-
-function _marginalFromBinned(binned) {
-  if (!binned || !binned.cells || !binned.cells.length) return []
-  const nx = Math.max(...binned.cells.map(c => c.ix)) + 1
-  const counts = new Array(nx).fill(0)
-  binned.cells.forEach(c => { counts[c.ix] += c.n })
-  return counts.map((n, ix) => ({
-    x0: binned.xMin + ix * binned.xW,
-    x1: binned.xMin + (ix + 1) * binned.xW,
-    n,
   }))
 }
 

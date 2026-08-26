@@ -40,8 +40,8 @@ CURVE_THRESHOLD = 300
 
 # Grid size for MAE/MFE scatter binning. Payload size ~ O(SCATTER_BINS_X * SCATTER_BINS_Y),
 # independent of trade count.
-SCATTER_BINS_X = 16
-SCATTER_BINS_Y = 12
+SCATTER_BINS_X = 20
+SCATTER_BINS_Y = 14
 
 # Shared exit-reason code mapping
 REASON_CODES = {"risk": 0, "tsl": 1, "signal": 2, "end": 3}
@@ -445,12 +445,7 @@ def build_result(
         # "drawdownCurve":     _drawdown_curve_ds(equity_raw),
         # "pnlCurve":          _pnl_curve_ds(equity_dates, sell_trades),
     }
-
-    # DEBUG - à retirer
-    for k in ("maeScatter", "maeScatterAtr", "mfeScatter", "mfeScatterAtr"):
-        print(f"DEBUG {k} size (B): {len(json.dumps(result[k], separators=(',', ':')))} "
-              f"({len(result[k]['cells'])} cells)")
-
+    
     result_size = sum(len(json.dumps(v, separators=(",", ":"), default=str)) for v in result.values())
     log.debug(f"Results size (no trades) (B): {result_size}")
 
