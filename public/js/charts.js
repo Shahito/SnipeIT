@@ -545,7 +545,7 @@ class BarChart {
 
     const activeKeys = this._sortedKeys(Object.keys(this._data)).filter(k => this._active[k])
     if (!activeKeys.length) {
-      container.innerHTML = `<div class="text-muted text-sm p-sm" style="padding:.75rem 0">Nothing to display.</div>`
+      container.innerHTML = `<div class="text-muted text-sm p-sm" style="padding:.75rem 0">${t('common.nothing_to_display')}</div>`
       return
     }
 

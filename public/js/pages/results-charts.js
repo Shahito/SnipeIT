@@ -41,7 +41,7 @@ const equityChart = new CanvasLineChart('equityChart', {
 // Exit reasons
 const exitReasonsChart = new BarChart('exitReasonsChart', 'exitReasonsFilters', {
   getBars:   r => r.exitReasons || {},
-  getLabel:  (k, d) => ({ title: { risk: 'TP/SL', signal: 'Signal', tsl: 'Trailing SL', end: 'End' }[k], sub: `${d.totalPct}% of trades` }),
+  getLabel:  (k, d) => ({ title: { risk: 'TP/SL', signal: 'Signal', tsl: 'Trailing SL', end: t('results.exit_reasons.label_end') }[k], sub: `${d.totalPct}% of trades` }),
   order:     ['risk', 'tsl', 'signal', 'end'],
   defaultActive: key => key !== 'end',
   segments: [
@@ -78,7 +78,7 @@ const maeDistributionChart = new CanvasHistogram('maeDistributionCanvas', {
 // Same color key used everywhere else on this page for exit reasons
 // (exitReasonsFilters buttons), so a given reason always looks the same.
 const REASON_COLORS = { risk: '#6c8eff', tsl: '#c878ff', signal: '#ff9632', end: '#aaa', unknown: '#5A5F73' }
-const REASON_LABELS = { risk: 'TP/SL', signal: 'Signal', tsl: 'Trailing SL', end: 'End', unknown: 'No data' }
+const REASON_LABELS = { risk: 'TP/SL', signal: 'Signal', tsl: 'Trailing SL', end: t('results.exit_reasons.label_end'), unknown: t('results.exit_reasons.label_unknown') }
 const DEFAULT_POINT_COLOR = _cssVar('--primary') || '#6c8eff'
 
 function _renderReasonLegend(containerId) {

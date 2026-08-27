@@ -14,6 +14,8 @@ from time import perf_counter
 from compute_results import build_result
 
 _last = perf_counter()
+
+
 def timer(label=""):
     global _last
     now = perf_counter()
@@ -21,43 +23,68 @@ def timer(label=""):
     _last = now
     log.debug(f"[TIMER] {label}: {elapsed:.3f}s")
 
+
 try:
     import lttbc
+
     def _lttb(timestamps, values, threshold):
         ts = np.array(timestamps, dtype=np.float64)
-        vs = np.array(values,     dtype=np.float64)
+        vs = np.array(values, dtype=np.float64)
         if len(ts) <= threshold:
             return list(range(len(ts)))
         # lttbc.downsample returns (x_sampled, y_sampled) - not indices
         # recover original indices via searchsorted on the x array
         x_sampled, _ = lttbc.downsample(ts, vs, threshold)
         return np.searchsorted(ts, x_sampled).tolist()
+
 except ImportError:
+
     def _lttb(timestamps, values, threshold):
         step = max(1, len(timestamps) // threshold)
         return list(range(0, len(timestamps), step))
+
 
 log = logging.getLogger("snipeit.backtest")
 
 CURVE_THRESHOLD = 300
 
 _TF_MINUTES = {
-    "1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30,
-    "1h": 60, "2h": 120, "4h": 240, "6h": 360, "8h": 480, "12h": 720,
-    "1d": 1440, "3d": 4320, "1w": 10080,
+    "1m": 1,
+    "3m": 3,
+    "5m": 5,
+    "15m": 15,
+    "30m": 30,
+    "1h": 60,
+    "2h": 120,
+    "4h": 240,
+    "6h": 360,
+    "8h": 480,
+    "12h": 720,
+    "1d": 1440,
+    "3d": 4320,
+    "1w": 10080,
 }
+
 
 def _timeframe_to_minutes(tf: str) -> int:
     """Converts a timeframe string (e.g. '4h', '1d') to minutes."""
     return _TF_MINUTES.get(tf, 60)  # default to 1h if unknown
+
+
 OPERATORS = {
-    ">":           lambda a, b, pa, pb: a > b,
-    "<":           lambda a, b, pa, pb: a < b,
-    ">=":          lambda a, b, pa, pb: a >= b,
-    "<=":          lambda a, b, pa, pb: a <= b,
-    "==":          lambda a, b, pa, pb: abs(a - b) < 1e-9,
-    "cross_above": lambda a, b, pa, pb: pa is not None and pb is not None and pa <= pb and a > b,
-    "cross_below": lambda a, b, pa, pb: pa is not None and pb is not None and pa >= pb and a < b,
+    ">": lambda a, b, pa, pb: a > b,
+    "<": lambda a, b, pa, pb: a < b,
+    ">=": lambda a, b, pa, pb: a >= b,
+    "<=": lambda a, b, pa, pb: a <= b,
+    "==": lambda a, b, pa, pb: abs(a - b) < 1e-9,
+    "cross_above": lambda a, b, pa, pb: pa is not None
+    and pb is not None
+    and pa <= pb
+    and a > b,
+    "cross_below": lambda a, b, pa, pb: pa is not None
+    and pb is not None
+    and pa >= pb
+    and a < b,
 }
 
 _COMBINE_OPS = {
@@ -68,7 +95,16 @@ _COMBINE_OPS = {
 }
 
 
-def _resolve_ref(df: pd.DataFrame, indicator: str, period, idx: int, source=None, offset: int = 0, timeframe=None, settings=None):
+def _resolve_ref(
+    df: pd.DataFrame,
+    indicator: str,
+    period,
+    idx: int,
+    source=None,
+    offset: int = 0,
+    timeframe=None,
+    settings=None,
+):
     """
     Resolves an indicator ref at `idx`, shifted back by `offset` candles
     (offset=0 -> current candle, offset=1 -> previous candle, ...).
@@ -97,38 +133,74 @@ def _resolve_expr(df: pd.DataFrame, cond: dict, idx: int, prefix: str = ""):
     (combineSettings/valueCombineSettings).
     Returns (current_value, previous_value), both float or None.
     """
-    ind_key    = f"{prefix}Indicator" if prefix else "indicator"
-    per_key    = f"{prefix}IndicatorPeriod" if prefix else "period"
-    src_key    = f"{prefix}IndicatorSource" if prefix else "source"
-    off_key    = f"{prefix}IndicatorOffset" if prefix else "offset"
-    tf_key     = f"{prefix}IndicatorTimeframe" if prefix else "timeframe"
-    set_key    = f"{prefix}IndicatorSettings" if prefix else "settings"
-    cop_key    = f"{prefix}CombineOp" if prefix else "combineOp"
-    cind_key   = f"{prefix}CombineIndicator" if prefix else "combineIndicator"
-    cper_key   = f"{prefix}CombinePeriod" if prefix else "combinePeriod"
-    csrc_key   = f"{prefix}CombineSource" if prefix else "combineSource"
-    coff_key   = f"{prefix}CombineOffset" if prefix else "combineOffset"
-    cset_key   = f"{prefix}CombineSettings" if prefix else "combineSettings"
+    ind_key = f"{prefix}Indicator" if prefix else "indicator"
+    per_key = f"{prefix}IndicatorPeriod" if prefix else "period"
+    src_key = f"{prefix}IndicatorSource" if prefix else "source"
+    off_key = f"{prefix}IndicatorOffset" if prefix else "offset"
+    tf_key = f"{prefix}IndicatorTimeframe" if prefix else "timeframe"
+    set_key = f"{prefix}IndicatorSettings" if prefix else "settings"
+    cop_key = f"{prefix}CombineOp" if prefix else "combineOp"
+    cind_key = f"{prefix}CombineIndicator" if prefix else "combineIndicator"
+    cper_key = f"{prefix}CombinePeriod" if prefix else "combinePeriod"
+    csrc_key = f"{prefix}CombineSource" if prefix else "combineSource"
+    coff_key = f"{prefix}CombineOffset" if prefix else "combineOffset"
+    cset_key = f"{prefix}CombineSettings" if prefix else "combineSettings"
 
-    offset    = cond.get(off_key) or 0
+    offset = cond.get(off_key) or 0
     timeframe = cond.get(tf_key)
-    settings  = cond.get(set_key)
-    val  = _resolve_ref(df, cond[ind_key], cond.get(per_key), idx,     cond.get(src_key), offset, timeframe, settings)
-    prev = _resolve_ref(df, cond[ind_key], cond.get(per_key), idx - 1, cond.get(src_key), offset, timeframe, settings)
+    settings = cond.get(set_key)
+    val = _resolve_ref(
+        df,
+        cond[ind_key],
+        cond.get(per_key),
+        idx,
+        cond.get(src_key),
+        offset,
+        timeframe,
+        settings,
+    )
+    prev = _resolve_ref(
+        df,
+        cond[ind_key],
+        cond.get(per_key),
+        idx - 1,
+        cond.get(src_key),
+        offset,
+        timeframe,
+        settings,
+    )
 
     if val is None:
         return None, None
 
     combine_op = cond.get(cop_key)
     if combine_op:
-        c_offset   = cond.get(coff_key) or 0
+        c_offset = cond.get(coff_key) or 0
         c_settings = cond.get(cset_key)
-        c_val  = _resolve_ref(df, cond[cind_key], cond.get(cper_key), idx,     cond.get(csrc_key), c_offset, timeframe, c_settings)
-        c_prev = _resolve_ref(df, cond[cind_key], cond.get(cper_key), idx - 1, cond.get(csrc_key), c_offset, timeframe, c_settings)
+        c_val = _resolve_ref(
+            df,
+            cond[cind_key],
+            cond.get(cper_key),
+            idx,
+            cond.get(csrc_key),
+            c_offset,
+            timeframe,
+            c_settings,
+        )
+        c_prev = _resolve_ref(
+            df,
+            cond[cind_key],
+            cond.get(cper_key),
+            idx - 1,
+            cond.get(csrc_key),
+            c_offset,
+            timeframe,
+            c_settings,
+        )
         fn = _COMBINE_OPS.get(combine_op)
         if fn is None or c_val is None:
             return None, None
-        val  = fn(val, c_val)
+        val = fn(val, c_val)
         prev = fn(prev, c_prev) if (prev is not None and c_prev is not None) else None
         if val is None:
             return None, None
@@ -153,7 +225,7 @@ def _eval_single(df: pd.DataFrame, cond: dict, idx: int) -> bool:
             prev_b *= value_multiplier
     else:
         threshold = float(cond["value"])
-        prev_b    = threshold
+        prev_b = threshold
 
     fn = OPERATORS.get(operator)
     if not fn:
@@ -179,8 +251,8 @@ def eval_condition(df: pd.DataFrame, cond: dict, idx: int) -> bool:
     if lookback <= 1:
         return _eval_single(df, cond, idx)
 
-    mode      = cond.get("lookbackMode", "all")
-    start     = idx - lookback + 1
+    mode = cond.get("lookbackMode", "all")
+    start = idx - lookback + 1
     if start < 0:
         return False  # not enough history yet for the full window
 
@@ -241,16 +313,21 @@ def _try_vectorize_conditions(df: pd.DataFrame, conditions: list):
             return None
         if cond.get("valueIndicator"):
             return None
-        if cond.get("offset") or cond.get("combineOp") or cond.get("timeframe") or cond.get("settings"):
+        if (
+            cond.get("offset")
+            or cond.get("combineOp")
+            or cond.get("timeframe")
+            or cond.get("settings")
+        ):
             return None
         lookback = cond.get("lookback") or 1
         if lookback > 1:
             return None
 
         indicator = cond["indicator"]
-        period    = cond.get("period")
-        source    = cond.get("source")
-        meta      = REGISTRY.get(indicator)
+        period = cond.get("period")
+        source = cond.get("source")
+        meta = REGISTRY.get(indicator)
         if not meta:
             return None
         if "extra_params" in meta:
@@ -262,20 +339,28 @@ def _try_vectorize_conditions(df: pd.DataFrame, conditions: list):
 
         if col not in df.columns:
             return None
-        
+
         if "value" not in cond:
             return None
         threshold = float(cond["value"])
-        series    = df[col].to_numpy(dtype=float)
+        series = df[col].to_numpy(dtype=float)
 
-        if   op == ">":  mask = series >  threshold
-        elif op == "<":  mask = series <  threshold
-        elif op == ">=": mask = series >= threshold
-        elif op == "<=": mask = series <= threshold
-        elif op == "==": mask = np.abs(series - threshold) < 1e-9
-        else:            return None
+        if op == ">":
+            mask = series > threshold
+        elif op == "<":
+            mask = series < threshold
+        elif op == ">=":
+            mask = series >= threshold
+        elif op == "<=":
+            mask = series <= threshold
+        elif op == "==":
+            mask = np.abs(series - threshold) < 1e-9
+        else:
+            return None
 
-        mask    = mask & ~np.isnan(series)   # NaN -> condition False, same as resolve_value -> None
+        mask = mask & ~np.isnan(
+            series
+        )  # NaN -> condition False, same as resolve_value -> None
         result &= mask
 
     return result
@@ -288,11 +373,13 @@ def _parse_trading_hours(slots: list) -> list:
     for slot in slots:
         sh, sm = map(int, slot["start"].split(":"))
         eh, em = map(int, slot["end"].split(":"))
-        parsed.append({
-            "s_min":     sh * 60 + sm,
-            "e_min":     eh * 60 + em,
-            "blockSell": slot.get("blockSell", False),
-        })
+        parsed.append(
+            {
+                "s_min": sh * 60 + sm,
+                "e_min": eh * 60 + em,
+                "blockSell": slot.get("blockSell", False),
+            }
+        )
     return parsed
 
 
@@ -309,15 +396,15 @@ def _precompute_trading_hours(ts_arr, parsed_slots: list):
         return np.ones(n, dtype=bool), np.ones(n, dtype=bool)
 
     ts_pd = pd.DatetimeIndex(ts_arr)
-    hhmm  = (ts_pd.hour * 60 + ts_pd.minute).to_numpy()
+    hhmm = (ts_pd.hour * 60 + ts_pd.minute).to_numpy()
 
     in_any_slot = np.zeros(n, dtype=bool)
     for slot in parsed_slots:
         in_any_slot |= (hhmm >= slot["s_min"]) & (hhmm < slot["e_min"])
 
     block_sell = any(s["blockSell"] for s in parsed_slots)
-    can_buy    = in_any_slot
-    can_sell   = in_any_slot | (not block_sell)
+    can_buy = in_any_slot
+    can_sell = in_any_slot | (not block_sell)
     return can_buy, can_sell
 
 
@@ -339,12 +426,13 @@ def _in_trading_hours(timestamp, slots: list) -> tuple[bool, bool]:
         s_min = sh * 60 + sm
         e_min = eh * 60 + em
         if s_min <= hhmm < e_min:
-            return True, True # within range -> everything allowed
+            return True, True  # within range -> everything allowed
 
     # Outside all ranges
     # blockSell: if AT LEAST ONE slot has blockSell=True -> sell is also blocked
     block_sell = any(slot.get("blockSell", False) for slot in slots)
     return False, not block_sell
+
 
 def _warmup_candles(needed_indicators: list) -> int:
     """
@@ -356,10 +444,15 @@ def _warmup_candles(needed_indicators: list) -> int:
     in that group's own candle size).
     """
     from indicators import REGISTRY
+
     # Hardcoded minimums for indicators with no variable 'period' param
     FIXED_MINIMUMS = {
-        "MACD": 34, "MACD_SIGNAL": 34, "MACD_HIST": 34,
-        "VWAP": 1, "CLOSE": 1, "VOLUME": 1
+        "MACD": 34,
+        "MACD_SIGNAL": 34,
+        "MACD_HIST": 34,
+        "VWAP": 1,
+        "CLOSE": 1,
+        "VOLUME": 1,
     }
     max_period = 1
     for indicator, period, *_ in needed_indicators:
@@ -383,7 +476,9 @@ def _group_needed_by_timeframe(needed_htf: list) -> dict:
     return groups
 
 
-def _merge_htf_column(base_ts_arr, htf_timestamps, htf_values, htf_tf_minutes: int) -> np.ndarray:
+def _merge_htf_column(
+    base_ts_arr, htf_timestamps, htf_values, htf_tf_minutes: int
+) -> np.ndarray:
     """
     Aligns an HTF-computed column onto the base timeframe's index, without
     look-ahead: for each base candle (open time T), the value used is the
@@ -395,18 +490,27 @@ def _merge_htf_column(base_ts_arr, htf_timestamps, htf_values, htf_tf_minutes: i
     # (freshly fetched) can end up with different datetime64 resolutions
     # (ms/us/ns) depending on how each was produced upstream - merge_asof
     # refuses to compare mismatched resolutions, so normalize both to ns.
-    right = pd.DataFrame({
-        "close_time": (pd.DatetimeIndex(htf_timestamps).astype("datetime64[ns]")
-                        + pd.Timedelta(minutes=htf_tf_minutes)),
-        "val": htf_values,
-    })
-    left = pd.DataFrame({"timestamp": pd.DatetimeIndex(base_ts_arr).astype("datetime64[ns]")})
-    merged = pd.merge_asof(left, right, left_on="timestamp", right_on="close_time", direction="backward")
+    right = pd.DataFrame(
+        {
+            "close_time": (
+                pd.DatetimeIndex(htf_timestamps).astype("datetime64[ns]")
+                + pd.Timedelta(minutes=htf_tf_minutes)
+            ),
+            "val": htf_values,
+        }
+    )
+    left = pd.DataFrame(
+        {"timestamp": pd.DatetimeIndex(base_ts_arr).astype("datetime64[ns]")}
+    )
+    merged = pd.merge_asof(
+        left, right, left_on="timestamp", right_on="close_time", direction="backward"
+    )
     return merged["val"].to_numpy()
 
 
-def _compute_htf_columns(df_base: pd.DataFrame, needed_htf: list, pair: str,
-                          exchange: str, start_date: str) -> pd.DataFrame:
+def _compute_htf_columns(
+    df_base: pd.DataFrame, needed_htf: list, pair: str, exchange: str, start_date: str
+) -> pd.DataFrame:
     """
     For every (indicator, period, source, timeframe) tuple whose timeframe
     differs from the strategy's base one, fetches that timeframe's own OHLCV
@@ -421,18 +525,26 @@ def _compute_htf_columns(df_base: pd.DataFrame, needed_htf: list, pair: str,
     if not needed_htf:
         return df_base
 
-    df_base   = df_base.copy()
-    base_ts   = df_base["timestamp"].to_numpy()
+    df_base = df_base.copy()
+    base_ts = df_base["timestamp"].to_numpy()
     real_start = pd.Timestamp(start_date[:10])
 
     for tf, items in _group_needed_by_timeframe(needed_htf).items():
         tf_minutes = _timeframe_to_minutes(tf)
-        warmup_n   = _warmup_candles(items)
+        warmup_n = _warmup_candles(items)
         warmup_start = real_start - pd.Timedelta(minutes=tf_minutes * warmup_n)
 
-        htf_df = get_ohlcv(pair, tf, warmup_start.strftime("%Y-%m-%d"), df_base["timestamp"].iloc[-1].strftime("%Y-%m-%d"), exchange)
+        htf_df = get_ohlcv(
+            pair,
+            tf,
+            warmup_start.strftime("%Y-%m-%d"),
+            df_base["timestamp"].iloc[-1].strftime("%Y-%m-%d"),
+            exchange,
+        )
         if htf_df.empty:
-            log.warning(f"HTF fetch returned no data for {pair} {tf} - conditions using this timeframe will stay inert")
+            log.warning(
+                f"HTF fetch returned no data for {pair} {tf} - conditions using this timeframe will stay inert"
+            )
             continue
 
         htf_df = compute_all(htf_df, items)
@@ -440,16 +552,21 @@ def _compute_htf_columns(df_base: pd.DataFrame, needed_htf: list, pair: str,
 
         for item in items:
             indicator = item[0]
-            period    = item[1]
-            source    = item[2] if len(item) > 2 else None
-            settings  = dict(item[4]) if len(item) > 4 and item[4] else None
+            period = item[1]
+            source = item[2] if len(item) > 2 else None
+            settings = dict(item[4]) if len(item) > 4 and item[4] else None
             col = column_name(indicator, period, source, settings)
             if col is None or col not in htf_df.columns:
                 continue
             aligned_col = f"{col}@{tf}"
             if aligned_col in df_base.columns:
                 continue
-            df_base[aligned_col] = _merge_htf_column(base_ts, htf_df["timestamp"].to_numpy(), htf_df[col].to_numpy(), tf_minutes)
+            df_base[aligned_col] = _merge_htf_column(
+                base_ts,
+                htf_df["timestamp"].to_numpy(),
+                htf_df[col].to_numpy(),
+                tf_minutes,
+            )
 
     return df_base
 
@@ -461,27 +578,35 @@ def run_backtest(strategy: dict) -> dict:
     """
     from ohlcv_cache import get_ohlcv
 
-    pair            = strategy["pair"]
-    timeframe       = strategy["timeframe"]
-    start_date      = strategy["startDate"]
-    end_date        = strategy["endDate"]
+    pair = strategy["pair"]
+    timeframe = strategy["timeframe"]
+    start_date = strategy["startDate"]
+    end_date = strategy["endDate"]
     initial_capital = float(strategy["initialCapital"])
-    position_size   = float(strategy["positionSize"]) / 100
-    stop_loss_val   = float(strategy["stopLoss"])   if strategy.get("stopLoss")   else None
-    take_profit_val = float(strategy["takeProfit"]) if strategy.get("takeProfit") else None
-    trailing_stop_loss_val = float(strategy["trailingStopLoss"]) if strategy.get("trailingStopLoss") else None
-    sl_type         = strategy.get("slType", "percent")   # "percent" | "atr"
-    tp_type         = strategy.get("tpType", "percent")   # "percent" | "atr"
-    atr_period      = int(strategy.get("atrPeriod") or 14)
-    if sl_type not in ("percent", "atr"): sl_type = "percent"
-    if tp_type not in ("percent", "atr"): tp_type = "percent"
-    fee_taker       = float(strategy.get("feeTaker", 0.0)) / 100 # % -> ratio
-    fee_maker       = float(strategy.get("feeMaker", 0.0)) / 100
-    trading_hours   = strategy.get("tradingHours") or [] # [{start, end, blockSell?}]
-    conditions      = strategy.get("conditions", {})
-    entry_conds     = conditions.get("entry", [])
-    exit_conds      = conditions.get("exit", [])
-    exchange        = strategy.get("exchange", "binance")
+    position_size = float(strategy["positionSize"]) / 100
+    stop_loss_val = float(strategy["stopLoss"]) if strategy.get("stopLoss") else None
+    take_profit_val = (
+        float(strategy["takeProfit"]) if strategy.get("takeProfit") else None
+    )
+    trailing_stop_loss_val = (
+        float(strategy["trailingStopLoss"])
+        if strategy.get("trailingStopLoss")
+        else None
+    )
+    sl_type = strategy.get("slType", "percent")  # "percent" | "atr"
+    tp_type = strategy.get("tpType", "percent")  # "percent" | "atr"
+    atr_period = int(strategy.get("atrPeriod") or 14)
+    if sl_type not in ("percent", "atr"):
+        sl_type = "percent"
+    if tp_type not in ("percent", "atr"):
+        tp_type = "percent"
+    fee_taker = float(strategy.get("feeTaker", 0.0)) / 100  # % -> ratio
+    fee_maker = float(strategy.get("feeMaker", 0.0)) / 100
+    trading_hours = strategy.get("tradingHours") or []  # [{start, end, blockSell?}]
+    conditions = strategy.get("conditions", {})
+    entry_conds = conditions.get("entry", [])
+    exit_conds = conditions.get("exit", [])
+    exchange = strategy.get("exchange", "binance")
 
     # OHLCV (from cache or download)
     log.info(f"OHLCV: {pair} {timeframe} {start_date[:10]} -> {end_date[:10]}")
@@ -496,7 +621,10 @@ def run_backtest(strategy: dict) -> dict:
     # A ref explicitly set to the strategy's own timeframe behaves exactly
     # like "no timeframe specified" - normalize both to None so downstream
     # code has a single code path for "base timeframe".
-    needed = [(i, p, s, None if (not tf or tf == timeframe) else tf, se) for (i, p, s, tf, se) in needed]
+    needed = [
+        (i, p, s, None if (not tf or tf == timeframe) else tf, se)
+        for (i, p, s, tf, se) in needed
+    ]
 
     # Only HTF (slower) refs make sense. A "finer" timeframe than the
     # strategy's own can't add real precision: the simulation loop only
@@ -515,10 +643,12 @@ def run_backtest(strategy: dict) -> dict:
 
     # ATR is always computed: SL/TP may need it, and it's also the reference
     # unit for MAE expressed in ATR (alongside the % version, for the toggle).
-    needed.append(("ATR", atr_period, None, None, None))  # always evaluated on the base timeframe
+    needed.append(
+        ("ATR", atr_period, None, None, None)
+    )  # always evaluated on the base timeframe
 
     base_needed = [n for n in needed if n[3] is None]
-    htf_needed  = [n for n in needed if n[3] is not None]
+    htf_needed = [n for n in needed if n[3] is not None]
 
     def _max_lookback(conds: list) -> int:
         m = 1
@@ -530,15 +660,19 @@ def run_backtest(strategy: dict) -> dict:
 
     max_lookback = max(_max_lookback(entry_conds), _max_lookback(exit_conds))
 
-    warmup_n     = max(_warmup_candles(base_needed), max_lookback)
-    tf_minutes   = _timeframe_to_minutes(timeframe)
+    warmup_n = max(_warmup_candles(base_needed), max_lookback)
+    tf_minutes = _timeframe_to_minutes(timeframe)
     warmup_delta = pd.Timedelta(minutes=tf_minutes * warmup_n)
-    real_start   = pd.Timestamp(start_date[:10])
+    real_start = pd.Timestamp(start_date[:10])
     warmup_start = real_start - warmup_delta
 
     # Fetch with warmup prefix - get_ohlcv handles cache transparently
-    df_full = get_ohlcv(pair, timeframe, warmup_start.strftime("%Y-%m-%d"), end_date, exchange)
-    log.info(f"{len(df_full)} candles (including up to {warmup_n} warmup candles before {start_date[:10]})")
+    df_full = get_ohlcv(
+        pair, timeframe, warmup_start.strftime("%Y-%m-%d"), end_date, exchange
+    )
+    log.info(
+        f"{len(df_full)} candles (including up to {warmup_n} warmup candles before {start_date[:10]})"
+    )
 
     if df_full.empty or len(df_full) < 2:
         raise ValueError("Not enough data for backtest (< 2 candles)")
@@ -553,10 +687,14 @@ def run_backtest(strategy: dict) -> dict:
     actual_data_start = df_full["timestamp"].iloc[0]
     if actual_data_start < real_start:
         df = df_full[df_full["timestamp"] >= real_start].reset_index(drop=True)
-        log.info(f"Warmup trimmed: {len(df_full) - len(df)} candles discarded, {len(df)} remain for simulation")
+        log.info(
+            f"Warmup trimmed: {len(df_full) - len(df)} candles discarded, {len(df)} remain for simulation"
+        )
     else:
         df = df_full
-        log.info(f"Data starts at {actual_data_start.date()} (>= requested {real_start.date()}), no warmup trim applied")
+        log.info(
+            f"Data starts at {actual_data_start.date()} (>= requested {real_start.date()}), no warmup trim applied"
+        )
 
     if df.empty or len(df) < 2:
         raise ValueError("Not enough data after warmup trim (< 2 candles)")
@@ -569,54 +707,70 @@ def run_backtest(strategy: dict) -> dict:
         df = _compute_htf_columns(df, htf_needed, pair, exchange, start_date)
 
     # Simulation
-    capital  = initial_capital
-    position = None   # dict or None
-    trades   = []
+    capital = initial_capital
+    position = None  # dict or None
+    trades = []
     equity_dates = []
-    equity_raw   = []  # accumulated unrounded; rounded once in bulk after the loop (perf)
+    equity_raw = []  # accumulated unrounded; rounded once in bulk after the loop (perf)
 
     # Signals are evaluated on candle [idx] but executed on [idx+1].
     # This avoids look-ahead bias: a candle must be closed before acting.
     pending_entry = False
-    pending_exit  = False
+    pending_exit = False
 
     close_arr = df["close"].to_numpy(dtype=float)
-    high_arr  = df["high"].to_numpy(dtype=float)
-    low_arr   = df["low"].to_numpy(dtype=float)
-    ts_arr    = df["timestamp"].to_numpy()
-    date_arr  = [str(pd.Timestamp(t)) for t in ts_arr] # plain python list of str, not np.array
+    high_arr = df["high"].to_numpy(dtype=float)
+    low_arr = df["low"].to_numpy(dtype=float)
+    ts_arr = df["timestamp"].to_numpy()
+    date_arr = [
+        str(pd.Timestamp(t)) for t in ts_arr
+    ]  # plain python list of str, not np.array
 
     if trading_hours:
         parsed_slots = _parse_trading_hours(trading_hours)
         can_buy_arr, can_sell_arr = _precompute_trading_hours(ts_arr, parsed_slots)
     else:
-        can_buy_arr  = np.ones(len(df), dtype=bool)
+        can_buy_arr = np.ones(len(df), dtype=bool)
         can_sell_arr = np.ones(len(df), dtype=bool)
-    
+
     entry_signal_arr = _try_vectorize_conditions(df, entry_conds)
-    exit_signal_arr  = _try_vectorize_conditions(df, exit_conds)
-    use_vec_entry    = entry_signal_arr is not None
-    use_vec_exit     = exit_signal_arr  is not None
-    log.debug(f"Vectorized signals: entry={'yes' if use_vec_entry else 'no (fallback)'}, "
-              f"exit={'yes' if use_vec_exit else 'no (fallback)'}")
+    exit_signal_arr = _try_vectorize_conditions(df, exit_conds)
+    use_vec_entry = entry_signal_arr is not None
+    use_vec_exit = exit_signal_arr is not None
+    log.debug(
+        f"Vectorized signals: entry={'yes' if use_vec_entry else 'no (fallback)'}, "
+        f"exit={'yes' if use_vec_exit else 'no (fallback)'}"
+    )
 
     def _mae(pos):
         """Max adverse excursion since entry, in % and in ATR units (fixed at entry)."""
-        mae_pct = round((pos["lowest_low"] - pos["entry_price"]) / pos["entry_price"] * 100, 2)
-        mae_atr = round((pos["lowest_low"] - pos["entry_price"]) / pos["entry_atr"], 2) if pos.get("entry_atr") else None
+        mae_pct = round(
+            (pos["lowest_low"] - pos["entry_price"]) / pos["entry_price"] * 100, 2
+        )
+        mae_atr = (
+            round((pos["lowest_low"] - pos["entry_price"]) / pos["entry_atr"], 2)
+            if pos.get("entry_atr")
+            else None
+        )
         return mae_pct, mae_atr
 
     def _mfe(pos):
         """Max favorable excursion since entry, in % and in ATR units (fixed at entry).
         The inverse of MAE: how much unrealized profit was on the table before
         the trade eventually turned around and closed at a loss."""
-        mfe_pct = round((pos["highest_high"] - pos["entry_price"]) / pos["entry_price"] * 100, 2)
-        mfe_atr = round((pos["highest_high"] - pos["entry_price"]) / pos["entry_atr"], 2) if pos.get("entry_atr") else None
+        mfe_pct = round(
+            (pos["highest_high"] - pos["entry_price"]) / pos["entry_price"] * 100, 2
+        )
+        mfe_atr = (
+            round((pos["highest_high"] - pos["entry_price"]) / pos["entry_atr"], 2)
+            if pos.get("entry_atr")
+            else None
+        )
         return mfe_pct, mfe_atr
 
     for idx in range(len(df)):
         price = float(close_arr[idx])
-        date  = date_arr[idx]
+        date = date_arr[idx]
 
         # Trading hours are checked once per candle and used to gate the
         # EXECUTION of orders (this candle, where capital actually moves),
@@ -632,8 +786,10 @@ def run_backtest(strategy: dict) -> dict:
         # updated before any exit path so the exit candle's own low/high is
         # included regardless of which branch closes the trade below.
         if position is not None:
-            position["lowest_low"]   = min(position["lowest_low"],   float(low_arr[idx]))
-            position["highest_high"] = max(position["highest_high"], float(high_arr[idx]))
+            position["lowest_low"] = min(position["lowest_low"], float(low_arr[idx]))
+            position["highest_high"] = max(
+                position["highest_high"], float(high_arr[idx])
+            )
 
         # Execute orders decided on the previous candle
         if pending_entry and position is None:
@@ -643,14 +799,23 @@ def run_backtest(strategy: dict) -> dict:
                     qty = allocated / price
                     position = {
                         "entry_price": price,
-                        "qty":         qty,
-                        "allocated":   allocated,
-                        "entry_date":  date,
+                        "qty": qty,
+                        "allocated": allocated,
+                        "entry_date": date,
                         "trailing_high": price,
-                        "lowest_low":  price,
+                        "lowest_low": price,
                         "highest_high": price,
-                        "entry_atr":   resolve_value(df, "ATR", atr_period, idx),
+                        "entry_atr": resolve_value(df, "ATR", atr_period, idx),
                     }
+                    # Entry candle's own wick counts toward MAE/MFE too, same as it
+                    # already does for trailing_high below - otherwise a wide entry
+                    # wick moves the trailing stop without ever showing up in MFE.
+                    position["lowest_low"] = min(
+                        position["lowest_low"], float(low_arr[idx])
+                    )
+                    position["highest_high"] = max(
+                        position["highest_high"], float(high_arr[idx])
+                    )
                     capital -= allocated
                     capital -= allocated * fee_taker
                     log.debug(f"BUY   {date} {qty:.6f} @ {price:.4f}")
@@ -659,9 +824,15 @@ def run_backtest(strategy: dict) -> dict:
         # Check SL/TP before potential signal sell
         if pending_exit and position is not None:
             if trailing_stop_loss_val is not None:
-                _sl_check = position["trailing_high"] * (1 - trailing_stop_loss_val / 100)
+                _sl_check = position["trailing_high"] * (
+                    1 - trailing_stop_loss_val / 100
+                )
             elif stop_loss_val is not None:
-                _atr = resolve_value(df, "ATR", atr_period, idx) if sl_type == "atr" else None
+                _atr = (
+                    resolve_value(df, "ATR", atr_period, idx)
+                    if sl_type == "atr"
+                    else None
+                )
                 if sl_type == "atr" and _atr:
                     _sl_check = position["entry_price"] - stop_loss_val * _atr
                 else:
@@ -671,7 +842,11 @@ def run_backtest(strategy: dict) -> dict:
 
             _tp_check = None
             if take_profit_val is not None:
-                _atr_tp = resolve_value(df, "ATR", atr_period, idx) if tp_type == "atr" else None
+                _atr_tp = (
+                    resolve_value(df, "ATR", atr_period, idx)
+                    if tp_type == "atr"
+                    else None
+                )
                 if tp_type == "atr" and _atr_tp:
                     _tp_check = position["entry_price"] + take_profit_val * _atr_tp
                 else:
@@ -683,38 +858,42 @@ def run_backtest(strategy: dict) -> dict:
                 pending_exit = False
 
         if pending_exit and position is not None and can_sell:
-            buy_fee      = position["allocated"] * fee_taker
-            sell_fee     = position["qty"] * price * fee_taker
-            proceeds     = position["qty"] * price - sell_fee
-            net_entry    = position["allocated"] + buy_fee
-            pct_change   = (proceeds - net_entry) / net_entry
-            pnl_pct      = round(pct_change * 100, 2)
-            trades.append({
-                "side":       "buy",
-                "date":       position["entry_date"],
-                "price":      round(position["entry_price"], 4),
-                "quantity":   round(position["qty"], 6),
-                "value":      round(position["allocated"], 2),
-                "pnl":        None,
-            })
+            buy_fee = position["allocated"] * fee_taker
+            sell_fee = position["qty"] * price * fee_taker
+            proceeds = position["qty"] * price - sell_fee
+            net_entry = position["allocated"] + buy_fee
+            pct_change = (proceeds - net_entry) / net_entry
+            pnl_pct = round(pct_change * 100, 2)
+            trades.append(
+                {
+                    "side": "buy",
+                    "date": position["entry_date"],
+                    "price": round(position["entry_price"], 4),
+                    "quantity": round(position["qty"], 6),
+                    "value": round(position["allocated"], 2),
+                    "pnl": None,
+                }
+            )
             mae_pct, mae_atr = _mae(position)
             mfe_pct, mfe_atr = _mfe(position)
-            trades.append({
-                "side":       "sell",
-                "date":       date,
-                "price":      round(price, 4),
-                "quantity":   round(position["qty"], 6),
-                "value":      round(proceeds, 2),
-                "pnl":        pnl_pct,
-                "entryDate":  position["entry_date"],
-                "entryPrice": round(position["entry_price"], 4),
-                "allocated": round(position["allocated"], 2),
-                "reason":     "signal",
-                "mae":        mae_pct,
-                "maeAtr":     mae_atr,
-                "mfe":        mfe_pct,
-                "mfeAtr":     mfe_atr,
-            })
+            trades.append(
+                {
+                    "side": "sell",
+                    "date": date,
+                    "price": round(price, 4),
+                    "quantity": round(position["qty"], 6),
+                    "value": round(proceeds, 2),
+                    "pnl": pnl_pct,
+                    "entryDate": position["entry_date"],
+                    "entryPrice": round(position["entry_price"], 4),
+                    "allocated": round(position["allocated"], 2),
+                    "reason": "signal",
+                    "mae": mae_pct,
+                    "maeAtr": mae_atr,
+                    "mfe": mfe_pct,
+                    "mfeAtr": mfe_atr,
+                }
+            )
             log.debug(f"SELL  {date} @ {price:.4f} PnL {pnl_pct:+.2f}%")
             capital += proceeds
             position = None
@@ -729,11 +908,15 @@ def run_backtest(strategy: dict) -> dict:
                 if entry_hit:
                     pending_entry = True
         else:
-            low  = float(low_arr[idx])
+            low = float(low_arr[idx])
             high = float(high_arr[idx])
 
             # Compute SL/TP: percent or ATR
-            atr_val = resolve_value(df, "ATR", atr_period, idx) if (sl_type == "atr" or tp_type == "atr") else None
+            atr_val = (
+                resolve_value(df, "ATR", atr_period, idx)
+                if (sl_type == "atr" or tp_type == "atr")
+                else None
+            )
             if stop_loss_val is not None:
                 if sl_type == "atr" and atr_val:
                     sl_price = position["entry_price"] - stop_loss_val * atr_val
@@ -753,7 +936,9 @@ def run_backtest(strategy: dict) -> dict:
             if trailing_stop_loss_val is not None:
                 if high > position["trailing_high"]:
                     position["trailing_high"] = high
-                tsl_price = position["trailing_high"] * (1 - trailing_stop_loss_val / 100)
+                tsl_price = position["trailing_high"] * (
+                    1 - trailing_stop_loss_val / 100
+                )
             else:
                 tsl_price = None
 
@@ -768,42 +953,50 @@ def run_backtest(strategy: dict) -> dict:
                 exit_price = tp_price
 
             if exit_price is not None:
-                buy_fee    = position["allocated"] * fee_taker
-                sell_fee   = position["qty"] * exit_price * fee_taker
-                proceeds   = position["qty"] * exit_price - sell_fee
-                net_entry  = position["allocated"] + buy_fee
+                buy_fee = position["allocated"] * fee_taker
+                sell_fee = position["qty"] * exit_price * fee_taker
+                proceeds = position["qty"] * exit_price - sell_fee
+                net_entry = position["allocated"] + buy_fee
                 pct_change = (proceeds - net_entry) / net_entry
-                pnl_pct    = round(pct_change * 100, 2)
-                reason     = "tsl" if tsl_price is not None and exit_price == tsl_price else "risk"
-                trades.append({
-                    "side":     "buy",
-                    "date":     position["entry_date"],
-                    "price":    round(position["entry_price"], 4),
-                    "quantity": round(position["qty"], 6),
-                    "value":    round(position["allocated"], 2),
-                    "pnl":      None,
-                })
+                pnl_pct = round(pct_change * 100, 2)
+                reason = (
+                    "tsl"
+                    if tsl_price is not None and exit_price == tsl_price
+                    else "risk"
+                )
+                trades.append(
+                    {
+                        "side": "buy",
+                        "date": position["entry_date"],
+                        "price": round(position["entry_price"], 4),
+                        "quantity": round(position["qty"], 6),
+                        "value": round(position["allocated"], 2),
+                        "pnl": None,
+                    }
+                )
                 mae_pct, mae_atr = _mae(position)
                 mfe_pct, mfe_atr = _mfe(position)
-                trades.append({
-                    "side":       "sell",
-                    "date":       date,
-                    "price":      round(exit_price, 4),
-                    "quantity":   round(position["qty"], 6),
-                    "value":      round(proceeds, 2),
-                    "pnl":        pnl_pct,
-                    "entryDate":  position["entry_date"],
-                    "entryPrice": round(position["entry_price"], 4),
-                    "allocated": round(position["allocated"], 2),
-                    "reason":     reason,
-                    "mae":        mae_pct,
-                    "maeAtr":     mae_atr,
-                    "mfe":        mfe_pct,
-                    "mfeAtr":     mfe_atr,
-                })
+                trades.append(
+                    {
+                        "side": "sell",
+                        "date": date,
+                        "price": round(exit_price, 4),
+                        "quantity": round(position["qty"], 6),
+                        "value": round(proceeds, 2),
+                        "pnl": pnl_pct,
+                        "entryDate": position["entry_date"],
+                        "entryPrice": round(position["entry_price"], 4),
+                        "allocated": round(position["allocated"], 2),
+                        "reason": reason,
+                        "mae": mae_pct,
+                        "maeAtr": mae_atr,
+                        "mfe": mfe_pct,
+                        "mfeAtr": mfe_atr,
+                    }
+                )
                 log.debug(f"SL/TP {date} @ {exit_price:.4f} PnL {pnl_pct:+.2f}%")
-                capital  += proceeds
-                position  = None
+                capital += proceeds
+                position = None
             else:
                 # No SL/TP hit - evaluate exit_conds (executed on next candle)
                 if exit_conds:
@@ -820,60 +1013,63 @@ def run_backtest(strategy: dict) -> dict:
     # remaining cost after the numpy-array optimizations above).
     equity_rounded = np.round(np.array(equity_raw, dtype=np.float64), 2)
     equity_curve = [
-        {"date": d, "equity": float(e)}
-        for d, e in zip(equity_dates, equity_rounded)
+        {"date": d, "equity": float(e)} for d, e in zip(equity_dates, equity_rounded)
     ]
 
     # Liquidate open position on the last candle
     if position:
-        buy_fee    = position["allocated"] * fee_taker
+        buy_fee = position["allocated"] * fee_taker
         last_price = float(close_arr[-1])
-        last_date  = str(date_arr[-1])
-        sell_fee   = position["qty"] * last_price * fee_taker
-        proceeds   = position["qty"] * last_price - sell_fee
-        net_entry  = position["allocated"] + buy_fee
+        last_date = str(date_arr[-1])
+        sell_fee = position["qty"] * last_price * fee_taker
+        proceeds = position["qty"] * last_price - sell_fee
+        net_entry = position["allocated"] + buy_fee
         pct_change = (proceeds - net_entry) / net_entry
-        trades.append({
-            "side": "buy",
-            "date": position["entry_date"],
-            "price": round(position["entry_price"], 4),
-            "quantity": round(position["qty"], 6),
-            "value": round(position["allocated"], 2),
-            "pnl": None
-        })
+        trades.append(
+            {
+                "side": "buy",
+                "date": position["entry_date"],
+                "price": round(position["entry_price"], 4),
+                "quantity": round(position["qty"], 6),
+                "value": round(position["allocated"], 2),
+                "pnl": None,
+            }
+        )
         mae_pct, mae_atr = _mae(position)
         mfe_pct, mfe_atr = _mfe(position)
-        trades.append({
-            "side": "sell",
-            "date": last_date,
-            "price": round(last_price, 4),
-            "quantity": round(position["qty"], 6),
-            "value": round(proceeds, 2),
-            "pnl": round(pct_change * 100, 2),
-            "entryDate": position["entry_date"],
-            "entryPrice": round(position["entry_price"], 4),
-            "allocated": round(position["allocated"], 2),
-            "reason": "end",
-            "mae": mae_pct,
-            "maeAtr": mae_atr,
-            "mfe": mfe_pct,
-            "mfeAtr": mfe_atr,
-        })
+        trades.append(
+            {
+                "side": "sell",
+                "date": last_date,
+                "price": round(last_price, 4),
+                "quantity": round(position["qty"], 6),
+                "value": round(proceeds, 2),
+                "pnl": round(pct_change * 100, 2),
+                "entryDate": position["entry_date"],
+                "entryPrice": round(position["entry_price"], 4),
+                "allocated": round(position["allocated"], 2),
+                "reason": "end",
+                "mae": mae_pct,
+                "maeAtr": mae_atr,
+                "mfe": mfe_pct,
+                "mfeAtr": mfe_atr,
+            }
+        )
         capital += proceeds
-    
+
     equity_rounded = np.round(np.array(equity_raw, dtype=np.float64), 2)
 
     result = build_result(
-        trades          = trades,
-        equity_dates    = equity_dates,
-        equity_raw      = equity_rounded,
-        ts_arr          = ts_arr,
-        close_arr       = close_arr,
-        initial_capital = initial_capital,
-        final_capital   = capital,
-        start_date      = start_date,
-        end_date        = end_date,
-        tf_minutes      = tf_minutes,
+        trades=trades,
+        equity_dates=equity_dates,
+        equity_raw=equity_rounded,
+        ts_arr=ts_arr,
+        close_arr=close_arr,
+        initial_capital=initial_capital,
+        final_capital=capital,
+        start_date=start_date,
+        end_date=end_date,
+        tf_minutes=tf_minutes,
     )
-    
+
     return result
