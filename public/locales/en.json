@@ -367,6 +367,7 @@
   "results.equity_chart.equity": "Equity",
   "results.equity_chart.price": "Price",
   "results.exit_reasons.title": "Sell reason distribution",
+  "results.exit_reasons.pct_of_trades": "{pct}% of trades",
   "results.exit_reasons.label_end": "End",
   "results.exit_reasons.label_unknown": "Unknown",
   "results.pnl_distribution.title": "PnL distribution",

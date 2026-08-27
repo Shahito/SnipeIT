@@ -367,6 +367,7 @@
   "results.equity_chart.equity": "Équité",
   "results.equity_chart.price": "Prix",
   "results.exit_reasons.title": "Répartition des raisons de vente",
+  "results.exit_reasons.pct_of_trades": "{pct}% des trades",
   "results.exit_reasons.label_end": "Fin",
   "results.exit_reasons.label_unknown": "Inconnu",
   "results.pnl_distribution.title": "Distribution du PnL",

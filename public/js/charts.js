@@ -629,6 +629,12 @@ class CanvasHistogram {
     return Object.entries(raw).map(([label, d]) => ({ label, ...d }))
   }
 
+  _fmtBucket(v) {
+    const decimals = this.config.labelDecimals ?? 1
+    const suffix = this.config.labelSuffix ?? '%'
+    return (v >= 0 ? '+' : '') + v.toFixed(decimals) + suffix
+  }
+
   _draw() {
     const canvas = document.getElementById(this.canvasId)
     if (!canvas || !this._result) return
@@ -691,7 +697,7 @@ class CanvasHistogram {
       const y = pad.top + cH - barH
       // Determine color: single-color mode (e.g. MAE, not a win/loss metric)
       // bypasses the win/loss split entirely.
-      const isWin = b.label.trimStart().startsWith('+')
+      const isWin = b.lo >= 0
       const fill = this.config.singleColor || (isWin ? colorWin : colorLoss)
       const dimFill = this.config.singleColorDim || (isWin ? colorWinDim : colorLossDim)
 
@@ -748,7 +754,7 @@ class CanvasHistogram {
         if (idx >= 0 && idx < n) {
           const b = this._buckets[idx]
           _showTooltip(e,
-            `<div class="tt-date">${b.label}</div>` +
+            `<div class="tt-date">${this._fmtBucket(b.lo)} · ${this._fmtBucket(b.hi)}</div>` +
             `<span>Trade${b.count > 1 ? 's' : ''}: <strong>${b.count}</strong></span>`
           )
           if (this._hoveredIdx !== idx) {
