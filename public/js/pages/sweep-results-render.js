@@ -1,6 +1,6 @@
 const _tooltip = (() => {
   const el = document.createElement('div')
-  el.className = 'error-tooltip'
+  el.className = 'ctx-tooltip variant-danger'
   document.body.appendChild(el)
   return el
 })()

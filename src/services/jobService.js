@@ -5,7 +5,7 @@ const { refreshSweepGroupStatus } = require('./sweepService')
 const JOB_TAGS_INCLUDE = { jobTags: { include: { tag: true } } }
 
 const JOB_SELECT = {
-  id: true, status: true, createdAt: true, errorMessage: true,
+  id: true, status: true, createdAt: true, startedAt: true, completedAt: true, errorMessage: true,
   pnlPercent: true, totalTrades: true, winRate: true, maxDrawdown: true, sharpeRatio: true,
   pair: true, sweepGroupId: true,
   sweepGroup: { select: { id: true, totalRuns: true, status: true } },

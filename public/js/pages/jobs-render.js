@@ -181,8 +181,9 @@ function renderJobRow(j) {
   return `<div class="job-row" data-id="${j.id}">
     <div class="job-row-main">
       <div class="job-row-left">
-        <span class="status-badge status-${j.status} ${j.status === 'error' && j.errorMessage ? 'has-error-msg' : ''}"
-          data-error-msg="${j.status === 'error' && j.errorMessage ? `${j.id}: ${escAttr(j.errorMessage)}` : ''}">
+        <span class="status-badge status-${j.status} ${j.status === 'error' && j.errorMessage ? 'has-error-msg' : ''} ${j.startedAt && j.completedAt ? 'has-duration' : ''}"
+          data-error-msg="${j.status === 'error' && j.errorMessage ? `${j.id}: ${escAttr(j.errorMessage)}` : ''}"
+          data-duration="${j.startedAt && j.completedAt ? escAttr(fmtDuration(new Date(j.completedAt) - new Date(j.startedAt))) : ''}">
           <span class="status-dot"></span>${t('status.' + j.status)}
         </span>
         <div class="job-row-meta">
@@ -190,8 +191,7 @@ function renderJobRow(j) {
           <div class="job-row-sub">
             <span class="tag tag-primary">${j.pair ?? j.strategySnapshot?.pair ?? '?'}</span>
             <span class="tag">${j.strategySnapshot?.timeframe ?? '?'}</span>
-            <span class="text-muted text-sm">${fmtDateTime(j.createdAt)}</span>
-          </div>
+            <span class="text-muted text-sm">${fmtDateTime(j.createdAt)}</span>          </div>
         </div>
       </div>
       <div class="job-row-metrics">
@@ -233,15 +233,21 @@ function bindJobActions() {
   })
   document.querySelectorAll('[data-partial-error]').forEach(badge => {
     const msg = `<span>${t('sweep.status.partial_error.hint')}</span>`
-    badge.addEventListener('mouseenter', e => _showTooltip(e, msg))
-    badge.addEventListener('mousemove',  e => _showTooltip(e, msg))
+    badge.addEventListener('mouseenter', e => _showTooltip(e, msg, 'danger'))
+    badge.addEventListener('mousemove',  e => _showTooltip(e, msg, 'danger'))
     badge.addEventListener('mouseleave', () => _hideTooltip())
   })
   document.querySelectorAll('.has-error-msg').forEach(badge => {
-    badge.addEventListener('mouseenter', e => _showTooltip(e, `<span>${badge.dataset.errorMsg}</span>`))
-    badge.addEventListener('mousemove',  e => _showTooltip(e, `<span>${badge.dataset.errorMsg}</span>`))
+    badge.addEventListener('mouseenter', e => _showTooltip(e, `<span>${badge.dataset.errorMsg}</span>`, 'danger'))
+    badge.addEventListener('mousemove',  e => _showTooltip(e, `<span>${badge.dataset.errorMsg}</span>`, 'danger'))
     badge.addEventListener('mouseleave', () => _hideTooltip())
-    badge.addEventListener('click',      e => { e.stopPropagation(); _showTooltip(e, `<span>${badge.dataset.errorMsg}</span>`) })
+    badge.addEventListener('click',      e => { e.stopPropagation(); _showTooltip(e, `<span>${badge.dataset.errorMsg}</span>`, 'danger') })
+  })
+  document.querySelectorAll('.has-duration').forEach(badge => {
+    const msg = `<span class="tt-with-icon">${ICONS.clock}<span>${badge.dataset.duration}</span></span>`
+    badge.addEventListener('mouseenter', e => _showTooltip(e, msg))
+    badge.addEventListener('mousemove',  e => _showTooltip(e, msg))
+    badge.addEventListener('mouseleave', () => _hideTooltip())
   })
 }
 
@@ -249,4 +255,14 @@ window.addEventListener('scroll', () => _hideTooltip(), { passive: true })
 
 function fmtDateTime(d) {
   return new Date(d).toLocaleString(i18nCurrentLang() === 'fr' ? 'fr-FR' : 'en-US', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' })
+}
+
+function fmtDuration(ms) {
+  if (!ms || ms < 0) return null
+  const s = Math.round(ms / 1000)
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}min ${s % 60}s`
+  const h = Math.floor(m / 60)
+  return `${h}h ${m % 60}min`
 }

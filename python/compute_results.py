@@ -50,49 +50,47 @@ REASON_CODES = {"risk": 0, "tsl": 1, "signal": 2, "end": 3}
 
 
 # Pnl buckets (histogram)
-def _pnl_buckets(sell_trades: list, bucket_count: int = 30) -> list:
+def _pnl_buckets(sell_trades: list, min_bins: int = 8, max_bins: int = 40) -> list:
     """
-    Returns a list of dicts: [{label, count, wins, losses, lo}, ...]
+    Returns a list of dicts: [{count, wins, losses, lo, hi}, ...]
+    Bin width picked via the Freedman-Diaconis rule on the full
+    wins+losses distribution, so bucket count adapts to the real
+    spread/density of the data instead of an arbitrary fixed split
+    at zero.
     """
     vals = [t["pnl"] for t in sell_trades if t.get("pnl") is not None]
     if not vals:
         return []
 
-    losses = [v for v in vals if v < 0]
-    wins = [v for v in vals if v >= 0]
+    arr = np.array(vals, dtype=float)
+    mn, mx = float(arr.min()), float(arr.max())
+    if mn == mx:
+        wins = int((arr >= 0).sum())
+        return [{
+            "count": len(arr), "wins": wins, "losses": len(arr) - wins,
+            "lo": round(mn, 2), "hi": round(mn + 1, 2),
+        }]
+
+    bin_count = max(10, min(50, math.ceil(2.45 * math.sqrt(len(vals)))))
+    size = (mx - mn) / bin_count
+
+    # Anchor the bin grid on zero so no bucket straddles the win/loss boundary
+    k_start = math.floor(mn / size)
+    k_end = math.ceil(mx / size)
+    edges = [k * size for k in range(k_start, k_end + 1)]
+
     buckets = []
-
-    def _make_buckets(series, half):
-        if not series:
-            return
-        mn, mx = min(series), max(series)
-        size = (mx - mn) / half or 1
-        is_win = series is wins
-        for i in range(half):
-            lo = mn + i * size
-            hi = lo + size
-            last = i == half - 1
-            in_buck = (
-                (lambda v: v >= lo and v <= mx)
-                if last
-                else (lambda v: v >= lo and v < hi)
-            )
-            cnt = sum(1 for v in series if in_buck(v))
-            if cnt:
-                buckets.append(
-                    {
-                        "count":  cnt,
-                        "wins":   cnt if is_win else 0,
-                        "losses": 0 if is_win else cnt,
-                        "lo":     round(lo, 2),
-                        "hi":     round(hi, 2),
-                    }
-                )
-
-    half = math.ceil(bucket_count / 2)
-    _make_buckets(losses, half)
-    _make_buckets(wins, half)
-    buckets.sort(key=lambda b: b["lo"])
+    for i in range(len(edges) - 1):
+        lo, hi = edges[i], edges[i + 1]
+        last = i == len(edges) - 2
+        in_buck = (lambda v: lo <= v <= mx) if last else (lambda v: lo <= v < hi)
+        cnt = sum(1 for v in vals if in_buck(v))
+        if cnt:
+            wins = sum(1 for v in vals if in_buck(v) and v >= 0)
+            buckets.append({
+                "count": cnt, "wins": wins, "losses": cnt - wins,
+                "lo": round(lo, 2), "hi": round(hi, 2),
+            })
     return buckets
 
 

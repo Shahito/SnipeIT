@@ -665,8 +665,11 @@ class CanvasHistogram {
 
     const maxCount = Math.max(...buckets.map(b => b.count))
     const n = buckets.length
-    const barW = Math.max(2, (cW / n) * 0.72)
-    const gap = cW / n
+    const domainLo = Math.min(...buckets.map(b => b.lo))
+    const domainHi = Math.max(...buckets.map(b => b.hi))
+    this._domainLo = domainLo
+    this._domainHi = domainHi
+    const scaleX = v => pad.left + ((v - domainLo) / (domainHi - domainLo || 1)) * cW
     const colorWin = this.config.colorWin || _cssVar('--success') || '#22c55e'
     const colorLoss = this.config.colorLoss || _cssVar('--danger') || '#ef4444'
     const colorWinDim = this.config.colorWinDim || _cssVar('--success-dim') || 'rgba(34,197,94,0.35)'
@@ -690,9 +693,12 @@ class CanvasHistogram {
       ctx.fillText(v, pad.left - 6, y + 4)
     }
 
+    const barGap = 2 // px gap between adjacent bars, purely visual
     // Bars
     buckets.forEach((b, i) => {
-      const x = pad.left + i * gap + (gap - barW) / 2
+      const slotW = scaleX(b.hi) - scaleX(b.lo)
+      const barW = Math.max(1, slotW - barGap)
+      const x = scaleX(b.lo) + (slotW - barW) / 2
       const barH = (b.count / maxCount) * cH
       const y = pad.top + cH - barH
       // Determine color: single-color mode (e.g. MAE, not a win/loss metric)
@@ -728,8 +734,6 @@ class CanvasHistogram {
 
     this._buckets = buckets
     this._pad = pad
-    this._gap = gap
-    this._barW = barW
     this._cH = cH
   }
 
@@ -748,11 +752,14 @@ class CanvasHistogram {
         const rect = canvas.getBoundingClientRect()
         const mouseX = e.clientX - rect.left
         const pad = this._getPad()
-        const n = this._buckets?.length || 0
-        const gap = (canvas.offsetWidth - pad.left - pad.right) / (n || 1)
-        const idx = Math.floor((mouseX - pad.left) / gap)
-        if (idx >= 0 && idx < n) {
-          const b = this._buckets[idx]
+        const buckets = this._buckets || []
+        const domainLo = this._domainLo
+        const domainHi = this._domainHi
+        const cW = canvas.offsetWidth - pad.left - pad.right
+        const v = domainLo + ((mouseX - pad.left) / cW) * (domainHi - domainLo)
+        const idx = buckets.findIndex(b => v >= b.lo && v < b.hi)
+        if (idx >= 0) {
+          const b = buckets[idx]
           _showTooltip(e,
             `<div class="tt-date">${this._fmtBucket(b.lo)} · ${this._fmtBucket(b.hi)}</div>` +
             `<span>Trade${b.count > 1 ? 's' : ''}: <strong>${b.count}</strong></span>`
@@ -827,7 +834,7 @@ function _bucketsFromBinned(binned, decimals = 1, suffix = '%') {
     .map((count, ix) => {
       const lo = binned.xMin + ix * binned.xW
       const hi = lo + binned.xW
-      return { label: `${fmt(lo)} · ${fmt(hi)}`, count, lo }
+      return { label: `${fmt(lo)} · ${fmt(hi)}`, count, lo, hi }
     })
     .filter(b => b.count > 0)
 }
