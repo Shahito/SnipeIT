@@ -742,11 +742,6 @@ i {
     align-items: center;
 }
 
-.card-subtitle {
-    font-size: .75rem;
-    color: var(--text-muted);
-}
-
 /* Strategy cards grid */
 .strategies-grid {
     display: grid;
@@ -2427,8 +2422,7 @@ select.field-invalid {
 
 #pnlDistributionCanvas,
 #maeDistributionCanvas,
-#maeScatterCanvas,
-#equitiesChartCanvas {
+#maeScatterCanvas {
     width: 100%;
     display: block;
 }

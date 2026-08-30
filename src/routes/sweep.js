@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const authRequired = require('../middleware/auth')
-const { previewController, launchController, listController, getController, equityCurvesController } = require('../controllers/sweepController')
+const { previewController, launchController, listController, getController } = require('../controllers/sweepController')
 
 /**
  * @openapi
@@ -78,23 +78,5 @@ router.get('/sweeps', authRequired, listController)
  *       404: { description: SWEEP_NOT_FOUND }
  */
 router.get('/sweeps/:id', authRequired, getController)
-
-/**
- * @openapi
- * /api/sweeps/{id}/equity-curves:
- *   get:
- *     tags: [sweep]
- *     summary: Non-flat equity curves for the sweep's done jobs, plus an averaged curve
- *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: integer }
- *     responses:
- *       200: { description: OK }
- *       404: { description: SWEEP_NOT_FOUND }
- */
-router.get('/sweeps/:id/equity-curves', authRequired, equityCurvesController)
 
 module.exports = router

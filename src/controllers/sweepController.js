@@ -1,4 +1,4 @@
-const { previewSweep, launchSweep, listSweeps, getSweepGroup, getSweepEquityCurves } = require('../services/sweepService')
+const { previewSweep, launchSweep, listSweeps, getSweepGroup } = require('../services/sweepService')
 const { SWEEP_MAX_COMBINATIONS } = require('../config/sweep')
 
 const KNOWN_CODES = new Set([
@@ -50,13 +50,4 @@ async function getController(req, res) {
   }
 }
 
-async function equityCurvesController(req, res) {
-  try {
-    const equityCurves = await getSweepEquityCurves(parseInt(req.params.id), req.user.id)
-    res.json(equityCurves)
-  } catch (e) {
-    res.status(404).json({ error: errorCode(e) })
-  }
-}
-
-module.exports = { previewController, launchController, listController, getController, equityCurvesController }
+module.exports = { previewController, launchController, listController, getController }
