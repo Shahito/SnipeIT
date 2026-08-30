@@ -7,7 +7,13 @@ const ALLOWED_SWEEP_KEYS = new Set([
   'slType', 'tpType', 'atrPeriod', 'conditions',
   'entry', 'exit',
   'indicator', 'operator', 'period', 'source',
-  'valueIndicator', 'valueIndicatorSource', 'valueMultiplier', 'value',
+  'valueIndicator', 'valueIndicatorSource', 'valueIndicatorPeriod', 'valueMultiplier', 'value',
+  'lookback', 'lookbackMode',
+  'offset', 'settings', 'valueMultiplierMode',
+  'combineOp', 'combineIndicator', 'combinePeriod', 'combineSource', 'combineOffset', 'combineSettings',
+  'valueIndicatorOffset', 'valueIndicatorTimeframe', 'valueIndicatorSettings',
+  'valueCombineOp', 'valueCombineIndicator', 'valueCombinePeriod', 'valueCombineSource', 'valueCombineOffset', 'valueCombineSettings',
+  'fast', 'slow', 'signal',
 ])
 
 function assertAllowedKey(key) {

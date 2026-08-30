@@ -931,6 +931,9 @@ i {
 .status-done {
     background: var(--success-dim);
     color: var(--success);
+}
+
+.status-done.has-duration {
     cursor: help;
 }
 

@@ -8,7 +8,9 @@ const KNOWN_CODES = new Set([
 ])
 
 function errorCode(e, fallback = 'UNKNOWN') {
-  return KNOWN_CODES.has(e.message) ? e.message : fallback
+  if (KNOWN_CODES.has(e.message)) return e.message
+  if (e.message?.startsWith('SWEEP_KEY_NOT_ALLOWED:')) return e.message
+  return fallback
 }
 
 async function previewController(req, res) {
