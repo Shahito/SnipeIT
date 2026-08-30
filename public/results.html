@@ -58,7 +58,7 @@
         <div class="metrics-grid" id="metricsGrid"></div>
 
         <!-- Equity chart -->
-        <div class="card card--chart">
+        <div class="card" id="equityCard">
           <div class="card-header">
             <div class="card-title" data-i18n="results.equity_chart.title"></div>
             <div class="chart-toggles" id="equityChartToggles"></div>
@@ -162,15 +162,15 @@
               </button>
             </div>
           </div>
+          <div class="trade-row trades-list-header">
+            <span class="tag" data-i18n="results.trades.col.type"></span>
+            <span class="text-muted text-sm trade-row-date-label" data-i18n="results.trades.col.date"></span>
+            <span class="trade-price" data-i18n="results.trades.col.price"></span>
+            <span class="trade-qty text-muted text-sm" data-i18n="results.trades.col.qty"></span>
+            <span class="trade-value" data-i18n="results.trades.col.value"></span>
+            <span class="trade-pnl trade-pnl-label" data-i18n="results.trades.col.pnl"></span>
+          </div>
           <div class="trades-list" id="tradesList">
-            <div class="trade-row">
-              <span class="tag" data-i18n="results.trades.col.type"></span>
-              <span class="text-muted text-sm trade-row-date-label" data-i18n="results.trades.col.date"></span>
-              <span class="trade-price" data-i18n="results.trades.col.price"></span>
-              <span class="trade-qty text-muted text-sm" data-i18n="results.trades.col.qty"></span>
-              <span class="trade-value" data-i18n="results.trades.col.value"></span>
-              <span class="trade-pnl trade-pnl-label" data-i18n="results.trades.col.pnl"></span>
-            </div>
           </div>
         </div>
       </div>

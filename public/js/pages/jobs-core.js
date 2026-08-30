@@ -1,11 +1,11 @@
-let allJobs      = []
-let allTags      = []
-let currentPage  = 1
-let totalPages   = 1
+let allJobs = []
+let allTags = []
+let currentPage = 1
+let totalPages = 1
 const _pref = JSON.parse(localStorage.getItem('jobs_prefs') || '{}')
-let sortBy     = _pref.sortBy     || 'date'
-let sortAsc    = _pref.sortAsc    ?? false
-let groupBy    = _pref.groupBy    || 'none'
+let sortBy = _pref.sortBy || 'date'
+let sortAsc = _pref.sortAsc ?? false
+let groupBy = _pref.groupBy || 'none'
 let filterStat = _pref.filterStat || 'all'
 let popoverJobId = null
 let collapsedGroups = new Set()
@@ -39,9 +39,9 @@ function savePrefs() {
   localStorage.setItem('jobs_prefs', JSON.stringify({ sortBy, sortAsc, groupBy, filterStat }))
 }
 
-const IDLE_POLL_MS   = 5000
+const IDLE_POLL_MS = 5000
 const ACTIVE_POLL_MS = 5000
-const BG_POLL_MS     = 30000
+const BG_POLL_MS = 30000
 
 function _hasActiveJobs() {
   return allJobs.some(j => j.status === 'pending' || j.status === 'running' ||
@@ -77,7 +77,7 @@ function _onLiveUpdate() {
 function _connectEventStream() {
   const es = new EventSource('/api/events/stream')
   es.addEventListener('sweep:update', _onLiveUpdate)
-  es.onerror = () => {} // EventSource retry auto
+  es.onerror = () => { } // EventSource retry auto
   return es
 }
 
@@ -96,7 +96,7 @@ document.getElementById('refreshBtn').addEventListener('click', () => { loadJobs
 async function pollWorkerStatus() {
   try {
     const { connected, worker } = await api('/worker/status')
-    const el    = document.getElementById('workerStatus')
+    const el = document.getElementById('workerStatus')
     const label = document.getElementById('workerStatusLabel')
     if (connected) {
       el.className = 'status-badge status-running'
@@ -105,7 +105,7 @@ async function pollWorkerStatus() {
       el.className = 'status-badge status-error'
       label.textContent = t('jobs.worker.disconnected')
     }
-  } catch (_) {}
+  } catch (_) { }
 }
 
 let _lastJobsHash = null
@@ -115,7 +115,7 @@ async function loadJobs(page = currentPage) {
     const params = new URLSearchParams({
       page,
       limit: groupBy !== 'none' ? 9999 : 20,
-      sort:  sortField,
+      sort: sortField,
       order: sortAsc ? 'asc' : 'desc',
       ...(filterStat !== 'all' ? { status: filterStat } : {}),
     })
@@ -127,9 +127,9 @@ async function loadJobs(page = currentPage) {
     }
     _lastJobsHash = hash
 
-    allJobs      = jobs
-    currentPage  = page
-    totalPages   = tp
+    allJobs = jobs
+    currentPage = page
+    totalPages = tp
     renderJobs()
     document.getElementById('loadingState').classList.add('hidden')
   } catch (e) {

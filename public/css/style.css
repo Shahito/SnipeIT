@@ -17,7 +17,7 @@
     --primary: #6c8eff;
     --primary-hover: #4f73ff;
     --primary-dim: rgba(108, 142, 255, .15);
-    --primary-dim--strong: rgba(108, 142, 255, .5);
+    --primary-dim-strong: rgba(108, 142, 255, .5);
 
     --success: #3ecf8e;
     --success-dim: rgba(62, 207, 142, .15);
@@ -314,7 +314,7 @@ svg {
 .app-title span {
     color: var(--primary);
     font-weight: 700;
-    text-shadow: 0 0 0.65rem var(--primary-dim--strong);
+    text-shadow: 0 0 0.65rem var(--primary-dim-strong);
 }
 
 .auth-card h2 {
@@ -742,6 +742,11 @@ i {
     align-items: center;
 }
 
+.card-subtitle {
+    font-size: .75rem;
+    color: var(--text-muted);
+}
+
 /* Strategy cards grid */
 .strategies-grid {
     display: grid;
@@ -931,6 +936,7 @@ i {
 .status-done {
     background: var(--success-dim);
     color: var(--success);
+    cursor: help;
 }
 
 .status-partial_error,
@@ -1002,7 +1008,6 @@ i {
 }
 
 @keyframes pulse {
-
     0%,
     100% {
         opacity: 1;
@@ -1765,7 +1770,7 @@ select.field-invalid {
     border-radius: var(--radius);
     background: var(--primary-dim);
     color: var(--primary);
-    border: 1px solid var(--primary-dim--strong);
+    border: 1px solid var(--primary-dim-strong);
 }
 
 /* OR separator */
@@ -2004,7 +2009,7 @@ select.field-invalid {
     min-width: fit-content;
     width: fit-content;
     color: var(--primary);
-    border-color: var(--primary-dim--strong);
+    border-color: var(--primary-dim-strong);
     background-color: var(--primary-dim);
     padding: 0.42rem 1.4rem 0.42rem 0.5rem;
 }
@@ -2244,6 +2249,26 @@ select.field-invalid {
     text-align: center;
 }
 
+.metric-card-interactive {
+    border-color: var(--primary-dim);
+    cursor: pointer;
+    transition: border 0.4s, filter 0.3s;
+}
+.metric-card-interactive:hover {
+    filter: brightness(1.3);
+    border-color: var(--primary-dim-strong);
+}
+.metric-card--highlight {
+  animation: metricPulse 0.6s ease-out;
+  animation-iteration-count: 2;
+}
+
+@keyframes metricPulse {
+  0%   { box-shadow: 0 0 0 0 var(--primary-dim-strong); border-color: var(--primary-dim-strong) }
+  70%  { box-shadow: 0 0 0 0.4rem rgba(255,150,50,0); }
+  100% { box-shadow: 0 0 0 0 rgba(36, 27, 18, 0); border-color: var(--border); }
+}
+
 .metric-label {
     font-size: .6rem;
     color: var(--text-muted);
@@ -2251,6 +2276,14 @@ select.field-invalid {
     text-transform: uppercase;
     letter-spacing: .05em;
     margin-bottom: .4rem;
+}
+
+.metric-card-interactive .metric-label {
+    color: var(--primary);
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--primary-dim-strong);
 }
 
 .metric-value {
@@ -2394,7 +2427,8 @@ select.field-invalid {
 
 #pnlDistributionCanvas,
 #maeDistributionCanvas,
-#maeScatterCanvas {
+#maeScatterCanvas,
+#equitiesChartCanvas {
     width: 100%;
     display: block;
 }
@@ -3104,7 +3138,7 @@ select.field-invalid {
     color: var(--text);
 }
 
-.card--chart {
+#equityCard {
     grid-column: span 2;
 }
 
@@ -3696,6 +3730,8 @@ input[type="color"] {
     max-height: 20rem;
     overflow-y: auto;
     padding-right: 0.4rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
 }
 
 .trades-list::-webkit-scrollbar-thumb {
@@ -3704,25 +3740,6 @@ input[type="color"] {
 
 .trades-list::-webkit-scrollbar-thumb:hover {
     background-color: var(--text-muted);
-}
-
-.trades-header {
-    display: grid;
-    grid-template-columns: auto 4rem 1fr 1fr 1fr auto;
-    gap: .75rem;
-    padding: .3rem .85rem .3rem calc(.85rem + 3px);
-    margin-bottom: .25rem;
-    font-size: .72rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .06em;
-    color: var(--text-muted);
-    border-bottom: 1px solid var(--border);
-}
-
-.trades-header span:last-child {
-    width: 3.8rem;
-    text-align: end;
 }
 
 .trade-row {
@@ -3736,6 +3753,15 @@ input[type="color"] {
     padding: .5rem .85rem;
     font-size: .82rem;
     border-left: 3px solid var(--text-muted);
+}
+
+.trades-list-header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface2);
+    margin-right: 0.7rem;
+    margin-bottom: 0.4rem;
 }
 
 .trade-buy {
@@ -4011,7 +4037,7 @@ input[type="color"] {
     #resultsContent {
         display: flex;
         flex-direction: column;
-        gap: 1.25rem;
+        gap: 1rem;
     }
 
     .color-scheme-menu,
@@ -4047,7 +4073,7 @@ input[type="color"] {
         padding: 1rem;
     }
 
-    .card--chart {
+    #equityCard {
         padding: 1rem;
     }
 

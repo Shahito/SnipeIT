@@ -295,6 +295,92 @@ async function getSweepGroup(id, userId) {
   }
 }
 
+// Equity curve overlay for the sweep results page - see getSweepEquityCurves below.
+const FLAT_AMPLITUDE_PCT = 1     // curves whose equity range stays within this % of initial capital are dropped as "flat"
+const OVERLAY_DISPLAY_POINTS = 70 // per-curve downsample target - already LTTB-sampled upstream, a plain stride is enough here
+const AVERAGE_GRID_POINTS = 120   // resolution of the averaged curve
+
+function strideSample(points, target) {
+  if (points.length <= target) return points
+  const step = points.length / target
+  const out = []
+  for (let i = 0; i < target; i++) out.push(points[Math.floor(i * step)])
+  if (out[out.length - 1] !== points[points.length - 1]) out.push(points[points.length - 1])
+  return out
+}
+
+// Linear interpolation of a curve's value at timestamp t (binary search on sorted points)
+function interpolateAt(points, t) {
+  if (t <= points[0].t) return points[0].e
+  if (t >= points[points.length - 1].t) return points[points.length - 1].e
+  let lo = 0, hi = points.length - 1
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1
+    if (points[mid].t <= t) lo = mid; else hi = mid
+  }
+  const a = points[lo], b = points[hi]
+  return a.e + (b.e - a.e) * (t - a.t) / (b.t - a.t)
+}
+
+// Real-date grid spanning the earliest curve start to the latest curve end. A curve
+// only contributes to a grid point within its own [start, end] - it doesn't flat-extend
+// past its own end and skew the average once it's no longer running.
+function averageCurves(curves, gridPoints) {
+  if (!curves.length) return []
+  const commonStart = Math.min(...curves.map(c => c.points[0].t))
+  const commonEnd = Math.max(...curves.map(c => c.points[c.points.length - 1].t))
+  if (commonEnd <= commonStart) return []
+
+  const step = (commonEnd - commonStart) / (gridPoints - 1)
+  const out = []
+  for (let i = 0; i < gridPoints; i++) {
+    const t = commonStart + step * i
+    const vals = curves
+      .filter(c => t >= c.points[0].t && t <= c.points[c.points.length - 1].t)
+      .map(c => interpolateAt(c.points, t))
+    if (vals.length) out.push({ t: Math.round(t), e: vals.reduce((s, v) => s + v, 0) / vals.length })
+  }
+  return out
+}
+
+async function getSweepEquityCurves(id, userId) {
+  const group = await prisma.sweepGroup.findFirst({
+    where: { id, userId },
+    include: {
+      jobs: {
+        where: { status: 'done' },
+        select: { id: true, pair: true, result: true },
+      },
+    },
+  })
+  if (!group) throw new Error('SWEEP_NOT_FOUND')
+
+  // Pull just equityCurve + initialCapital out of each job's result and drop the rest
+  // right away - result also holds trades/histograms/scatter bins we never send here.
+  const included = group.jobs
+    .map(j => {
+      const curve = j.result?.equityCurve
+      const initialCapital = j.result?.initialCapital
+      if (!curve?.length || !initialCapital) return null
+      const values = curve.map(p => p.e)
+      const amplitudePct = (Math.max(...values) - Math.min(...values)) / initialCapital * 100
+      if (amplitudePct < FLAT_AMPLITUDE_PCT) return null
+      return {
+        jobId: j.id,
+        pair: j.pair,
+        points: curve.map(p => ({ t: p.t, e: (p.e - initialCapital) / initialCapital * 100 })),
+      }
+    })
+    .filter(Boolean)
+
+  return {
+    curves: included.map(c => ({ jobId: c.jobId, pair: c.pair, points: strideSample(c.points, OVERLAY_DISPLAY_POINTS) })),
+    average: averageCurves(included, AVERAGE_GRID_POINTS),
+    includedCount: included.length,
+    excludedFlat: group.jobs.length - included.length,
+  }
+}
+
 // Called after every status transition of a BacktestJob attached to a sweep
 async function refreshSweepGroupStatus(sweepGroupId) {
   if (!sweepGroupId) return
@@ -326,4 +412,4 @@ async function refreshSweepGroupStatus(sweepGroupId) {
   emitToUser(g.userId, 'sweep:update', { sweepGroupId: g.id, status: g.status })
 }
 
-module.exports = { previewSweep, launchSweep, listSweeps, getSweepGroup, refreshSweepGroupStatus }
+module.exports = { previewSweep, launchSweep, listSweeps, getSweepGroup, getSweepEquityCurves, refreshSweepGroupStatus }

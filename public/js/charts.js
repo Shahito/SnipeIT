@@ -38,7 +38,7 @@
 
 // Shared tooltip singleton
 
-const _tooltip = (() => {
+const _chartTooltip = (() => {
   const el = document.createElement('div')
   el.className = 'chart-tooltip'
   document.body.appendChild(el)
@@ -46,18 +46,18 @@ const _tooltip = (() => {
 })()
 
 function _showTooltip(e, html) {
-  _tooltip.innerHTML = html
-  _tooltip.classList.add('visible')
+  _chartTooltip.innerHTML = html
+  _chartTooltip.classList.add('visible')
   const tx = e.clientX + 14
   const ty = e.clientY - 10
-  _tooltip.style.left = (tx + _tooltip.offsetWidth > window.innerWidth
-    ? e.clientX - _tooltip.offsetWidth - 14
+  _chartTooltip.style.left = (tx + _chartTooltip.offsetWidth > window.innerWidth
+    ? e.clientX - _chartTooltip.offsetWidth - 14
     : tx) + 'px'
-  _tooltip.style.top = ty + 'px'
+  _chartTooltip.style.top = ty + 'px'
 }
 
 function _hideTooltip() {
-  _tooltip.classList.remove('visible')
+  _chartTooltip.classList.remove('visible')
 }
 window.addEventListener('scroll', () => _hideTooltip(), { passive: true })
 window.addEventListener('wheel', () => _hideTooltip(), { passive: true })
@@ -82,10 +82,44 @@ function _scaleX(values, padLeft, cW) {
   return { mn, mx, rng, toX: v => padLeft + ((v - mn) / rng) * cW }
 }
 
+// function _drawPolyline(ctx, pts, color, fillColor, lineWidth, padTop, cH) {
+//   if (!pts.length) return
+//   ctx.beginPath()
+//   pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y))
+//   if (fillColor) {
+//     ctx.lineTo(pts[pts.length - 1].x, padTop + cH)
+//     ctx.lineTo(pts[0].x, padTop + cH)
+//     ctx.closePath()
+//     ctx.fillStyle = fillColor
+//     ctx.fill()
+//     ctx.beginPath()
+//     pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y))
+//   }
+//   ctx.strokeStyle = color
+//   ctx.lineWidth = lineWidth
+//   ctx.stroke()
+// }
+
 function _drawPolyline(ctx, pts, color, fillColor, lineWidth, padTop, cH) {
   if (!pts.length) return
+  const tracePath = () => {
+    ctx.moveTo(pts[0].x, pts[0].y)
+    if (pts.length < 3) {
+      pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y))
+      return
+    }
+    // Smooth the line via quadratic curves through each segment's midpoint,
+    // using the real points as control points - no overshoot, no new deps
+    for (let i = 1; i < pts.length - 1; i++) {
+      const midX = (pts[i].x + pts[i + 1].x) / 2
+      const midY = (pts[i].y + pts[i + 1].y) / 2
+      ctx.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY)
+    }
+    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y)
+  }
+
   ctx.beginPath()
-  pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y))
+  tracePath()
   if (fillColor) {
     ctx.lineTo(pts[pts.length - 1].x, padTop + cH)
     ctx.lineTo(pts[0].x, padTop + cH)
@@ -93,7 +127,7 @@ function _drawPolyline(ctx, pts, color, fillColor, lineWidth, padTop, cH) {
     ctx.fillStyle = fillColor
     ctx.fill()
     ctx.beginPath()
-    pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y))
+    tracePath()
   }
   ctx.strokeStyle = color
   ctx.lineWidth = lineWidth
@@ -1099,7 +1133,27 @@ class MonthlyPerfChart {
     this._data = this.config.getData(result) || []
     if (this._isWindowed()) this._winStart = Math.max(0, this._data.length - this._activeWindowSize())
     this._syncNav()
+    this._layout()
     this._draw()
+  }
+
+  _layout() {
+    const canvas = document.getElementById(this.canvasId)
+    if (!canvas) return
+    canvas.style.width = ''
+    canvas.style.height = ''
+    canvas.width = 0
+    canvas.height = 0
+    const W = canvas.offsetWidth || 700
+    const H = canvas.offsetHeight || this.config.height
+    const dpr = devicePixelRatio || 1
+    canvas.width = W * dpr
+    canvas.height = H * dpr
+    canvas.style.width = W + 'px'
+    canvas.style.height = H + 'px'
+    this._W = W
+    this._H = H
+    this._layoutPad = this._getPad(W)
   }
 
   _isMobileNow() {
@@ -1177,23 +1231,15 @@ class MonthlyPerfChart {
     if (!data?.length) { canvas.style.display = 'none'; return }
     canvas.style.display = ''
 
-    canvas.style.width = ''
-    canvas.style.height = ''
-    canvas.width = 0
-    canvas.height = 0
-    const W = canvas.offsetWidth || 700
-    const H = canvas.offsetHeight || this.config.height
-    const pad = this._getPad(W)
+    if (this._W == null) this._layout()
+    const W = this._W, H = this._H
+    const pad = this._layoutPad
     const cW = W - pad.left - pad.right
     const cH = H - pad.top - pad.bottom
 
     const dpr = devicePixelRatio || 1
-    canvas.width = W * dpr
-    canvas.height = H * dpr
-    canvas.style.width = W + 'px'
-    canvas.style.height = H + 'px'
     const ctx = canvas.getContext('2d')
-    ctx.scale(dpr, dpr)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, W, H)
 
     const n = data.length
@@ -1364,7 +1410,7 @@ class MonthlyPerfChart {
       window.addEventListener('resize', () => {
         const c = document.getElementById(this.canvasId)
         if (!c) return
-        c.style.width = ''; c.style.height = ''
+        this._layout()
         this._draw()
       })
       // Nav buttons (mobile window)
@@ -1403,8 +1449,8 @@ class MonthlyPerfChart {
       window.addEventListener('resize', () => {
         const c = document.getElementById(this.canvasId)
         if (!c) return
-        c.style.width = ''; c.style.height = ''
         this._syncNav()
+        this._layout()
         this._draw()
       })
       canvas.addEventListener('mousemove', e => {
@@ -1412,7 +1458,7 @@ class MonthlyPerfChart {
         if (!visible?.length) return
         const rect = canvas.getBoundingClientRect()
         const mouseX = e.clientX - rect.left
-        const pad = this._getPad(canvas.offsetWidth)
+        const pad = this._layoutPad
         const i = Math.floor((mouseX - pad.left) / this._slotW)
         if (i >= 0 && i < visible.length) {
           const d = visible[i]
