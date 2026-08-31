@@ -48,12 +48,12 @@ function renderMetrics(r) {
     { key: 'results.metric.pnl_pct', value: r.pnlPercent, fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, cls: v => v >= 0 ? 'positive' : 'negative' },
     { key: 'results.metric.pnl_cumul', value: r.cumulativePnl, fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, cls: v => v >= 0 ? 'positive' : 'negative' },
     { key: 'results.metric.buy_hold_pct', value: r.buyHoldPercent, fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, cls: v => v >= 0 ? 'positive' : 'negative' },
+    { key: 'results.metric.capital', value: r.finalCapital, fmt: v => `$${v.toFixed(2)}`, cls: () => 'neutral' },
     { key: 'results.metric.trades', value: r.totalTrades, fmt: v => v, cls: () => 'neutral' },
     { key: 'results.metric.winrate', value: r.winRate, fmt: v => `${v.toFixed(1)}%`, cls: v => v >= 50 ? 'positive' : 'negative' },
     { key: 'results.metric.maxdd', value: r.maxDrawdown, fmt: v => `-${v.toFixed(2)}%`, cls: () => 'negative' },
     { key: 'results.metric.sharpe', value: r.sharpeRatio, fmt: v => v.toFixed(2), cls: v => v >= 1.5 ? 'positive' : v >= 0 ? 'neutral' : 'negative' },
     { key: 'results.metric.profit_factor', value: r.profitFactor, fmt: v => v.toFixed(2), cls: v => v >= 1.75 ? 'positive' : v >= 1 ? 'neutral' : 'negative' },
-    { key: 'results.metric.capital', value: r.finalCapital, fmt: v => `$${v.toFixed(2)}`, cls: () => 'neutral' },
     { key: 'results.metric.exposure', value: r.exposurePct, fmt: v => `${v.toFixed(1)}%`, cls: () => 'neutral' },
   ]
   document.getElementById('metricsGrid').innerHTML = metrics.map(m => {

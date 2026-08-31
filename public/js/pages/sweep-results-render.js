@@ -1,12 +1,13 @@
 const _tooltip = (() => {
   const el = document.createElement('div')
-  el.className = 'ctx-tooltip variant-danger'
+  el.className = 'ctx-tooltip'
   document.body.appendChild(el)
   return el
 })()
 
-function _showTooltip(e, html) {
+function _showTooltip(e, html, variant = null) {
   _tooltip.innerHTML = html
+  _tooltip.classList.toggle('variant-danger', variant === 'danger')
   _tooltip.classList.add('visible')
   const tx = e.clientX + 14
   const ty = e.clientY - 10

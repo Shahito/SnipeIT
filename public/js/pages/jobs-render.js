@@ -135,11 +135,14 @@ function renderSweepRow(s) {
   const winHtml    = s.winRate     != null ? s.winRate.toFixed(1) + '%' : '-'
   const ddHtml     = s.maxDrawdown != null ? '-' + s.maxDrawdown.toFixed(2) + '%' : '-'
 
+  const sweepHasDuration = s.status === 'done' && s.startedAt && s.completedAt
+
   return `<div class="job-row" data-sweep-id="${s.id}">
     <div class="job-row-main">
       <div class="job-row-left">
-        <span class="status-badge status-${s.status === 'partial_error' ? 'error' : s.status}"
-          ${s.status === 'partial_error' ? `data-partial-error="1"` : ''}>
+      <span class="status-badge status-${s.status === 'partial_error' ? 'error' : s.status} ${sweepHasDuration ? 'has-duration' : ''}"
+          ${s.status === 'partial_error' ? `data-partial-error="1"` : ''}
+          ${sweepHasDuration ? `data-duration="${escAttr(fmtDuration(new Date(s.completedAt) - new Date(s.startedAt)))}"` : ''}>
           <span class="status-dot"></span>${t('sweep.status.' + s.status)}
         </span>
         <div class="job-row-meta">
@@ -255,14 +258,4 @@ window.addEventListener('scroll', () => _hideTooltip(), { passive: true })
 
 function fmtDateTime(d) {
   return new Date(d).toLocaleString(i18nCurrentLang() === 'fr' ? 'fr-FR' : 'en-US', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' })
-}
-
-function fmtDuration(ms) {
-  if (!ms || ms < 0) return null
-  const s = Math.round(ms / 1000)
-  if (s < 60) return `${s}s`
-  const m = Math.floor(s / 60)
-  if (m < 60) return `${m}min ${s % 60}s`
-  const h = Math.floor(m / 60)
-  return `${h}h ${m % 60}min`
 }

@@ -49,13 +49,21 @@ async function loadSweep() {
     document.getElementById('sweepStatusLabel').textContent = t('sweep.status.' + sweep.status)
     const badge = document.getElementById('sweepStatusBadge')
     const hasFailedRuns = sweep.status === 'error' || sweep.status === 'partial_error'
+    const hasDuration = sweep.status === 'done' && sweep.startedAt && sweep.completedAt
     badge.classList.toggle('clickable', hasFailedRuns)
+    badge.classList.toggle('has-duration', hasDuration)
     if (hasFailedRuns) {
       const msg = `<span>${t('sweep.failed_runs.hint')}</span>`
+      badge.onmouseenter = e => _showTooltip(e, msg, 'danger')
+      badge.onmousemove  = e => _showTooltip(e, msg, 'danger')
+      badge.onmouseleave = () => _hideTooltip()
+      badge.onclick = () => { _hideTooltip(); openFailedRunsPopover(badge, sweep.failed || []) }
+    } else if (hasDuration) {
+      const msg = `<span class="tt-with-icon">${ICONS.clock}<span>${fmtDuration(new Date(sweep.completedAt) - new Date(sweep.startedAt))}</span></span>`
       badge.onmouseenter = e => _showTooltip(e, msg)
       badge.onmousemove  = e => _showTooltip(e, msg)
       badge.onmouseleave = () => _hideTooltip()
-      badge.onclick = () => { _hideTooltip(); openFailedRunsPopover(badge, sweep.failed || []) }
+      badge.onclick = null
     } else {
       badge.onmouseenter = badge.onmousemove = badge.onmouseleave = badge.onclick = null
       _hideTooltip()

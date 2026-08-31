@@ -204,6 +204,7 @@ async function getSweepGroup(id, userId) {
           status: true,
           pair: true,
           paramValues: true,
+          startedAt: true,
           pnlPercent: true,
           pnlAbsolute: true,
           initialCapital: true,
@@ -226,6 +227,10 @@ async function getSweepGroup(id, userId) {
   const failed = jobs
     .filter(j => j.status === 'error')
     .map(j => ({ id: j.id, errorMessage: j.errorMessage || null }))
+  // Real work start = first run actually claimed by a worker, not the sweep's launch
+  // time, since jobs can sit pending for a while before a worker picks them up.
+  const startedTimes = jobs.map(j => j.startedAt).filter(Boolean)
+  const startedAt = startedTimes.length ? new Date(Math.min(...startedTimes.map(d => new Date(d)))) : null
   
   const byCatMap = new Map() // key -> { key, name, jobs: [] }
   const uncategorized = []
@@ -277,6 +282,7 @@ async function getSweepGroup(id, userId) {
     status: group.status,
     totalRuns: group.totalRuns,
     createdAt: group.createdAt,
+    startedAt,
     completedAt: group.completedAt,
     definition: group.definitionSnapshot,
     counts: {

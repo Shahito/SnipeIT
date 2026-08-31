@@ -14,7 +14,7 @@ const JOB_SELECT = {
   ...JOB_TAGS_INCLUDE,
 }
 
-const VALID_SORTS  = ['createdAt', 'pnlPercent', 'winRate', 'maxDrawdown', 'sharpeRatio', 'totalTrades']
+const VALID_SORTS = ['createdAt', 'pnlPercent', 'winRate', 'maxDrawdown', 'sharpeRatio', 'totalTrades']
 const VALID_STATUS = ['pending', 'running', 'done', 'error']
 
 // sortField (whitelisted against VALID_SORTS before use) -> SQL fragment.
@@ -22,29 +22,24 @@ const VALID_STATUS = ['pending', 'running', 'done', 'error']
 // 'sweep' : average over the group's 'done' jobs (same semantics as sweepAverages()),
 //           except createdAt, which stays the group's creation date.
 const SORT_SQL = {
-  createdAt:   { job: 'bj.createdAt',   sweep: 'sg.createdAt' },
-  pnlPercent:  { job: 'bj.pnlPercent',  sweep: "AVG(CASE WHEN bj.status = 'done' THEN bj.pnlPercent END)" },
-  winRate:     { job: 'bj.winRate',     sweep: "AVG(CASE WHEN bj.status = 'done' THEN bj.winRate END)" },
+  createdAt: { job: 'bj.createdAt', sweep: 'sg.createdAt' },
+  pnlPercent: { job: 'bj.pnlPercent', sweep: "AVG(CASE WHEN bj.status = 'done' THEN bj.pnlPercent END)" },
+  winRate: { job: 'bj.winRate', sweep: "AVG(CASE WHEN bj.status = 'done' THEN bj.winRate END)" },
   maxDrawdown: { job: 'bj.maxDrawdown', sweep: "AVG(CASE WHEN bj.status = 'done' THEN bj.maxDrawdown END)" },
   sharpeRatio: { job: 'bj.sharpeRatio', sweep: "AVG(CASE WHEN bj.status = 'done' THEN bj.sharpeRatio END)" },
   totalTrades: { job: 'bj.totalTrades', sweep: "AVG(CASE WHEN bj.status = 'done' THEN bj.totalTrades END)" },
 }
 
-function sweepAverages(jobs) {
-  const done = jobs.filter(j => j.status === 'done')
-  const avg = (field) => done.length ? done.reduce((sum, j) => sum + (j[field] ?? 0), 0) / done.length : null
-  return {
-    pnlPercent:  avg('pnlPercent'),
-    sharpeRatio: avg('sharpeRatio'),
-    winRate:     avg('winRate'),
-    maxDrawdown: avg('maxDrawdown'),
-    totalTrades: avg('totalTrades'),
-  }
+// Real work start = first run actually claimed by a worker, not the sweep's launch
+// time, since jobs can sit pending for a while before a worker picks them up.
+function sweepStartedAt(jobs) {
+  const started = jobs.map(j => j.startedAt).filter(Boolean)
+  return started.length ? new Date(Math.min(...started.map(d => new Date(d)))) : null
 }
 
 async function listJobs(userId, { page = 1, limit = 20, sort = 'createdAt', order = 'desc', status = null, sweepGroupId = null } = {}) {
-  const sortField    = VALID_SORTS.includes(sort) ? sort : 'createdAt'
-  const sortOrder    = order === 'asc' ? 'asc' : 'desc'
+  const sortField = VALID_SORTS.includes(sort) ? sort : 'createdAt'
+  const sortOrder = order === 'asc' ? 'asc' : 'desc'
   const statusFilter = status && VALID_STATUS.includes(status) ? status : null
   const take = Math.min(parseInt(limit) || 20, 9999)
   const skip = (Math.max(parseInt(page) || 1, 1) - 1) * take
@@ -61,8 +56,8 @@ async function listJobs(userId, { page = 1, limit = 20, sort = 'createdAt', orde
     ])
     return { jobs, total, page: Math.max(parseInt(page) || 1, 1), totalPages: Math.ceil(total / take) }
   }
-const orderSql   = sortOrder === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`
-  const jobSortCol   = Prisma.raw(SORT_SQL[sortField].job)
+  const orderSql = sortOrder === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`
+  const jobSortCol = Prisma.raw(SORT_SQL[sortField].job)
   const sweepSortExpr = Prisma.raw(SORT_SQL[sortField].sweep)
 
   const sweepStatusCond = statusFilter
@@ -96,25 +91,47 @@ const orderSql   = sortOrder === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`
 
   const total = Number(countRow[0]?.total ?? 0)
   const sweepIds = pageRows.filter(r => r.itemType === 'sweep').map(r => r.id)
-  const jobIds   = pageRows.filter(r => r.itemType === 'job').map(r => r.id)
+  const jobIds = pageRows.filter(r => r.itemType === 'job').map(r => r.id)
 
   // Hydration: only for the items on the current page (bounded by `take`),
   // not for the full history like before.
-  const [sweepGroups, standaloneJobs] = await Promise.all([
+  const [sweepGroups, standaloneJobs, sweepAggs] = await Promise.all([
     sweepIds.length ? prisma.sweepGroup.findMany({
       where: { id: { in: sweepIds } },
       include: {
         strategy: { select: { id: true, name: true } },
-        jobs: { select: { status: true, pnlPercent: true, sharpeRatio: true, winRate: true, maxDrawdown: true, totalTrades: true } },
       },
     }) : [],
     jobIds.length ? prisma.backtestJob.findMany({ where: { id: { in: jobIds } }, select: JOB_SELECT }) : [],
+    sweepIds.length ? prisma.$queryRaw`
+      SELECT sweepGroupId,
+        AVG(CASE WHEN status = 'done' THEN pnlPercent  END) AS pnlPercent,
+        AVG(CASE WHEN status = 'done' THEN sharpeRatio END) AS sharpeRatio,
+        AVG(CASE WHEN status = 'done' THEN winRate     END) AS winRate,
+        AVG(CASE WHEN status = 'done' THEN maxDrawdown END) AS maxDrawdown,
+        AVG(CASE WHEN status = 'done' THEN totalTrades END) AS totalTrades,
+        MIN(startedAt) AS startedAt
+      FROM BacktestJob
+      WHERE sweepGroupId IN (${Prisma.join(sweepIds)})
+      GROUP BY sweepGroupId
+    ` : [],
   ])
 
-  const sweepById = new Map(sweepGroups.map(g => [g.id, {
-    itemType: 'sweep', id: g.id, strategy: g.strategy, status: g.status,
-    totalRuns: g.totalRuns, createdAt: g.createdAt, ...sweepAverages(g.jobs),
-  }]))
+  const aggBySweepId = new Map(sweepAggs.map(a => [Number(a.sweepGroupId), a]))
+
+  const sweepById = new Map(sweepGroups.map(g => {
+    const agg = aggBySweepId.get(g.id) || {}
+    return [g.id, {
+      itemType: 'sweep', id: g.id, strategy: g.strategy, status: g.status,
+      totalRuns: g.totalRuns, createdAt: g.createdAt, completedAt: g.completedAt,
+      startedAt: agg.startedAt ?? null,
+      pnlPercent: agg.pnlPercent != null ? Number(agg.pnlPercent) : null,
+      sharpeRatio: agg.sharpeRatio != null ? Number(agg.sharpeRatio) : null,
+      winRate: agg.winRate != null ? Number(agg.winRate) : null,
+      maxDrawdown: agg.maxDrawdown != null ? Number(agg.maxDrawdown) : null,
+      totalTrades: agg.totalTrades != null ? Number(agg.totalTrades) : null,
+    }]
+  }))
   const jobById = new Map(standaloneJobs.map(j => [j.id, { itemType: 'job', ...j }]))
 
   // The order determined by the SQL query is respected (it carries the real sort).
@@ -207,21 +224,21 @@ async function submitResult(jobId, apiKeyId, payload) {
   const updated = await prisma.backtestJob.update({
     where: { id: jobId },
     data: {
-      status:       success ? 'done' : 'error',
-      completedAt:  new Date(),
-      result:       success ? result : null,
+      status: success ? 'done' : 'error',
+      completedAt: new Date(),
+      result: success ? result : null,
       errorMessage: success ? null : (errorMessage || 'Worker error'),
       ...(success && result ? {
-        pnlPercent:     result.pnlPercent     ?? null,
-        pnlAbsolute:    result.pnlAbsolute    ?? null,
-        finalCapital:   result.finalCapital   ?? null,
+        pnlPercent: result.pnlPercent ?? null,
+        pnlAbsolute: result.pnlAbsolute ?? null,
+        finalCapital: result.finalCapital ?? null,
         initialCapital: result.initialCapital ?? null,
-        totalTrades:    result.totalTrades    ?? null,
-        winRate:        result.winRate        ?? null,
-        maxDrawdown:    result.maxDrawdown    ?? null,
-        sharpeRatio:    result.sharpeRatio    ?? null,
-        durationDays:   result.durationDays   ?? null,
-        profitFactor:   result.profitFactor   ?? null,
+        totalTrades: result.totalTrades ?? null,
+        winRate: result.winRate ?? null,
+        maxDrawdown: result.maxDrawdown ?? null,
+        sharpeRatio: result.sharpeRatio ?? null,
+        durationDays: result.durationDays ?? null,
+        profitFactor: result.profitFactor ?? null,
       } : {}),
     },
   })
@@ -248,8 +265,8 @@ async function timeoutStaleJobs() {
   await prisma.backtestJob.updateMany({
     where: { id: { in: stale.map(j => j.id) } },
     data: {
-      status:       'error',
-      completedAt:  new Date(),
+      status: 'error',
+      completedAt: new Date(),
       errorMessage: 'Worker disconnected',
     },
   })
