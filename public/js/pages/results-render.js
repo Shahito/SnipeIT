@@ -5,43 +5,7 @@ const METRIC_TARGET_CARD = {
   'results.metric.trades': 'tradesCard',
   'results.metric.winrate': 'pnlDistributionCard',
 }
-
-function handleMetricClick(key, card) {
-  const targetId = METRIC_TARGET_CARD[key]
-  if (!targetId) return
-
-  const target = document.getElementById(targetId)
-  if (!target) return
-
-  const applyHighlight = () => {
-    target.classList.remove('metric-card--highlight')
-    void target.offsetWidth
-    target.classList.add('metric-card--highlight')
-    target.addEventListener('animationend', () => {
-      target.classList.remove('metric-card--highlight')
-    }, { once: true })
-  }
-
-  if ('onscrollend' in window) {
-    document.addEventListener('scrollend', applyHighlight, { once: true })
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  } else {
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    let lastY = window.scrollY
-    let stableCount = 0
-    const check = () => {
-      if (window.scrollY === lastY) {
-        stableCount++
-        if (stableCount >= 3) return applyHighlight()
-      } else {
-        stableCount = 0
-        lastY = window.scrollY
-      }
-      requestAnimationFrame(check)
-    }
-    requestAnimationFrame(check)
-  }
-}
+initMetricCardInteractivity('metricsGrid', METRIC_TARGET_CARD)
 
 function renderMetrics(r) {
   const metrics = [
@@ -59,9 +23,7 @@ function renderMetrics(r) {
   document.getElementById('metricsGrid').innerHTML = metrics.map(m => {
     const formatted = m.value != null ? m.fmt(m.value) : '-'
     const cls = m.value != null ? m.cls(m.value) : 'neutral'
-    const isInteractive = m.key in METRIC_TARGET_CARD
-    const interCls = isInteractive ? ' metric-card-interactive' : ''
-    const attrs = isInteractive ? `data-metric="${m.key}" tabindex="0" role="button"` : ''
+    const { cls: interCls, attrs } = metricCardInteractiveAttrs(m.key, METRIC_TARGET_CARD)
     return `<div class="metric-card${interCls}" ${attrs}>
       <div class="metric-label">${t(m.key)}</div>
       <div class="metric-value ${cls}">${formatted}</div>
@@ -69,12 +31,6 @@ function renderMetrics(r) {
   }).join('')
 }
 
-document.getElementById('metricsGrid').addEventListener('click', e => {
-  const card = e.target.closest('.metric-card')
-  if (!card) return
-  const key = card.dataset.metric
-  handleMetricClick(key, card)
-})
 
 // Trades
 function renderTrades(r, trades, totalTrades) {

@@ -207,7 +207,7 @@ function renderJobRow(j) {
         ${j.status === 'done' ? `
           <a href="/results.html?jobId=${j.id}" class="btn btn-ghost btn-sm">
             ${ICONS.chart}
-            ${t('jobs.btn.results')}
+            <span>${t('jobs.btn.results')}</span>
           </a>
           ` : ''}
         ${j.status === 'pending' ? `<button class="btn btn-danger btn-sm cancel-btn" data-id="${j.id}">${ICONS.cross}</button>` : ''}

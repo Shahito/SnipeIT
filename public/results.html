@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html data-i18n-title="page.title.results">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,12 +12,15 @@
   <script src="/js/icons.js"></script>
   <script src="/js/register-sw.js"></script>
 </head>
+
 <body>
   <div class="app-layout">
     <header class="app-header" id="appHeader" data-active="jobs"></header>
 
     <main class="app-main">
-      <div id="loadingState" class="loading-spinner"><div class="spinner"></div></div>
+      <div id="loadingState" class="loading-spinner">
+        <div class="spinner"></div>
+      </div>
 
       <div id="errorState" class="empty-state hidden">
         <div class="empty-state-icon"><i data-icon="warning"></i></div>
@@ -86,7 +90,8 @@
           <div class="card-header">
             <div class="card-title" data-i18n="results.mae_distribution.title"></div>
             <div class="chart-toggles">
-              <button class="toggle-btn active" id="maeToggleUnitPct" data-i18n="results.mae_distribution.toggle_pct"></button>
+              <button class="toggle-btn active" id="maeToggleUnitPct"
+                data-i18n="results.mae_distribution.toggle_pct"></button>
               <button class="toggle-btn" id="maeToggleUnitAtr" data-i18n="results.mae_distribution.toggle_atr"></button>
             </div>
           </div>
@@ -97,7 +102,8 @@
           <div class="card-header">
             <div class="card-title" data-i18n="results.mae_scatter.title"></div>
             <div class="chart-toggles">
-              <button class="toggle-btn active" id="maeToggleColorReason" data-i18n="results.mae_scatter.toggle_color_reason"></button>
+              <button class="toggle-btn active" id="maeToggleColorReason"
+                data-i18n="results.mae_scatter.toggle_color_reason"></button>
             </div>
           </div>
           <canvas id="maeScatterCanvas"></canvas>
@@ -108,7 +114,8 @@
           <div class="card-header">
             <div class="card-title" data-i18n="results.mfe_distribution.title"></div>
             <div class="chart-toggles">
-              <button class="toggle-btn active" id="mfeToggleUnitPct" data-i18n="results.mfe_distribution.toggle_pct"></button>
+              <button class="toggle-btn active" id="mfeToggleUnitPct"
+                data-i18n="results.mfe_distribution.toggle_pct"></button>
               <button class="toggle-btn" id="mfeToggleUnitAtr" data-i18n="results.mfe_distribution.toggle_atr"></button>
             </div>
           </div>
@@ -119,7 +126,8 @@
           <div class="card-header">
             <div class="card-title" data-i18n="results.mfe_scatter.title"></div>
             <div class="chart-toggles">
-              <button class="toggle-btn active" id="mfeToggleColorReason" data-i18n="results.mfe_scatter.toggle_color_reason"></button>
+              <button class="toggle-btn active" id="mfeToggleColorReason"
+                data-i18n="results.mfe_scatter.toggle_color_reason"></button>
             </div>
           </div>
           <canvas id="mfeScatterCanvas"></canvas>
@@ -136,20 +144,20 @@
           </div>
           <canvas id="monthlyPerfCanvas"></canvas>
           <div id="monthlyPerfCanvasNav" class="chart-nav" style="display:none">
-              <button class="btn btn-surface btn-sm" id="mpfPrevFast">
-                <i data-icon="double_chevrons_left"></i>
-              </button>
-              <button class="btn btn-surface btn-sm" id="mpfPrev">
-                <i data-icon="chevron_left"></i>
-              </button>
-              <span class="mpf-range text-muted text-sm"></span>
-              <button class="btn btn-surface btn-sm" id="mpfNext">
-                <i data-icon="chevron_right"></i>
-              </button>
-              <button class="btn btn-surface btn-sm" id="mpfNextFast">
-                <i data-icon="double_chevrons_right"></i>
-              </button>
-            </div>
+            <button class="btn btn-surface btn-sm" id="mpfPrevFast">
+              <i data-icon="double_chevrons_left"></i>
+            </button>
+            <button class="btn btn-surface btn-sm" id="mpfPrev">
+              <i data-icon="chevron_left"></i>
+            </button>
+            <span class="mpf-range text-muted text-sm"></span>
+            <button class="btn btn-surface btn-sm" id="mpfNext">
+              <i data-icon="chevron_right"></i>
+            </button>
+            <button class="btn btn-surface btn-sm" id="mpfNextFast">
+              <i data-icon="double_chevrons_right"></i>
+            </button>
+          </div>
         </div>
 
         <div class="card" id="tradesCard">
@@ -185,9 +193,11 @@
   <script src="/js/charts.js"></script>
   <script src="/js/overlay-a11y.js"></script>
   <script src="/js/export.js"></script>
-  
+  <script src="/js/metric-cards.js"></script>
+
   <script src="/js/pages/results-core.js"></script>
   <script src="/js/pages/results-charts.js"></script>
   <script src="/js/pages/results-render.js"></script>
 </body>
+
 </html>
