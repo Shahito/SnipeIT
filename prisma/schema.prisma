@@ -13,6 +13,7 @@ model User {
   displayUsername         String
   password                String
   email                    String?       @unique
+  normalizedEmail          String?       @unique // canonical form (alias/dot-folded) used for dedup
   emailVerified            Boolean       @default(false)
   emailVerificationToken   String?       @unique
   emailVerificationExpires DateTime?

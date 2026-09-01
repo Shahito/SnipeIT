@@ -3,12 +3,24 @@ const prisma = require('../utils/prisma')
 const bcrypt = require('bcrypt')
 const { signToken } = require('../utils/jwt')
 const { sendVerificationEmail } = require('../utils/mailer')
+const { evaluatePassword } = require('../utils/passwordPolicy')
+const { canonicalizeEmail, hasAliasTag } = require('../utils/emailNormalize')
+const { allowEmailAliases } = require('../utils/env')
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const VERIFICATION_TTL_MS = 1000 * 60 * 60 * 24 // 24h
 
 function normalizeEmail(email) {
   return email.trim().toLowerCase()
+}
+
+function assertStrongPassword(password, context) {
+  const { checks } = evaluatePassword(password, context)
+  if (!checks.length) throw new Error('PASSWORD_TOO_SHORT')
+  if (!checks.lowercase) throw new Error('PASSWORD_NEEDS_LOWERCASE')
+  if (!checks.uppercase) throw new Error('PASSWORD_NEEDS_UPPERCASE')
+  if (!checks.digit) throw new Error('PASSWORD_NEEDS_DIGIT')
+  if (!checks.special) throw new Error('PASSWORD_NEEDS_SPECIAL')
 }
 
 function generateVerificationToken() {
@@ -28,13 +40,16 @@ async function register(displayUsername, password, email) {
   if (!normalizedEmail || !EMAIL_RE.test(normalizedEmail)) {
     throw new Error('EMAIL_INVALID')
   }
-  if (password.length < 8) {
-    throw new Error('PASSWORD_TOO_SHORT') // min 8 characters
+  if (!allowEmailAliases && hasAliasTag(normalizedEmail)) {
+    throw new Error('EMAIL_ALIAS_BLOCKED')
   }
+  assertStrongPassword(password, { username: normalized, email: normalizedEmail })
+
+  const canonicalEmail = canonicalizeEmail(normalizedEmail)
 
   const [usernameTaken, emailTaken] = await Promise.all([
     prisma.user.findUnique({ where: { username: normalized } }),
-    prisma.user.findUnique({ where: { email: normalizedEmail } }),
+    prisma.user.findUnique({ where: { normalizedEmail: canonicalEmail } }),
   ])
   if (usernameTaken) throw new Error('USERNAME_TAKEN')
   if (emailTaken) throw new Error('EMAIL_TAKEN')
@@ -48,6 +63,7 @@ async function register(displayUsername, password, email) {
       displayUsername: displayUsername.trim(),
       password: hash,
       email: normalizedEmail,
+      normalizedEmail: canonicalEmail,
       emailVerified: false,
       emailVerificationToken: verificationToken,
       emailVerificationExpires: new Date(Date.now() + VERIFICATION_TTL_MS),
@@ -127,14 +143,13 @@ async function resendVerificationEmail(username) {
 }
 
 async function changePassword(userId, oldPassword, newPassword) {
-  if (newPassword.length < 8) throw new Error('PASSWORD_TOO_SHORT')
-
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) throw new Error('USER_NOT_FOUND')
 
+  assertStrongPassword(newPassword, { username: user.username, email: user.email })
+
   const ok = await bcrypt.compare(oldPassword, user.password)
   if (!ok) throw new Error('INVALID_OLD_PASSWORD')
-
   const hash = await bcrypt.hash(newPassword, 12)
   await prisma.user.update({
     where: { id: userId },

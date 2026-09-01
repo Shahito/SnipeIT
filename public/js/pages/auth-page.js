@@ -3,7 +3,7 @@ document.addEventListener('i18n:ready', async () => {
   try {
     const { user } = await api('/auth/me')
     if (user) window.location.href = '/strategies.html'
-  } catch (_) {}
+  } catch (_) { }
 })
 initI18n()
 
@@ -11,13 +11,37 @@ document.getElementById('langBtn').addEventListener('click', () => {
   setLang(i18nCurrentLang() === 'fr' ? 'en' : 'fr')
 })
 
+function showAuthForm(form, updateUrl = true) {
+  const isRegister = form === 'register'
+
+  document.getElementById('loginSection').classList.toggle('hidden', isRegister)
+  document.getElementById('registerSection').classList.toggle('hidden', !isRegister)
+
+  if (updateUrl) {
+    window.location.hash = isRegister ? 'register' : 'login'
+  }
+}
+
+function getAuthFormFromHash() {
+  return window.location.hash.slice(1).toLowerCase() === 'register'
+    ? 'register'
+    : 'login'
+}
+
+// Restore the form from the URL on page load.
+showAuthForm(getAuthFormFromHash(), false)
+
 document.getElementById('toRegister').addEventListener('click', () => {
-  document.getElementById('loginSection').classList.add('hidden')
-  document.getElementById('registerSection').classList.remove('hidden')
+  showAuthForm('register')
 })
+
 document.getElementById('toLogin').addEventListener('click', () => {
-  document.getElementById('registerSection').classList.add('hidden')
-  document.getElementById('loginSection').classList.remove('hidden')
+  showAuthForm('login')
+})
+
+// Handle browser back/forward navigation.
+window.addEventListener('hashchange', () => {
+  showAuthForm(getAuthFormFromHash(), false)
 })
 
 // Password visibility toggle
@@ -49,7 +73,32 @@ regEmail.addEventListener('input', () => {
   regEmailHint.textContent = valid ? '' : t('error.EMAIL_INVALID')
   regEmailHint.classList.toggle('field-hint--error', !valid)
   regEmailHint.classList.toggle('hidden', valid)
+  refreshPasswordChecklist()
 })
+
+const regUsername = document.getElementById('regUsername')
+const regPassword = document.getElementById('regPassword')
+const checklistItems = Array.from(document.querySelectorAll('#regPasswordChecklist .password-checklist__item'))
+
+function refreshPasswordChecklist() {
+  const { checks } = PasswordPolicy.evaluate(regPassword.value, {
+    username: regUsername.value,
+    email: regEmail.value,
+  })
+  const byId = Object.fromEntries(checks.map(c => [c.id, c.ok]))
+  let allValid = true
+  for (const item of checklistItems) {
+    const ok = byId[item.dataset.rule]
+    const touched = regPassword.value.length > 0
+    item.classList.toggle('password-checklist__item--valid', touched && ok)
+    item.classList.toggle('password-checklist__item--invalid', touched && !ok)
+    if (!ok) allValid = false
+  }
+  return allValid
+}
+regPassword.addEventListener('input', refreshPasswordChecklist)
+regUsername.addEventListener('input', refreshPasswordChecklist)
+refreshPasswordChecklist()
 
 document.getElementById('loginBtn').addEventListener('click', async () => {
   document.getElementById('loginError').textContent = ''
@@ -57,10 +106,12 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
   const btn = document.getElementById('loginBtn')
   btn.disabled = true
   try {
-    await api('/auth/login', { method: 'POST', body: {
-      username: document.getElementById('loginUsername').value,
-      password: document.getElementById('loginPassword').value,
-    }})
+    await api('/auth/login', {
+      method: 'POST', body: {
+        username: document.getElementById('loginUsername').value,
+        password: document.getElementById('loginPassword').value,
+      }
+    })
     window.location.href = '/strategies.html'
   } catch (err) {
     document.getElementById('loginError').textContent = t('error.' + err.code)
@@ -98,6 +149,10 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
     errorEl.textContent = t('error.EMAIL_INVALID')
     return
   }
+  if (!refreshPasswordChecklist()) {
+    errorEl.textContent = t('error.PASSWORD_POLICY_UNMET')
+    return
+  }
   if (p !== pConfirm) {
     errorEl.textContent = t('error.PASSWORD_MISMATCH')
     return
@@ -106,7 +161,7 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
   btn.disabled = true
   try {
     await api('/auth/register', { method: 'POST', body: { username: u, email, password: p } })
-    await api('/auth/login',    { method: 'POST', body: { username: u, password: p } })
+    await api('/auth/login', { method: 'POST', body: { username: u, password: p } })
     window.location.href = '/strategies.html'
   } catch (err) {
     errorEl.textContent = t('error.' + err.code)

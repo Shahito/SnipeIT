@@ -158,6 +158,7 @@
 .modal-close:focus-visible,
 input[type="text"]:focus-visible,
 input[type="password"]:focus-visible,
+input[type="email"]:focus-visible,
 input[type="number"]:focus-visible,
 input[type="date"]:focus-visible,
 input[type="time"]:focus-visible,
@@ -319,7 +320,7 @@ svg {
 
 .auth-card h2 {
     font-size: 1.1rem;
-    margin-bottom: 1.25rem;
+    margin-bottom: 1rem;
     font-weight: 600;
     color: var(--text);
 }
@@ -372,6 +373,58 @@ svg {
 
 .field-hint.field-hint--error {
     color: var(--danger);
+}
+
+.password-checklist {
+    list-style: none;
+    margin: 0.35rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.password-checklist__item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: .75rem;
+    color: var(--text-muted);
+    transition: color .15s ease;
+}
+
+.password-checklist__icon {
+    flex: none;
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 50%;
+    border: 1.5px solid var(--text-muted);
+    position: relative;
+}
+
+.password-checklist__item--valid {
+    color: var(--success);
+}
+
+.password-checklist__item--valid .password-checklist__icon {
+    border-color: var(--success);
+    background: var(--success);
+}
+
+.password-checklist__item--valid .password-checklist__icon::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 42%;
+    width: 0.22rem;
+    height: 0.42rem;
+    border: solid var(--auth-card-bg, #fff);
+    border-width: 0 1.5px 1.5px 0;
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.password-checklist__item--invalid .password-checklist__icon {
+    border-color: var(--danger);
 }
 
 /* Verify-email page */
@@ -637,6 +690,11 @@ i {
     width: 2rem;
     height: 2rem;
     aspect-ratio: 1 / 1;
+}
+
+.btn svg {
+    flex-shrink: 0;
+    align-self: center;
 }
 
 /* App layout */
@@ -3181,6 +3239,7 @@ select.field-invalid {
 
 .app-logo {
     text-decoration: none;
+    user-select: none;
 }
 
 .app-logo:hover {
