@@ -78,7 +78,13 @@ regEmail.addEventListener('input', () => {
 
 const regUsername = document.getElementById('regUsername')
 const regPassword = document.getElementById('regPassword')
-const checklistItems = Array.from(document.querySelectorAll('#regPasswordChecklist .password-checklist__item'))
+const regPasswordChecklist = document.getElementById('regPasswordChecklist')
+const checklistItems = Array.from(document.querySelectorAll('#regPasswordChecklist .password-checklist-item'))
+let checklistHideTimeout = null
+
+function setChecklistVisible(visible) {
+  regPasswordChecklist.classList.toggle('is-visible', visible)
+}
 
 function refreshPasswordChecklist() {
   const { checks } = PasswordPolicy.evaluate(regPassword.value, {
@@ -90,13 +96,23 @@ function refreshPasswordChecklist() {
   for (const item of checklistItems) {
     const ok = byId[item.dataset.rule]
     const touched = regPassword.value.length > 0
-    item.classList.toggle('password-checklist__item--valid', touched && ok)
-    item.classList.toggle('password-checklist__item--invalid', touched && !ok)
+    item.classList.toggle('password-checklist-item--valid', touched && ok)
+    item.classList.toggle('password-checklist-item--invalid', touched && !ok)
     if (!ok) allValid = false
   }
+
+  clearTimeout(checklistHideTimeout)
+  if (allValid && regPassword.value.length > 0) {
+    checklistHideTimeout = setTimeout(() => setChecklistVisible(false), 450)
+  } else {
+    setChecklistVisible(document.activeElement === regPassword)
+  }
+
   return allValid
 }
 regPassword.addEventListener('input', refreshPasswordChecklist)
+regPassword.addEventListener('focus', refreshPasswordChecklist)
+regPassword.addEventListener('blur', () => setChecklistVisible(false))
 regUsername.addEventListener('input', refreshPasswordChecklist)
 refreshPasswordChecklist()
 

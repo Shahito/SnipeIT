@@ -377,14 +377,26 @@ svg {
 
 .password-checklist {
     list-style: none;
-    margin: 0.35rem 0 0;
+    margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: max-height .3s ease, opacity .2s ease, transform .25s ease, margin-top .3s ease;
 }
 
-.password-checklist__item {
+.password-checklist.is-visible {
+    max-height: 10rem;
+    opacity: 1;
+    transform: translateY(0);
+    margin-top: 0.35rem;
+}
+
+.password-checklist-item {
     display: flex;
     align-items: center;
     gap: 0.4rem;
@@ -393,25 +405,33 @@ svg {
     transition: color .15s ease;
 }
 
-.password-checklist__icon {
+.password-checklist-icon {
     flex: none;
     width: 0.85rem;
     height: 0.85rem;
     border-radius: 50%;
     border: 1.5px solid var(--text-muted);
     position: relative;
+    transition: background .2s ease, border-color .2s ease, transform .2s ease;
 }
 
-.password-checklist__item--valid {
+.password-checklist-item--valid {
     color: var(--success);
 }
 
-.password-checklist__item--valid .password-checklist__icon {
+.password-checklist-item--valid .password-checklist-icon {
     border-color: var(--success);
     background: var(--success);
+    animation: passwordCheckPop .3s ease;
 }
 
-.password-checklist__item--valid .password-checklist__icon::after {
+@keyframes passwordCheckPop {
+    0%   { transform: scale(0.6); }
+    60%  { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+.password-checklist-item--valid .password-checklist-icon::after {
     content: "";
     position: absolute;
     left: 50%;
@@ -423,7 +443,7 @@ svg {
     transform: translate(-50%, -50%) rotate(45deg);
 }
 
-.password-checklist__item--invalid .password-checklist__icon {
+.password-checklist-item--invalid .password-checklist-icon {
     border-color: var(--danger);
 }
 
