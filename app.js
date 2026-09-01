@@ -1,26 +1,26 @@
 require('dotenv').config()
 
-const express     = require('express')
+const express = require('express')
 const cookieParser = require('cookie-parser')
 const rateLimit = require('express-rate-limit')
 const helmet = require('helmet')
 const cron = require('node-cron')
 const { isProd } = require('./src/utils/env')
 
-const authRoutes       = require('./src/routes/auth')
-const strategyRoutes   = require('./src/routes/strategy')
-const jobRoutes        = require('./src/routes/job')
-const apikeyRoutes     = require('./src/routes/apikey')
-const workerRoutes     = require('./src/routes/worker')
-const tagRoutes        = require('./src/routes/tag')
-const sweepRoutes      = require('./src/routes/sweep')
-const eventsRoutes     = require('./src/routes/events')
-const coinRoutes       = require('./src/routes/coin')
+const authRoutes = require('./src/routes/auth')
+const strategyRoutes = require('./src/routes/strategy')
+const jobRoutes = require('./src/routes/job')
+const apikeyRoutes = require('./src/routes/apikey')
+const workerRoutes = require('./src/routes/worker')
+const tagRoutes = require('./src/routes/tag')
+const sweepRoutes = require('./src/routes/sweep')
+const eventsRoutes = require('./src/routes/events')
+const coinRoutes = require('./src/routes/coin')
 
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./src/config/swagger');
 
-const app  = express()
+const app = express()
 const PORT = process.env.PORT || 4000
 
 app.use(express.json())
@@ -59,10 +59,20 @@ const writeLimiter = rateLimit({
   legacyHeaders: false,
 })
 
+// just defense-in-depth / anti log-spam, not brute-force protection
+const verifyEmailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15m
+  max: 30, // 30 tries/IP
+  message: { error: 'TOO_MANY_REQUESTS' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
 if (isProd) {
   app.use('/api/auth/login', authLimiter)
   app.use('/api/auth/register', authLimiter)
   app.use('/api/auth/resend-verification', authLimiter)
+  app.use('/api/auth/verify-email', verifyEmailLimiter)
   app.post('/api/auth/change-password', authLimiter)
   app.post('/api/apikeys', authLimiter) // key creation only
 
@@ -71,15 +81,15 @@ if (isProd) {
   app.post('/api/strategies/:id/sweep', writeLimiter)
 }
 
-app.use('/api/auth',           authRoutes)
-app.use('/api/strategies',     strategyRoutes)
-app.use('/api/jobs',           jobRoutes)
-app.use('/api/events',         eventsRoutes)
-app.use('/api/apikeys',        apikeyRoutes)
-app.use('/api/worker',         workerRoutes)
-app.use('/api/tags',           tagRoutes)
-app.use('/api/coins',          coinRoutes)
-app.use('/api',                sweepRoutes) // expose /api/strategies/:id/sweep* and /api/sweeps*
+app.use('/api/auth', authRoutes)
+app.use('/api/strategies', strategyRoutes)
+app.use('/api/jobs', jobRoutes)
+app.use('/api/events', eventsRoutes)
+app.use('/api/apikeys', apikeyRoutes)
+app.use('/api/worker', workerRoutes)
+app.use('/api/tags', tagRoutes)
+app.use('/api/coins', coinRoutes)
+app.use('/api', sweepRoutes) // expose /api/strategies/:id/sweep* and /api/sweeps*
 
 if (!isProd) {
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));

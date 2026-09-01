@@ -324,6 +324,122 @@ svg {
     color: var(--text);
 }
 
+/* Password visibility toggle */
+.password-field {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.password-field input {
+    padding-right: 2.4rem;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: var(--radius);
+}
+
+.password-toggle:hover {
+    color: var(--text);
+}
+
+.password-toggle:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.password-toggle > span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.field-hint {
+    font-size: .75rem;
+    color: var(--text-muted);
+    min-height: 1em;
+}
+
+.field-hint.field-hint--error {
+    color: var(--danger);
+}
+
+/* Verify-email page */
+.verify-section {
+    align-items: center;
+    text-align: center;
+}
+
+.verify-status {
+    margin-bottom: 1.25rem;
+}
+
+.verify-icon {
+    width: 3.6rem;
+    height: 3.6rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+}
+
+.verify-icon--pending {
+    background: var(--primary-dim);
+    color: var(--primary);
+}
+
+.verify-icon--pending svg {
+    width: 1.75rem;
+    height: 1.75rem;
+    animation: verify-spin 0.9s linear infinite;
+}
+
+.verify-icon--success {
+    background: var(--success-dim);
+    color: var(--success);
+}
+
+.verify-icon--success svg {
+    width: 1.75rem;
+    height: 1.75rem;
+}
+
+.verify-icon--error {
+    background: var(--danger-dim);
+    color: var(--danger);
+}
+
+.verify-icon--error svg {
+    width: 1.75rem;
+    height: 1.75rem;
+}
+
+.verify-section #verifyMessage {
+    color: var(--text-muted);
+    margin-bottom: 1.5rem;
+}
+
+@keyframes verify-spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 /* Forms (base) */
 .form-group {
     display: flex;
@@ -346,6 +462,7 @@ svg {
 
 input[type="text"],
 input[type="password"],
+input[type="email"],
 input[type="number"],
 input[type="date"],
 input[type="time"],
@@ -2910,7 +3027,7 @@ select.field-invalid {
     font-family: 'Courier New', monospace;
 }
 
-.hidden {
+.hidden, [hidden] {
     display: none !important;
 }
 
@@ -4442,48 +4559,4 @@ input[type="color"] {
         max-height: 90vh;
         min-height: 70vh;
     }
-}
-
-/* Password visibility toggle */
-.password-field {
-    position: relative;
-    display: flex;
-    align-items: center;
-}
-
-.password-field input {
-    padding-right: 2.4rem;
-}
-
-.password-toggle {
-    position: absolute;
-    right: 0.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 0.25rem;
-    border-radius: var(--radius);
-}
-
-.password-toggle:hover {
-    color: var(--text);
-}
-
-.password-toggle:focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: 2px;
-}
-
-.field-hint {
-    font-size: .75rem;
-    color: var(--text-muted);
-    min-height: 1em;
-}
-
-.field-hint.field-hint--error {
-    color: var(--danger, #e5484d);
 }

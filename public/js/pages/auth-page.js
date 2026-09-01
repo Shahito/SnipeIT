@@ -20,7 +20,7 @@ document.getElementById('toLogin').addEventListener('click', () => {
   document.getElementById('loginSection').classList.remove('hidden')
 })
 
-// --- Password visibility toggle ---
+// Password visibility toggle
 function wireupPasswordToggle(toggleId, inputId) {
   const toggle = document.getElementById(toggleId)
   const input = document.getElementById(inputId)
@@ -30,15 +30,15 @@ function wireupPasswordToggle(toggleId, inputId) {
     toggle.setAttribute('aria-pressed', String(!showing))
     toggle.dataset.i18n = showing ? 'login.show_password' : 'login.hide_password'
     toggle.setAttribute('aria-label', t(toggle.dataset.i18n))
-    toggle.querySelector('.icon-eye').hidden = !showing
-    toggle.querySelector('.icon-eye-off').hidden = showing
+    toggle.querySelector('.icon-eye').toggleAttribute('hidden', !showing)
+    toggle.querySelector('.icon-eye-off').toggleAttribute('hidden', showing)
   })
 }
 wireupPasswordToggle('loginPasswordToggle', 'loginPassword')
 wireupPasswordToggle('regPasswordToggle', 'regPassword')
 wireupPasswordToggle('regPasswordConfirmToggle', 'regPasswordConfirm')
 
-// --- Email format validation (client-side, UX only - the server re-validates) ---
+// Email format validation (client-side, UX only - the server re-validates)
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const regEmail = document.getElementById('regEmail')
 const regEmailHint = document.getElementById('regEmailHint')
@@ -48,6 +48,7 @@ regEmail.addEventListener('input', () => {
   regEmail.setCustomValidity(valid ? '' : t('error.EMAIL_INVALID'))
   regEmailHint.textContent = valid ? '' : t('error.EMAIL_INVALID')
   regEmailHint.classList.toggle('field-hint--error', !valid)
+  regEmailHint.classList.toggle('hidden', valid)
 })
 
 document.getElementById('loginBtn').addEventListener('click', async () => {
