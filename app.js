@@ -62,6 +62,7 @@ const writeLimiter = rateLimit({
 if (isProd) {
   app.use('/api/auth/login', authLimiter)
   app.use('/api/auth/register', authLimiter)
+  app.use('/api/auth/resend-verification', authLimiter)
   app.post('/api/auth/change-password', authLimiter)
   app.post('/api/apikeys', authLimiter) // key creation only
 

@@ -14,16 +14,17 @@
     "test:i18n": "npm run test:i18n-sync && npm run test:i18n-keys"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.2",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
-    "@prisma/client": "^6.19.2",
-    "prisma": "^6.19.2",
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.3",
     "node-cron": "^4.2.1",
+    "nodemailer": "^9.1.0",
+    "prisma": "^6.19.2",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1"
   },

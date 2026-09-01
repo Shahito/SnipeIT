@@ -6,6 +6,8 @@ const {
   loginController,
   meController,
   changePasswordController,
+  verifyEmailController,
+  resendVerificationController,
   logoutController,
   logoutAllController,
 } = require('../controllers/authController')
@@ -74,6 +76,50 @@ router.post('/login', loginController)
  *         description: OK
  */
 router.get('/me', authRequired, meController)
+
+/**
+ * @openapi
+ * /api/auth/verify-email:
+ *   post:
+ *     tags: [auth]
+ *     summary: Verify a user's email using the token sent by mail
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [token]
+ *             properties:
+ *               token: { type: string }
+ *     responses:
+ *       200:
+ *         description: OK
+ *       400:
+ *         description: TOKEN_INVALID / TOKEN_EXPIRED
+ */
+router.post('/verify-email', verifyEmailController)
+
+/**
+ * @openapi
+ * /api/auth/resend-verification:
+ *   post:
+ *     tags: [auth]
+ *     summary: Resend the verification email for a given username (public, rate-limited)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [username]
+ *             properties:
+ *               username: { type: string }
+ *     responses:
+ *       200:
+ *         description: OK (always returns success, doesn't reveal account state)
+ */
+router.post('/resend-verification', resendVerificationController)
 
 /**
  * @openapi

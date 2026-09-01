@@ -86,19 +86,19 @@ function renderStrategyCard(s) {
       <div class="strategy-card-actions">
         ${lastJob?.status != 'pending' && lastJob?.status != 'running' ?
         `<button class="btn btn-sm launch-btn
-          ${lastJob?.status === 'done' ? 'btn-ghost':' btn-surface'}" data-id="${s.id}">
+          ${lastJob?.status === 'done' ? 'btn-ghost':' btn-primary'}" data-id="${s.id}">
             ${lastJob?.status === 'done' ?
-              `${ICONS.replay}<span>${t('strategies.btn.relaunch')}</span>` :
-              `${ICONS.play}<span>${t('strategies.btn.launch')}</span>`
+              `${ICONS.replay}${t('strategies.btn.relaunch')}` :
+              `${ICONS.play}${t('strategies.btn.launch')}`
             }</button>`:
             ''
           }
-        <a href="/strategy-editor.html?id=${s.id}" class="btn btn-ghost btn-sm">${ICONS.pencil}<span>${t('strategies.btn.edit')}</span></a>
-        <button class="btn btn-ghost btn-sm clone-btn" data-id="${s.id}">${ICONS.copy}<span>${t('strategies.btn.clone')}</span></button>
+        <a href="/strategy-editor.html?id=${s.id}" class="btn btn-ghost btn-sm">${ICONS.pencil}${t('strategies.btn.edit')}</a>
+        <button class="btn btn-ghost btn-sm clone-btn" data-id="${s.id}">${ICONS.copy}${t('strategies.btn.clone')}</button>
         ${lastJob?.status === 'done' ?
           (isSweep
-            ? `<a href="/sweep-results.html?id=${lastJob.sweepGroup.id}" class="btn btn-ghost btn-sm">${ICONS.chart}<span>${t('strategies.btn.sweep_results')}</span></a>`
-            : `<a href="/results.html?jobId=${lastJob.id}" class="btn btn-ghost btn-sm">${ICONS.chart}<span>${t('strategies.btn.results')}</span></a>`)
+            ? `<a href="/sweep-results.html?id=${lastJob.sweepGroup.id}" class="btn btn-ghost btn-sm">${ICONS.chart}${t('strategies.btn.sweep_results')}</a>`
+            : `<a href="/results.html?jobId=${lastJob.id}" class="btn btn-ghost btn-sm">${ICONS.chart}${t('strategies.btn.results')}</a>`)
           : ''}
       </div>
     </div>`

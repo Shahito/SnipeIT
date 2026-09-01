@@ -1,4 +1,4 @@
-const { register, login, changePassword, logoutAll } = require('../services/authService')
+const { register, login, changePassword, logoutAll, verifyEmail, resendVerificationEmail } = require('../services/authService')
 const { isProd } = require('../utils/env')
 
 const COOKIE_OPTS = (isProd) => ({
@@ -14,11 +14,16 @@ const KNOWN_CODES = new Set([
   'USERNAME_TAKEN',
   'USERNAME_LENGTH',
   'USERNAME_INVALID',
+  'EMAIL_INVALID',
+  'EMAIL_TAKEN',
   'PASSWORD_TOO_SHORT',
   'INVALID_CREDENTIALS',
   'INVALID_OLD_PASSWORD',
   'USER_NOT_FOUND',
   'MISSING_FIELDS',
+  'TOKEN_INVALID',
+  'TOKEN_EXPIRED',
+  'EMAIL_NOT_VERIFIED',
 ])
 
 function errorCode(e, fallback = 'UNKNOWN') {
@@ -27,11 +32,11 @@ function errorCode(e, fallback = 'UNKNOWN') {
 
 async function registerController(req, res) {
   try {
-    const { username, password } = req.body
-    if (!username || !password)
+    const { username, password, email } = req.body
+    if (!username || !password || !email)
       return res.status(400).json({ error: 'MISSING_FIELDS' })
 
-    await register(username, password)
+    await register(username, password, email)
     res.json({ success: true })
   } catch (e) {
     res.status(409).json({ error: errorCode(e) })
@@ -48,6 +53,9 @@ async function loginController(req, res) {
     res.cookie('token', token, COOKIE_OPTS(isProd))
     res.json({ success: true })
   } catch (e) {
+    if (e.message === 'EMAIL_NOT_VERIFIED') {
+      return res.status(403).json({ error: 'EMAIL_NOT_VERIFIED' })
+    }
     await new Promise((r) => setTimeout(r, 300))
     res.status(401).json({ error: 'INVALID_CREDENTIALS' })
   }
@@ -70,6 +78,28 @@ async function changePasswordController(req, res) {
   }
 }
 
+async function verifyEmailController(req, res) {
+  try {
+    const { token } = req.body
+    await verifyEmail(token)
+    res.json({ success: true })
+  } catch (e) {
+    res.status(400).json({ error: errorCode(e) })
+  }
+}
+
+async function resendVerificationController(req, res) {
+  const { username } = req.body
+  if (!username) return res.status(400).json({ error: 'MISSING_FIELDS' })
+  try {
+    await resendVerificationEmail(username)
+  } catch (e) {
+    console.error('[resendVerificationController]', e.message)
+  }
+  // Always respond success: never reveal whether the account exists/is verified.
+  res.json({ success: true })
+}
+
 async function logoutController(req, res) {
   res.clearCookie('token', { httpOnly: true, sameSite: 'Lax', path: '/' })
   res.json({ success: true })
@@ -86,6 +116,8 @@ module.exports = {
   loginController,
   meController,
   changePasswordController,
+  verifyEmailController,
+  resendVerificationController,
   logoutController,
   logoutAllController,
 }

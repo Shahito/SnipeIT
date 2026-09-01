@@ -8,13 +8,17 @@ generator client {
 }
 
 model User {
-  id              Int           @id @default(autoincrement())
-  username        String        @unique
-  displayUsername String
-  password        String
-  tokenVersion    Int           @default(0)
-  createdAt       DateTime      @default(now())
-  lastActive      DateTime      @default(now())
+  id                       Int           @id @default(autoincrement())
+  username                 String        @unique
+  displayUsername         String
+  password                String
+  email                    String?       @unique
+  emailVerified            Boolean       @default(false)
+  emailVerificationToken   String?       @unique
+  emailVerificationExpires DateTime?
+  tokenVersion             Int           @default(0)
+  createdAt                DateTime      @default(now())
+  lastActive               DateTime      @default(now())
 
   strategies      Strategy[]
   apiKeys         ApiKey[]

@@ -22,15 +22,34 @@
       <!-- LOGIN -->
       <section id="loginSection" class="auth-section">
         <h2 data-i18n="login.login_title"></h2>
+
         <div class="form-group">
-          <label data-i18n="login.username"></label>
+          <label for="loginUsername" data-i18n="login.username"></label>
           <input type="text" id="loginUsername" autocomplete="username" required>
         </div>
+
         <div class="form-group">
-          <label data-i18n="login.password"></label>
-          <input type="password" id="loginPassword" autocomplete="current-password" required>
+          <label for="loginPassword" data-i18n="login.password"></label>
+          <div class="password-field">
+            <input type="password" id="loginPassword" autocomplete="current-password" required>
+            <button type="button" class="password-toggle" id="loginPasswordToggle"
+                    data-i18n-attr="aria-label" data-i18n="login.show_password" aria-pressed="false">
+              <svg class="icon-eye" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              <svg class="icon-eye-off" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" hidden>
+                <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a20.6 20.6 0 0 1 4.22-5.06M9.9 4.24A9.7 9.7 0 0 1 12 4c7 0 11 7 11 7a20.6 20.6 0 0 1-2.7 3.86M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                <path d="M1 1l22 22"/>
+              </svg>
+            </button>
+          </div>
         </div>
-        <p class="form-error" id="loginError"></p>
+
+        <p class="form-error" id="loginError" role="alert" aria-live="polite"></p>
+        <p class="switch-link hidden" id="resendVerificationWrap">
+          <span id="resendVerificationLink" data-i18n="login.resend_verification"></span>
+        </p>
         <button class="btn btn-primary btn-full" id="loginBtn" data-i18n="login.login_btn"></button>
         <p class="switch-link"><span id="toRegister" data-i18n="login.to_register"></span></p>
       </section>
@@ -38,15 +57,56 @@
       <!-- REGISTER -->
       <section id="registerSection" class="auth-section hidden">
         <h2 data-i18n="login.register_title"></h2>
+
         <div class="form-group">
-          <label data-i18n="login.username"></label>
+          <label for="regUsername" data-i18n="login.username"></label>
           <input type="text" id="regUsername" autocomplete="username" required>
         </div>
+
         <div class="form-group">
-          <label data-i18n="login.password"></label>
-          <input type="password" id="regPassword" data-i18n-attr="placeholder" data-i18n="login.password_hint" autocomplete="new-password" required>
+          <label for="regEmail" data-i18n="login.email"></label>
+          <input type="email" id="regEmail" autocomplete="email" inputmode="email" required>
+          <span class="field-hint" id="regEmailHint" aria-live="polite"></span>
         </div>
-        <p class="form-error" id="registerError"></p>
+
+        <div class="form-group">
+          <label for="regPassword" data-i18n="login.password"></label>
+          <div class="password-field">
+            <input type="password" id="regPassword" data-i18n-attr="placeholder" data-i18n="login.password_hint"
+                   autocomplete="new-password" minlength="8" required>
+            <button type="button" class="password-toggle" id="regPasswordToggle"
+                    data-i18n-attr="aria-label" data-i18n="login.show_password" aria-pressed="false">
+              <svg class="icon-eye" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              <svg class="icon-eye-off" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" hidden>
+                <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a20.6 20.6 0 0 1 4.22-5.06M9.9 4.24A9.7 9.7 0 0 1 12 4c7 0 11 7 11 7a20.6 20.6 0 0 1-2.7 3.86M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                <path d="M1 1l22 22"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="regPasswordConfirm" data-i18n="login.confirm_password"></label>
+          <div class="password-field">
+            <input type="password" id="regPasswordConfirm" autocomplete="new-password" minlength="8" required>
+            <button type="button" class="password-toggle" id="regPasswordConfirmToggle"
+                    data-i18n-attr="aria-label" data-i18n="login.show_password" aria-pressed="false">
+              <svg class="icon-eye" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              <svg class="icon-eye-off" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" hidden>
+                <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a20.6 20.6 0 0 1 4.22-5.06M9.9 4.24A9.7 9.7 0 0 1 12 4c7 0 11 7 11 7a20.6 20.6 0 0 1-2.7 3.86M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                <path d="M1 1l22 22"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <p class="form-error" id="registerError" role="alert" aria-live="polite"></p>
         <button class="btn btn-primary btn-full" id="registerBtn" data-i18n="login.register_btn"></button>
         <p class="switch-link"><span id="toLogin" data-i18n="login.to_login"></span></p>
       </section>
