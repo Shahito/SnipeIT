@@ -17,6 +17,9 @@ model User {
   emailVerified            Boolean       @default(false)
   emailVerificationToken   String?       @unique
   emailVerificationExpires DateTime?
+  emailDeliveryFailed      Boolean       @default(false) // set by the Resend webhook on a hard bounce
+  emailDeliveryFailedReason String?      // Resend's bounce message/subtype
+  emailDeliveryFailedAt    DateTime?
   tokenVersion             Int           @default(0)
   createdAt                DateTime      @default(now())
   lastActive               DateTime      @default(now())

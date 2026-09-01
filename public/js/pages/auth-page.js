@@ -62,6 +62,16 @@ wireupPasswordToggle('loginPasswordToggle', 'loginPassword')
 wireupPasswordToggle('regPasswordToggle', 'regPassword')
 wireupPasswordToggle('regPasswordConfirmToggle', 'regPasswordConfirm')
 
+function setFieldInvalid(el, invalid) {
+  el.classList.toggle('field-invalid', invalid)
+  el.setAttribute('aria-invalid', invalid ? 'true' : 'false')
+}
+
+const loginUsername = document.getElementById('loginUsername')
+const loginPassword = document.getElementById('loginPassword')
+loginUsername.addEventListener('input', () => setFieldInvalid(loginUsername, false))
+loginPassword.addEventListener('input', () => setFieldInvalid(loginPassword, false))
+
 // Email format validation (client-side, UX only - the server re-validates)
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const regEmail = document.getElementById('regEmail')
@@ -73,11 +83,18 @@ regEmail.addEventListener('input', () => {
   regEmailHint.textContent = valid ? '' : t('error.EMAIL_INVALID')
   regEmailHint.classList.toggle('field-hint--error', !valid)
   regEmailHint.classList.toggle('hidden', valid)
+  setFieldInvalid(regEmail, value.length > 0 && !valid)
   refreshPasswordChecklist()
 })
 
 const regUsername = document.getElementById('regUsername')
 const regPassword = document.getElementById('regPassword')
+const regPasswordConfirm = document.getElementById('regPasswordConfirm')
+regUsername.addEventListener('input', () => setFieldInvalid(regUsername, false))
+regPasswordConfirm.addEventListener('input', () => {
+  const mismatch = regPasswordConfirm.value.length > 0 && regPasswordConfirm.value !== regPassword.value
+  setFieldInvalid(regPasswordConfirm, mismatch)
+})
 const regPasswordChecklist = document.getElementById('regPasswordChecklist')
 const checklistItems = Array.from(document.querySelectorAll('#regPasswordChecklist .password-checklist-item'))
 let checklistHideTimeout = null
@@ -92,14 +109,15 @@ function refreshPasswordChecklist() {
     email: regEmail.value,
   })
   const byId = Object.fromEntries(checks.map(c => [c.id, c.ok]))
+  const touched = regPassword.value.length > 0
   let allValid = true
   for (const item of checklistItems) {
     const ok = byId[item.dataset.rule]
-    const touched = regPassword.value.length > 0
     item.classList.toggle('password-checklist-item--valid', touched && ok)
     item.classList.toggle('password-checklist-item--invalid', touched && !ok)
     if (!ok) allValid = false
   }
+  setFieldInvalid(regPassword, touched && !allValid)
 
   clearTimeout(checklistHideTimeout)
   if (allValid && regPassword.value.length > 0) {
@@ -120,18 +138,32 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
   document.getElementById('loginError').textContent = ''
   document.getElementById('resendVerificationWrap').classList.add('hidden')
   const btn = document.getElementById('loginBtn')
+
+  const emptyUsername = loginUsername.value.trim().length === 0
+  const emptyPassword = loginPassword.value.length === 0
+  setFieldInvalid(loginUsername, emptyUsername)
+  setFieldInvalid(loginPassword, emptyPassword)
+  if (emptyUsername || emptyPassword) {
+    document.getElementById('loginError').textContent = t('error.MISSING_FIELDS')
+    return
+  }
+
   btn.disabled = true
   try {
     await api('/auth/login', {
       method: 'POST', body: {
-        username: document.getElementById('loginUsername').value,
-        password: document.getElementById('loginPassword').value,
+        username: loginUsername.value,
+        password: loginPassword.value,
       }
     })
     window.location.href = '/strategies.html'
   } catch (err) {
     document.getElementById('loginError').textContent = t('error.' + err.code)
-    if (err.code === 'EMAIL_NOT_VERIFIED') {
+    if (err.code === 'INVALID_CREDENTIALS') {
+      setFieldInvalid(loginUsername, true)
+      setFieldInvalid(loginPassword, true)
+    }
+    if (err.code === 'EMAIL_NOT_VERIFIED' || err.code === 'EMAIL_DELIVERY_FAILED') {
       document.getElementById('resendVerificationWrap').classList.remove('hidden')
     }
   } finally { btn.disabled = false }
@@ -156,19 +188,28 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
   errorEl.textContent = ''
   const btn = document.getElementById('registerBtn')
 
-  const u = document.getElementById('regUsername').value
-  const email = document.getElementById('regEmail').value.trim()
-  const p = document.getElementById('regPassword').value
-  const pConfirm = document.getElementById('regPasswordConfirm').value
+  const u = regUsername.value.trim()
+  const email = regEmail.value.trim()
+  const p = regPassword.value
+  const pConfirm = regPasswordConfirm.value
+
+  setFieldInvalid(regUsername, u.length === 0)
+  if (u.length === 0) {
+    errorEl.textContent = t('error.MISSING_FIELDS')
+    return
+  }
 
   if (!EMAIL_RE.test(email)) {
+    setFieldInvalid(regEmail, true)
     errorEl.textContent = t('error.EMAIL_INVALID')
     return
   }
   if (!refreshPasswordChecklist()) {
+    setFieldInvalid(regPassword, true)
     errorEl.textContent = t('error.PASSWORD_POLICY_UNMET')
     return
   }
+  setFieldInvalid(regPasswordConfirm, p !== pConfirm)
   if (p !== pConfirm) {
     errorEl.textContent = t('error.PASSWORD_MISMATCH')
     return
@@ -181,6 +222,12 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
     window.location.href = '/strategies.html'
   } catch (err) {
     errorEl.textContent = t('error.' + err.code)
+    if (err.code === 'USERNAME_TAKEN' || err.code === 'USERNAME_LENGTH' || err.code === 'USERNAME_INVALID') {
+      setFieldInvalid(regUsername, true)
+    }
+    if (err.code === 'EMAIL_TAKEN' || err.code === 'EMAIL_ALIAS_BLOCKED' || err.code === 'EMAIL_DOMAIN_UNREACHABLE') {
+      setFieldInvalid(regEmail, true)
+    }
   } finally { btn.disabled = false }
 })
 

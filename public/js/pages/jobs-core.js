@@ -84,6 +84,7 @@ function _connectEventStream() {
 document.addEventListener('header:ready', async () => {
   applyToDOM()
   updateSortIndicators()
+  syncJobsSelectLabels()
   await Promise.all([loadJobs(), loadTags()])
   pollWorkerStatus()
   _connectEventStream()

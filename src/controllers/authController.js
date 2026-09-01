@@ -17,6 +17,8 @@ const KNOWN_CODES = new Set([
   'EMAIL_INVALID',
   'EMAIL_TAKEN',
   'EMAIL_ALIAS_BLOCKED',
+  'EMAIL_DOMAIN_UNREACHABLE',
+  'EMAIL_DELIVERY_FAILED',
   'PASSWORD_TOO_SHORT',
   'PASSWORD_NEEDS_LOWERCASE',
   'PASSWORD_NEEDS_UPPERCASE',
@@ -61,8 +63,8 @@ async function loginController(req, res) {
     res.cookie('token', token, COOKIE_OPTS(isProd))
     res.json({ success: true })
   } catch (e) {
-    if (e.message === 'EMAIL_NOT_VERIFIED') {
-      return res.status(403).json({ error: 'EMAIL_NOT_VERIFIED' })
+    if (e.message === 'EMAIL_NOT_VERIFIED' || e.message === 'EMAIL_DELIVERY_FAILED') {
+      return res.status(403).json({ error: e.message })
     }
     await new Promise((r) => setTimeout(r, 300))
     res.status(401).json({ error: 'INVALID_CREDENTIALS' })

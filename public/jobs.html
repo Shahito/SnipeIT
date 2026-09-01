@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html data-i18n-title="page.title.jobs">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,6 +12,7 @@
   <script src="/js/icons.js"></script>
   <script src="/js/register-sw.js"></script>
 </head>
+
 <body>
   <div class="app-layout">
     <header class="app-header" id="appHeader" data-active="jobs"></header>
@@ -30,6 +32,11 @@
               <i data-icon="tag"></i>
               <span data-i18n="jobs.btn.tags"></span>
             </button>
+            <button class="btn btn-ghost btn-sm" id="filtersToggleBtn" aria-expanded="false"
+              aria-controls="jobsFiltersPanel">
+              <i data-icon="filter"></i>
+              <span data-i18n="jobs.btn.filters"></span>
+            </button>
             <button class="btn btn-ghost btn-sm" id="refreshBtn">
               <i data-icon="replay"></i>
               <span data-i18n="jobs.btn.refresh"></span>
@@ -38,46 +45,82 @@
         </div>
       </div>
 
-      <div class="jobs-controls card">
+      <div class="jobs-controls card hidden" id="jobsFiltersPanel">
         <div class="jobs-controls-row">
           <div class="jobs-control-group">
             <span class="jobs-control-label" data-i18n="jobs.sort.label"></span>
-            <div class="toggle-group" id="sortGroup">
-              <button class="toggle-btn active" data-sort="date" data-i18n="jobs.sort.date"></button>
-              <button class="toggle-btn" data-sort="pnl"      data-i18n="jobs.sort.pnl"></button>
-              <button class="toggle-btn" data-sort="sharpe"   data-i18n="jobs.sort.sharpe"></button>
-              <button class="toggle-btn" data-sort="winrate"  data-i18n="jobs.sort.winrate"></button>
-              <button class="toggle-btn" data-sort="drawdown" data-i18n="jobs.sort.drawdown"></button>
-              <button class="toggle-btn" data-sort="trades"   data-i18n="jobs.sort.trades"></button>
+            <div class="custom-select" id="sortSelect" data-value="date">
+              <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                <span class="custom-select-value"></span>
+                <i data-icon="chevron_down"></i>
+              </button>
+              <div class="custom-select-menu hidden" role="listbox">
+                <div class="custom-select-option active" data-value="date" role="option" data-i18n="jobs.sort.date">
+                </div>
+                <div class="custom-select-option" data-value="pnl" role="option" data-i18n="jobs.sort.pnl"></div>
+                <div class="custom-select-option" data-value="sharpe" role="option" data-i18n="jobs.sort.sharpe"></div>
+                <div class="custom-select-option" data-value="winrate" role="option" data-i18n="jobs.sort.winrate">
+                </div>
+                <div class="custom-select-option" data-value="drawdown" role="option" data-i18n="jobs.sort.drawdown">
+                </div>
+                <div class="custom-select-option" data-value="trades" role="option" data-i18n="jobs.sort.trades"></div>
+              </div>
             </div>
+            <button class="sort-dir-btn" id="sortDirBtn" data-i18n-attr="title" data-i18n="jobs.sort.direction">
+              <i data-icon="sort_arrow_down"></i>
+            </button>
           </div>
           <div class="jobs-control-sep"></div>
           <div class="jobs-control-group">
             <span class="jobs-control-label" data-i18n="jobs.group.label"></span>
-            <div class="toggle-group" id="groupGroup">
-              <button class="toggle-btn active" data-group="none"   data-i18n="jobs.group.none"></button>
-              <button class="toggle-btn" data-group="pair"          data-i18n="jobs.group.pair"></button>
-              <button class="toggle-btn" data-group="tag"           data-i18n="jobs.group.tag"></button>
-              <button class="toggle-btn" data-group="profit"        data-i18n="jobs.group.profit"></button>
-              <button class="toggle-btn" data-group="status"        data-i18n="jobs.group.status"></button>
-              <button class="toggle-btn" data-group="strategy"      data-i18n="jobs.group.strategy"></button>
+            <div class="custom-select" id="groupSelect" data-value="none">
+              <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                <span class="custom-select-value"></span>
+                <i data-icon="chevron_down"></i>
+              </button>
+              <div class="custom-select-menu hidden" role="listbox">
+                <div class="custom-select-option active" data-value="none" role="option" data-i18n="jobs.group.none">
+                </div>
+                <div class="custom-select-option" data-value="pair" role="option" data-i18n="jobs.group.pair"></div>
+                <div class="custom-select-option" data-value="tag" role="option" data-i18n="jobs.group.tag"></div>
+                <div class="custom-select-option" data-value="profit" role="option" data-i18n="jobs.group.profit"></div>
+                <div class="custom-select-option" data-value="status" role="option" data-i18n="jobs.group.status"></div>
+                <div class="custom-select-option" data-value="strategy" role="option" data-i18n="jobs.group.strategy">
+                </div>
+              </div>
             </div>
           </div>
           <div class="jobs-control-sep"></div>
           <div class="jobs-control-group">
             <span class="jobs-control-label" data-i18n="jobs.filter.label"></span>
-            <div class="toggle-group" id="filterGroup">
-              <button class="toggle-btn active" data-filter="all"     data-i18n="jobs.filter.all"></button>
-              <button class="toggle-btn" data-filter="pending"        data-i18n="jobs.filter.pending"></button>
-              <button class="toggle-btn" data-filter="running"        data-i18n="jobs.filter.running"></button>
-              <button class="toggle-btn" data-filter="done"           data-i18n="jobs.filter.done"></button>
-              <button class="toggle-btn" data-filter="error"          data-i18n="jobs.filter.error"></button>
+            <div class="custom-select" id="filterSelect" data-value="all">
+              <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                <span class="custom-select-value"></span>
+                <i data-icon="chevron_down"></i>
+              </button>
+              <div class="custom-select-menu hidden" role="listbox">
+                <div class="custom-select-option active" data-value="all" role="option" data-i18n="jobs.filter.all">
+                </div>
+                <div class="custom-select-option" data-value="pending" role="option" data-i18n="jobs.filter.pending">
+                </div>
+                <div class="custom-select-option" data-value="running" role="option" data-i18n="jobs.filter.running">
+                </div>
+                <div class="custom-select-option" data-value="done" role="option" data-i18n="jobs.filter.done"></div>
+                <div class="custom-select-option" data-value="error" role="option" data-i18n="jobs.filter.error"></div>
+              </div>
             </div>
           </div>
+          <div class="jobs-control-sep"></div>
+          <button class="btn btn-ghost btn-sm" id="clearFiltersBtn">
+            <i data-icon="brush"></i>
+            <span data-i18n="jobs.btn.clear_filters"></span>
+          </button>
         </div>
       </div>
 
-      <div id="loadingState" class="loading-spinner"><div class="spinner"></div></div>
+      <div id="loadingState" class="loading-spinner">
+        <div class="spinner"></div>
+      </div>
       <div id="emptyState" class="empty-state hidden">
         <div class="empty-state-icon"><i data-icon="gear"></i></div>
         <h3 id="emptyTitle" data-i18n="jobs.empty.title"></h3>
@@ -134,10 +177,12 @@
   <script src="/js/overlay-a11y.js"></script>
   <script src="/js/tag-palette.js"></script>
   <script src="/js/tag-manager.js"></script>
-  
+  <script src="/js/custom-select.js"></script>
+
   <script src="/js/pages/jobs-core.js"></script>
   <script src="/js/pages/jobs-controls.js"></script>
   <script src="/js/pages/jobs-render.js"></script>
   <script src="/js/pages/jobs-tags.js"></script>
 </body>
+
 </html>

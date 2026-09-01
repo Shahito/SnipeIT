@@ -6,6 +6,7 @@ const { sendVerificationEmail } = require('../utils/mailer')
 const { evaluatePassword } = require('../utils/passwordPolicy')
 const { canonicalizeEmail, hasAliasTag } = require('../utils/emailNormalize')
 const { allowEmailAliases } = require('../utils/env')
+const { domainCanReceiveMail } = require('../utils/emailDomainCheck')
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const VERIFICATION_TTL_MS = 1000 * 60 * 60 * 24 // 24h
@@ -43,6 +44,15 @@ async function register(displayUsername, password, email) {
   if (!allowEmailAliases && hasAliasTag(normalizedEmail)) {
     throw new Error('EMAIL_ALIAS_BLOCKED')
   }
+
+  // Catch obviously bogus addresses (e.g. a@a.a) before creating the account:
+  // format-valid but the domain can't actually receive mail, so the
+  // verification email would silently vanish and the user would never know.
+  const domain = normalizedEmail.slice(normalizedEmail.lastIndexOf('@') + 1)
+  if (!(await domainCanReceiveMail(domain))) {
+    throw new Error('EMAIL_DOMAIN_UNREACHABLE')
+  }
+
   assertStrongPassword(password, { username: normalized, email: normalizedEmail })
 
   const canonicalEmail = canonicalizeEmail(normalizedEmail)
@@ -91,7 +101,13 @@ async function login(username, password) {
   const ok = await bcrypt.compare(password, hash)
 
   if (!user || !ok) throw new Error('INVALID_CREDENTIALS')
-  if (!user.emailVerified) throw new Error('EMAIL_NOT_VERIFIED')
+  if (!user.emailVerified) {
+    // The user already proved they own this account (correct password), so
+    // unlike resendVerificationEmail() below there's no info-leak concern
+    // in being specific here: tell them plainly if we know the mail bounced.
+    if (user.emailDeliveryFailed) throw new Error('EMAIL_DELIVERY_FAILED')
+    throw new Error('EMAIL_NOT_VERIFIED')
+  }
 
   await prisma.user.update({
     where: { id: user.id },
@@ -136,6 +152,12 @@ async function resendVerificationEmail(username) {
     data: {
       emailVerificationToken: verificationToken,
       emailVerificationExpires: new Date(Date.now() + VERIFICATION_TTL_MS),
+      // Don't optimistically clear emailDeliveryFailed here: Resend puts
+      // hard-bounced addresses on a suppression list, so a resend to the
+      // SAME bad address is silently dropped and never produces a fresh
+      // email.bounced event to re-flag it - the flag would stay wrongly
+      // cleared forever. Only clear it on an actual email.delivered event
+      // (see webhookService.js), i.e. real evidence it now works.
     },
   })
   await sendVerificationEmail(user.email, verificationToken)

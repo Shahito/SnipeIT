@@ -55,8 +55,7 @@ function renderJobs() {
     document.getElementById('emptyResetBtn').classList.toggle('hidden', !isFiltered)
     return
   }
-  document.getElementById('emptyState').classList.add('hidden')
-  document.querySelector(".jobs-controls").classList.remove('hidden')
+    document.getElementById('emptyState').classList.add('hidden')
   content.classList.remove('hidden')
 
   const hasGroups = groupBy !== 'none'

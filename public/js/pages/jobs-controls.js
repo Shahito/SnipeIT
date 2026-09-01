@@ -1,60 +1,89 @@
+function updateClearFiltersBtn() {
+  const isDefault = sortBy === 'date' && !sortAsc && groupBy === 'none' && filterStat === 'all'
+  document.getElementById('clearFiltersBtn').disabled = isDefault
+}
+
+document.getElementById('filtersToggleBtn').addEventListener('click', () => {
+  const panel = document.getElementById('jobsFiltersPanel')
+  const btn = document.getElementById('filtersToggleBtn')
+  const isOpen = panel.classList.toggle('hidden') === false
+  btn.classList.toggle('active', isOpen)
+  btn.setAttribute('aria-expanded', String(isOpen))
+})
+
 // Controls
-function restoreControlsUI() {
-  document.querySelectorAll('#sortGroup .toggle-btn')
-    .forEach(b => b.classList.toggle('active', b.dataset.sort === sortBy))
-  document.querySelectorAll('#groupGroup .toggle-btn')
-    .forEach(b => b.classList.toggle('active', b.dataset.group === groupBy))
-  document.querySelectorAll('#filterGroup .toggle-btn')
-    .forEach(b => b.classList.toggle('active', b.dataset.filter === filterStat))
-  updateSortIndicators()
-}
-
-document.getElementById('sortGroup').addEventListener('click', e => {
-  const btn = e.target.closest('[data-sort]')
-  if (!btn) return
-  if (sortBy === btn.dataset.sort) {
-    sortAsc = !sortAsc
-  } else {
-    sortBy = btn.dataset.sort
-    sortAsc = false
-  }
-  document.querySelectorAll('#sortGroup .toggle-btn')
-    .forEach(b => b.classList.toggle('active', b === btn))
-  updateSortIndicators()
-  savePrefs()
-  loadJobs(1)
-})
-function updateSortIndicators() {
-  document.querySelectorAll('#sortGroup .toggle-btn').forEach(btn => {
-    const label = btn.dataset.originalLabel || btn.textContent
-    btn.dataset.originalLabel = label
-    if (btn.dataset.sort === sortBy) {
-      btn.innerHTML = `${sortAsc ? ICONS.sort_arrow_up : ICONS.sort_arrow_down} ${label}`
+const sortSelect = initCustomSelect(document.getElementById('sortSelect'), {
+  onChange: (value) => {
+    if (sortBy === value) {
+      sortAsc = !sortAsc
     } else {
-      btn.textContent = label
+      sortBy = value
+      sortAsc = false
     }
-  })
+    updateSortIndicators()
+    updateClearFiltersBtn()
+    savePrefs()
+    loadJobs(1)
+  }
+})
+
+const groupSelect = initCustomSelect(document.getElementById('groupSelect'), {
+  onChange: (value) => {
+    groupBy = value
+    collapsedGroups.clear()
+    updateClearFiltersBtn()
+    savePrefs()
+    loadJobs(1)
+  }
+})
+
+const filterSelect = initCustomSelect(document.getElementById('filterSelect'), {
+  onChange: (value) => {
+    filterStat = value
+    updateClearFiltersBtn()
+    savePrefs()
+    loadJobs(1)
+  }
+})
+
+document.getElementById('sortDirBtn').addEventListener('click', () => {
+  sortAsc = !sortAsc
+  updateSortIndicators()
+  updateClearFiltersBtn()
+  savePrefs()
+  loadJobs(1)
+})
+
+document.getElementById('clearFiltersBtn').addEventListener('click', () => {
+  sortBy = 'date'
+  sortAsc = false
+  groupBy = 'none'
+  filterStat = 'all'
+  collapsedGroups.clear()
+  sortSelect.setValue(sortBy, { silent: true })
+  groupSelect.setValue(groupBy, { silent: true })
+  filterSelect.setValue(filterStat, { silent: true })
+  updateSortIndicators()
+  updateClearFiltersBtn()
+  savePrefs()
+  loadJobs(1)
+})
+
+function restoreControlsUI() {
+  sortSelect.setValue(sortBy, { silent: true })
+  groupSelect.setValue(groupBy, { silent: true })
+  filterSelect.setValue(filterStat, { silent: true })
+  updateSortIndicators()
+  updateClearFiltersBtn()
 }
 
-document.getElementById('groupGroup').addEventListener('click', e => {
-  const btn = e.target.closest('[data-group]'); if (!btn) return
-  groupBy = btn.dataset.group
-  collapsedGroups.clear()
-  document.querySelectorAll('#groupGroup .toggle-btn').forEach(b => b.classList.toggle('active', b === btn))
-  savePrefs()
-  loadJobs(1)
-})
-
-document.getElementById('filterGroup').addEventListener('click', e => {
-  const btn = e.target.closest('[data-filter]'); if (!btn) return
-  filterStat = btn.dataset.filter
-  document.querySelectorAll('#filterGroup .toggle-btn').forEach(b => b.classList.toggle('active', b === btn))
-  savePrefs()
-  loadJobs(1)
-})
+function updateSortIndicators() {
+  document.getElementById('sortDirBtn').innerHTML =
+    sortAsc ? ICONS.sort_arrow_up : ICONS.sort_arrow_down
+}
 
 function renderPagination() {
-  const bar  = document.getElementById('paginationBar')
+  const bar = document.getElementById('paginationBar')
   const prev = document.getElementById('prevPageBtn')
   const next = document.getElementById('nextPageBtn')
   const first = document.getElementById('firstPageBtn')
@@ -80,9 +109,16 @@ document.getElementById('firstPageBtn').addEventListener('click', () => loadAndS
 document.getElementById('lastPageBtn').addEventListener('click', () => loadAndScrollTop(totalPages))
 document.getElementById('emptyResetBtn').addEventListener('click', () => {
   filterStat = 'all'
-  document.querySelectorAll('#filterGroup .toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === 'all'))
+  filterSelect.setValue('all', { silent: true })
+  updateClearFiltersBtn()
   savePrefs()
   loadJobs(1)
 })
+
+function syncJobsSelectLabels() {
+  sortSelect.syncLabel()
+  groupSelect.syncLabel()
+  filterSelect.syncLabel()
+}
 
 restoreControlsUI()

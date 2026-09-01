@@ -16,6 +16,7 @@ const tagRoutes = require('./src/routes/tag')
 const sweepRoutes = require('./src/routes/sweep')
 const eventsRoutes = require('./src/routes/events')
 const coinRoutes = require('./src/routes/coin')
+const webhookRoutes = require('./src/routes/webhooks')
 
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./src/config/swagger');
@@ -23,7 +24,11 @@ const swaggerSpec = require('./src/config/swagger');
 const app = express()
 const PORT = process.env.PORT || 4000
 
-app.use(express.json())
+// Keep the raw body around (needed to verify the Resend/Svix webhook
+// signature, computed over the exact bytes received).
+app.use(express.json({
+  verify: (req, _res, buf) => { req.rawBody = buf }
+}))
 app.use(cookieParser())
 app.use(helmet({
   hsts: isProd,
@@ -89,6 +94,7 @@ app.use('/api/apikeys', apikeyRoutes)
 app.use('/api/worker', workerRoutes)
 app.use('/api/tags', tagRoutes)
 app.use('/api/coins', coinRoutes)
+app.use('/api/webhooks', webhookRoutes)
 app.use('/api', sweepRoutes) // expose /api/strategies/:id/sweep* and /api/sweeps*
 
 if (!isProd) {

@@ -25,6 +25,7 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^9.1.0",
     "prisma": "^6.19.2",
+    "svix": "^2.2.0",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1"
   },

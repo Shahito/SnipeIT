@@ -1,5 +1,5 @@
 const COLORS = {
-  bg: '#08090D',
+  bg: '#F7F6F2',
   card: '#0E0F14',
   border: 'rgba(112, 120, 138, 0.16)',
   primary: '#7893CC',

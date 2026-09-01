@@ -35,7 +35,7 @@ function getTransporter() {
 }
 
 async function sendVerificationEmail(to, token) {
-  const baseUrl = process.env.APP_URL || 'http://localhost:4000'
+  const baseUrl = process.env.APP_URL || 'https://localhost:4000'
   const link = `${baseUrl}/verify-email.html?token=${token}`
 
   const html = renderEmail({
