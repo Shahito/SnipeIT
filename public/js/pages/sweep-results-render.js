@@ -1,3 +1,11 @@
+const SWEEP_METRIC_TARGET_CARD = {
+  'sweep.metric.pct_profitable': 'categoriesCard',
+  'sweep.metric.best': 'bestCard',
+  'sweep.metric.worst': 'worstCard',
+  'sweep.metric.std_pnl': 'sensitivityCard',
+}
+initMetricCardInteractivity('globalMetricsGrid', SWEEP_METRIC_TARGET_CARD)
+
 const _tooltip = (() => {
   const el = document.createElement('div')
   el.className = 'ctx-tooltip'
@@ -41,19 +49,22 @@ function renderGlobalMetrics(g) {
     return
   }
   const metrics = [
-    { key: 'sweep.metric.count',          value: g.count,                                    cls: 'neutral' },
-    { key: 'sweep.metric.avg_pnl',        value: fmtPct(g.avgPnlPercent),                     cls: g.avgPnlPercent >= 0 ? 'positive' : 'negative' },
-    { key: 'sweep.metric.median_pnl',     value: fmtPct(g.medianPnlPercent),                  cls: g.medianPnlPercent >= 0 ? 'positive' : 'negative' },
-    { key: 'sweep.metric.std_pnl',        value: g.stdPnlPercent.toFixed(2) + '%',             cls: 'neutral' },
-    { key: 'sweep.metric.pct_profitable', value: g.pctProfitable.toFixed(1) + '%',             cls: g.pctProfitable >= 50 ? 'positive' : 'negative' },
-    { key: 'sweep.metric.best',           value: fmtPct(g.bestPnlPercent),                    cls: g.bestPnlPercent >= 0 ? 'positive' : 'negative' },
-    { key: 'sweep.metric.worst',          value: fmtPct(g.worstPnlPercent),                   cls: g.worstPnlPercent >= 0 ? 'positive' : 'negative' },
+    { key: 'sweep.metric.count', value: g.count, cls: 'neutral' },
+    { key: 'sweep.metric.avg_pnl', value: fmtPct(g.avgPnlPercent), cls: g.avgPnlPercent >= 0 ? 'positive' : 'negative' },
+    { key: 'sweep.metric.median_pnl', value: fmtPct(g.medianPnlPercent), cls: g.medianPnlPercent >= 0 ? 'positive' : 'negative' },
+    { key: 'sweep.metric.std_pnl', value: g.stdPnlPercent.toFixed(2) + '%', cls: 'neutral' },
+    { key: 'sweep.metric.pct_profitable', value: g.pctProfitable.toFixed(1) + '%', cls: g.pctProfitable >= 50 ? 'positive' : 'negative' },
+    { key: 'sweep.metric.best', value: fmtPct(g.bestPnlPercent), cls: g.bestPnlPercent >= 0 ? 'positive' : 'negative' },
+    { key: 'sweep.metric.worst', value: fmtPct(g.worstPnlPercent), cls: g.worstPnlPercent >= 0 ? 'positive' : 'negative' },
   ]
-  grid.innerHTML = metrics.map(m => `
-    <div class="metric-card">
+  grid.innerHTML = metrics.map(m => {
+    const { cls: interCls, attrs } = metricCardInteractiveAttrs(m.key, SWEEP_METRIC_TARGET_CARD)
+    return `
+    <div class="metric-card${interCls}" ${attrs}>
       <div class="metric-label">${t(m.key)}</div>
       <div class="metric-value ${m.cls}">${m.value}</div>
-    </div>`).join('')
+    </div>`
+  }).join('')
 }
 
 function renderCategories(byCategory) {
@@ -98,15 +109,15 @@ function renderSensitivity(sensitivity) {
           </tr></thead>
           <tbody>
             ${axis.values.map(v => {
-              const label = escHtml(safeDescribeSweepValue(axis.path, v.value, currentSweep.definition))
-              if (!v.stats) return `<tr><td>${label}</td><td colspan="3" class="text-muted text-sm">${t('sweep.no_results_yet')}</td></tr>`
-              return `<tr>
+    const label = escHtml(safeDescribeSweepValue(axis.path, v.value, currentSweep.definition))
+    if (!v.stats) return `<tr><td>${label}</td><td colspan="3" class="text-muted text-sm">${t('sweep.no_results_yet')}</td></tr>`
+    return `<tr>
                 <td>${label}</td>
                 <td>${v.stats.count}</td>
                 <td class="${v.stats.avgPnlPercent >= 0 ? 'pnl-positive' : 'pnl-negative'}">${fmtPct(v.stats.avgPnlPercent)}</td>
                 <td>${v.stats.pctProfitable.toFixed(1)}%</td>
               </tr>`
-            }).join('')}
+  }).join('')}
           </tbody>
         </table>
       </div>
@@ -133,8 +144,8 @@ function renderCombosTable(bodyId, jobs) {
       </td>
       <td class="text-muted text-sm" style="font-family:var(--mono)">
         ${escHtml(Object.entries(j.paramValues || {})
-          .map(([k, v]) => safeDescribeSweepValue(k, v, currentSweep.definition))
-          .join(', ')) || '-'}
+      .map(([k, v]) => safeDescribeSweepValue(k, v, currentSweep.definition))
+      .join(', ')) || '-'}
       </td>
       <td class="${j.pnlPercent >= 0 ? 'pnl-positive' : 'pnl-negative'}">${fmtPct(j.pnlPercent)}</td>
       <td>${j.sharpeRatio != null ? j.sharpeRatio.toFixed(2) : '-'}</td>

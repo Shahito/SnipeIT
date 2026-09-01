@@ -61,7 +61,14 @@ function _hideTooltip() {
 }
 window.addEventListener('scroll', () => _hideTooltip(), { passive: true })
 window.addEventListener('wheel', () => _hideTooltip(), { passive: true })
-window.addEventListener('touchmove', () => _hideTooltip(), { passive: true })
+window.addEventListener('touchmove', e => {
+  const touch = e.touches[0]
+  if (touch) {
+    const elAtPoint = document.elementFromPoint(touch.clientX, touch.clientY)
+    if (elAtPoint?.closest('canvas')) return
+  }
+  _hideTooltip()
+}, { passive: true })
 
 // Helpers
 function _cssVar(name) {

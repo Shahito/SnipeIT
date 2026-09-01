@@ -30,13 +30,6 @@ const SORT_SQL = {
   totalTrades: { job: 'bj.totalTrades', sweep: "AVG(CASE WHEN bj.status = 'done' THEN bj.totalTrades END)" },
 }
 
-// Real work start = first run actually claimed by a worker, not the sweep's launch
-// time, since jobs can sit pending for a while before a worker picks them up.
-function sweepStartedAt(jobs) {
-  const started = jobs.map(j => j.startedAt).filter(Boolean)
-  return started.length ? new Date(Math.min(...started.map(d => new Date(d)))) : null
-}
-
 async function listJobs(userId, { page = 1, limit = 20, sort = 'createdAt', order = 'desc', status = null, sweepGroupId = null } = {}) {
   const sortField = VALID_SORTS.includes(sort) ? sort : 'createdAt'
   const sortOrder = order === 'asc' ? 'asc' : 'desc'

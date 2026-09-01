@@ -428,7 +428,8 @@ i {
     white-space: nowrap;
     background: var(--surface2);
     color: var(--text-muted);
-    line-height: 1.5;
+    line-height: 1;
+    height: 2.5rem;
 }
 
 .btn:hover {
@@ -507,6 +508,7 @@ i {
 .btn-sm {
     padding: .35rem .7rem;
     font-size: .7rem;
+    height: 1.8rem;
 }
 
 .btn-full {
@@ -1426,6 +1428,13 @@ tbody td {
     flex-direction: column;
     row-gap: 1.5rem;
     column-gap: 1.25rem;
+}
+
+#categoriesCard,
+#bestCard,
+#worstCard,
+#sensitivityCard {
+    scroll-margin-top: 3.8rem;
 }
 
 .table-wrap,
@@ -2651,9 +2660,6 @@ select.field-invalid {
     outline: none;
 }
 
-/* Responsive */
-@media (max-width: 700px) {}
-
 /* API Keys */
 .apikey-list {
     display: flex;
@@ -3293,7 +3299,6 @@ select.field-invalid {
     font-size: .72rem;
     color: var(--text-muted);
     margin-left: auto;
-    margin-bottom: .4rem;
 }
 
 .scatter-legend-item {
@@ -4080,6 +4085,10 @@ input[type="color"] {
         font-size: 1rem;
     }
 
+    .metric-label {
+        font-size: 0.75rem;
+    }
+
     .card {
         padding: 1rem;
     }
@@ -4107,10 +4116,6 @@ input[type="color"] {
     .strategy-card-actions .btn {
         font-size: .75rem;
         padding: .3rem .55rem;
-    }
-
-    .metrics-grid {
-        grid-template-columns: repeat(2, 1fr);
     }
 
     .trade-row {
@@ -4201,17 +4206,14 @@ input[type="color"] {
     .job-row-main {
         flex-wrap: wrap;
         gap: .6rem;
+        flex-direction: row;
     }
 
     .job-row-metrics {
-        gap: .75rem;
+        display: none;
+        /* gap: .75rem;
         width: 100%;
-        justify-content: space-between;
-    }
-
-    .job-row-actions {
-        width: 100%;
-        justify-content: flex-end;
+        justify-content: space-between; */
     }
 
     #equityChart {
@@ -4352,6 +4354,10 @@ input[type="color"] {
     .exp-overlay.open .exp-modal {
         transform: translateY(0);
     }
+
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
 @media (max-width: 480px) {
@@ -4364,13 +4370,28 @@ input[type="color"] {
     }
 
     .strategy-card-actions {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
+        display: flex;
+        justify-content: space-evenly;
+        padding-top: 0.6rem;
     }
 
     .strategy-card-actions .ml-auto {
         grid-column: span 2;
         justify-self: end;
+    }
+
+    .strategy-card-actions .btn {
+        padding: 0.55rem;
+        height: auto;
+    }
+
+    .strategy-card-actions .btn>span {
+        display: none;
+    }
+
+    .strategy-card-actions .btn>svg {
+        width: 1rem;
+        height: 1rem;
     }
 
     .cond-side-params {
@@ -4381,10 +4402,20 @@ input[type="color"] {
         gap: 0.4rem;
     }
 
+    .job-row-main {
+        flex-direction: column;
+        align-items: start;
+    }
+
     .job-row-metrics {
-        display: grid;
+        display: none;
+        /* display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: .5rem;
+        gap: .5rem; */
+    }
+
+    .job-row-actions {
+        align-self: flex-end;
     }
 
     .job-metric {
@@ -4411,12 +4442,9 @@ input[type="color"] {
         max-height: 90vh;
         min-height: 70vh;
     }
-
-    .status-group {
-        flex-direction: column;
-    }
 }
-/* --- Password visibility toggle --- */
+
+/* Password visibility toggle */
 .password-field {
     position: relative;
     display: flex;

@@ -34,13 +34,13 @@ async function loadStrategies() {
 }
 
 function renderStrategyCard(s) {
-  const lastJob   = s.jobs?.[0]
+  const lastJob = s.jobs?.[0]
   // For a sweep, the badge must reflect the aggregate sweepGroup.status, not
   // the status of one arbitrary job within it (see refreshSweepGroupStatus).
-  const isSweepJob   = !!lastJob?.sweepGroup
-  const badgeStatus  = isSweepJob ? lastJob.sweepGroup.status : lastJob?.status
-  const badgeKey     = isSweepJob ? 'sweep.status.' + badgeStatus : 'status.' + badgeStatus
-  const badgeCss     = isSweepJob && badgeStatus === 'partial_error' ? 'error' : badgeStatus
+  const isSweepJob = !!lastJob?.sweepGroup
+  const badgeStatus = isSweepJob ? lastJob.sweepGroup.status : lastJob?.status
+  const badgeKey = isSweepJob ? 'sweep.status.' + badgeStatus : 'status.' + badgeStatus
+  const badgeCss = isSweepJob && badgeStatus === 'partial_error' ? 'error' : badgeStatus
   const statusHtml = lastJob
     ? `<span class="status-badge status-${badgeCss}"><span class="status-dot"></span>${t(badgeKey)}</span>`
     : `<span class="status-badge status-none"><span class="status-dot"></span>${t('strategies.never_launched')}</span>`
@@ -73,10 +73,10 @@ function renderStrategyCard(s) {
         </div>
         <div class="strategy-card-title">${escHtml(s.name)}</div>
       </div>
-      ${s.description ? 
-        `<div class="strategy-card-desc" data-tooltip="${escHtml(s.description)}">${escHtml(s.description)}</div>`
-        :`<div class="strategy-card-desc">${t("strategies.no_desc")}</div>`
-      }
+      ${s.description ?
+      `<div class="strategy-card-desc" data-tooltip="${escHtml(s.description)}">${escHtml(s.description)}</div>`
+      : `<div class="strategy-card-desc">${t("strategies.no_desc")}</div>`
+    }
       <div class="strategy-tags">
         <span class="tag tag-primary">${pairsLabel}</span>
         <span class="tag">${timeframeLabel}</span>
@@ -85,21 +85,21 @@ function renderStrategyCard(s) {
       </div>
       <div class="strategy-card-actions">
         ${lastJob?.status != 'pending' && lastJob?.status != 'running' ?
-        `<button class="btn btn-sm launch-btn
-          ${lastJob?.status === 'done' ? 'btn-ghost':' btn-primary'}" data-id="${s.id}">
+      `<button class="btn btn-sm launch-btn
+          ${lastJob?.status === 'done' ? 'btn-ghost' : ' btn-surface'}" data-id="${s.id}">
             ${lastJob?.status === 'done' ?
-              `${ICONS.replay}${t('strategies.btn.relaunch')}` :
-              `${ICONS.play}${t('strategies.btn.launch')}`
-            }</button>`:
-            ''
-          }
-        <a href="/strategy-editor.html?id=${s.id}" class="btn btn-ghost btn-sm">${ICONS.pencil}${t('strategies.btn.edit')}</a>
-        <button class="btn btn-ghost btn-sm clone-btn" data-id="${s.id}">${ICONS.copy}${t('strategies.btn.clone')}</button>
+        `${ICONS.replay}<span>${t('strategies.btn.relaunch')}</span>` :
+        `${ICONS.play}<span>${t('strategies.btn.launch')}</span>`
+      }</button>` :
+      ''
+    }
+        <a href="/strategy-editor.html?id=${s.id}" class="btn btn-ghost btn-sm">${ICONS.pencil}<span>${t('strategies.btn.edit')}</span></a>
+        <button class="btn btn-ghost btn-sm clone-btn" data-id="${s.id}">${ICONS.copy}<span>${t('strategies.btn.clone')}</span></button>
         ${lastJob?.status === 'done' ?
-          (isSweep
-            ? `<a href="/sweep-results.html?id=${lastJob.sweepGroup.id}" class="btn btn-ghost btn-sm">${ICONS.chart}${t('strategies.btn.sweep_results')}</a>`
-            : `<a href="/results.html?jobId=${lastJob.id}" class="btn btn-ghost btn-sm">${ICONS.chart}${t('strategies.btn.results')}</a>`)
-          : ''}
+      (isSweep
+        ? `<a href="/sweep-results.html?id=${lastJob.sweepGroup.id}" class="btn btn-ghost btn-sm">${ICONS.chart}<span>${t('strategies.btn.sweep_results')}</span></a>`
+        : `<a href="/results.html?jobId=${lastJob.id}" class="btn btn-ghost btn-sm">${ICONS.chart}<span>${t('strategies.btn.results')}</span></a>`)
+      : ''}
       </div>
     </div>`
 }
@@ -126,7 +126,7 @@ function bindTooltips() {
       const vw = window.innerWidth
       const vh = window.innerHeight
       const offset = 12
-      
+
       const isMobileWidth = vw <= 850 // 32 = 2rem
       const margin = 8
       const left = isMobileWidth
@@ -134,7 +134,7 @@ function bindTooltips() {
         : x + offset + tw > vw
           ? x - tw - offset
           : x + offset
-      
+
       const leftClamped = Math.min(Math.max(left, margin), vw - tw - margin)
 
       tooltipEl.style.left = leftClamped + 'px'
@@ -142,13 +142,13 @@ function bindTooltips() {
       const top = y + offset + th > vh ? y - th - offset : y + offset
 
       tooltipEl.style.left = left + 'px'
-      tooltipEl.style.top  = top  + 'px'
+      tooltipEl.style.top = top + 'px'
       tooltipEl.style.opacity = '1'
     }
     const hide = () => tooltipEl.style.opacity = '0'
 
     el.addEventListener('mouseenter', e => show(e.clientX + 12, e.clientY + 12))
-    el.addEventListener('mousemove',  e => show(e.clientX + 12, e.clientY + 12))
+    el.addEventListener('mousemove', e => show(e.clientX + 12, e.clientY + 12))
     el.addEventListener('mouseleave', hide)
 
     el.addEventListener('touchstart', e => {
@@ -159,4 +159,4 @@ function bindTooltips() {
   })
 }
 
-function fmtDate(d) { return new Date(d).toLocaleDateString(i18nCurrentLang() === 'fr' ? 'fr-FR' : 'en-GB', { day:'2-digit', month:'2-digit', year:'2-digit' }) }
+function fmtDate(d) { return new Date(d).toLocaleDateString(i18nCurrentLang() === 'fr' ? 'fr-FR' : 'en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }) }

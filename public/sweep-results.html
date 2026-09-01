@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html data-i18n-title="page.title.sweep">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,12 +12,15 @@
   <script src="/js/icons.js"></script>
   <script src="/js/register-sw.js"></script>
 </head>
+
 <body>
   <div class="app-layout">
     <header class="app-header" id="appHeader" data-active="jobs"></header>
 
     <main class="app-main" id="sweepResults">
-      <div id="loadingState" class="loading-spinner"><div class="spinner"></div></div>
+      <div id="loadingState" class="loading-spinner">
+        <div class="spinner"></div>
+      </div>
 
       <div id="errorState" class="empty-state hidden">
         <div class="empty-state-icon"><i data-icon="warning"></i></div>
@@ -31,7 +35,8 @@
             <p id="sweepMeta"></p>
           </div>
           <div class="page-header-actions">
-            <span class="status-badge" id="sweepStatusBadge"><span class="status-dot"></span><span id="sweepStatusLabel"></span></span>
+            <span class="status-badge" id="sweepStatusBadge"><span class="status-dot"></span><span
+                id="sweepStatusLabel"></span></span>
             <a href="/jobs.html" class="btn btn-ghost" data-i18n="sweep.back"></a>
             <button class="btn btn-surface" id="exportBtn">
               <i data-icon="export"></i>
@@ -44,27 +49,29 @@
         <div class="metrics-grid" id="globalMetricsGrid"></div>
 
         <!-- By pair category -->
-        <div class="card">
+        <div class="card" id="categoriesCard">
           <div class="card-header">
             <div class="card-title" data-i18n="sweep.categories_title"></div>
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr>
-                <th data-i18n="sweep.table.pair"></th>
-                <th data-i18n="sweep.metric.count"></th>
-                <th data-i18n="sweep.metric.avg_pnl"></th>
-                <th data-i18n="sweep.metric.pct_profitable"></th>
-                <th data-i18n="sweep.metric.best"></th>
-                <th data-i18n="sweep.metric.worst"></th>
-              </tr></thead>
+              <thead>
+                <tr>
+                  <th data-i18n="sweep.table.pair"></th>
+                  <th data-i18n="sweep.metric.count"></th>
+                  <th data-i18n="sweep.metric.avg_pnl"></th>
+                  <th data-i18n="sweep.metric.pct_profitable"></th>
+                  <th data-i18n="sweep.metric.best"></th>
+                  <th data-i18n="sweep.metric.worst"></th>
+                </tr>
+              </thead>
               <tbody id="categoriesTableBody"></tbody>
             </table>
           </div>
         </div>
 
         <!-- Sensitivity by parameter -->
-        <div class="card">
+        <div class="card" id="sensitivityCard">
           <div class="card-header">
             <div class="card-title" data-i18n="sweep.sensitivity_title"></div>
           </div>
@@ -72,21 +79,23 @@
         </div>
 
         <!-- Best / worst combinaisons -->
-        <div class="card">
+        <div class="card" id="bestCard">
           <div class="card-header">
             <div class="card-title" id="bestCardTitle" data-i18n="sweep.best_title"></div>
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr>
-                <th data-i18n="sweep.table.pair"></th>
-                <th data-i18n="sweep.table.params"></th>
-                <th data-i18n="sweep.table.pnl"></th>
-                <th data-i18n="sweep.table.sharpe"></th>
-                <th data-i18n="sweep.table.winrate"></th>
-                <th data-i18n="sweep.table.maxdd"></th>
-                <th data-i18n="sweep.table.action"></th>
-              </tr></thead>
+              <thead>
+                <tr>
+                  <th data-i18n="sweep.table.pair"></th>
+                  <th data-i18n="sweep.table.params"></th>
+                  <th data-i18n="sweep.table.pnl"></th>
+                  <th data-i18n="sweep.table.sharpe"></th>
+                  <th data-i18n="sweep.table.winrate"></th>
+                  <th data-i18n="sweep.table.maxdd"></th>
+                  <th data-i18n="sweep.table.action"></th>
+                </tr>
+              </thead>
               <tbody id="bestTableBody"></tbody>
             </table>
           </div>
@@ -98,15 +107,17 @@
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr>
-                <th data-i18n="sweep.table.pair"></th>
-                <th data-i18n="sweep.table.params"></th>
-                <th data-i18n="sweep.table.pnl"></th>
-                <th data-i18n="sweep.table.sharpe"></th>
-                <th data-i18n="sweep.table.winrate"></th>
-                <th data-i18n="sweep.table.maxdd"></th>
-                <th data-i18n="sweep.table.action"></th>
-              </tr></thead>
+              <thead>
+                <tr>
+                  <th data-i18n="sweep.table.pair"></th>
+                  <th data-i18n="sweep.table.params"></th>
+                  <th data-i18n="sweep.table.pnl"></th>
+                  <th data-i18n="sweep.table.sharpe"></th>
+                  <th data-i18n="sweep.table.winrate"></th>
+                  <th data-i18n="sweep.table.maxdd"></th>
+                  <th data-i18n="sweep.table.action"></th>
+                </tr>
+              </thead>
               <tbody id="worstTableBody"></tbody>
             </table>
           </div>
@@ -143,10 +154,12 @@
   <script src="/js/export.js"></script>
   <script src="/js/sweep-labels.js"></script>
   <script src="/js/tag-manager.js"></script>
-  
+  <script src="/js/metric-cards.js"></script>
+
   <script src="/js/pages/sweep-results-core.js"></script>
   <script src="/js/pages/sweep-results-render.js"></script>
   <script src="/js/pages/sweep-results-tags.js"></script>
   <script src="/js/pages/sweep-results-failed.js"></script>
 </body>
+
 </html>
