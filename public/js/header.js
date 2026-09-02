@@ -12,6 +12,7 @@ document.addEventListener('i18n:ready', async () => {
     { key: 'strategies', href: '/strategies.html', icon: ICONS.grid, i18n: 'nav.strategies' },
     { key: 'jobs', href: '/jobs.html', icon: ICONS.list, i18n: 'nav.jobs' },
     { key: 'apikeys', href: '/apikeys.html', icon: ICONS.key, i18n: 'nav.apikeys' },
+    { key: 'account', href: '/account.html', icon: ICONS.gear, i18n: 'nav.account' },
   ]
 
   const COLOR_SCHEMES = {

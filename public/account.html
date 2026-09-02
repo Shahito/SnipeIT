@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html data-i18n-title="page.title.account">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SnipeIT</title>
+  <link rel="icon" type="image/png" href="/images/tab/tab-icon.png">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/i18n.js"></script>
+  <script src="/js/icons.js"></script>
+  <script src="/js/register-sw.js"></script>
+</head>
+
+<body>
+  <div class="app-layout">
+    <header class="app-header" id="appHeader" data-active="account"></header>
+
+    <main class="app-main">
+      <div class="page-header">
+        <div class="page-header-left">
+          <h1 data-i18n="account.title"></h1>
+          <p data-i18n="account.subtitle"></p>
+        </div>
+      </div>
+
+      <!-- EMAIL -->
+      <section class="card mb-xl">
+        <h2 class="mb-md" data-i18n="account.email_section_title"></h2>
+
+        <div class="form-group">
+          <label data-i18n="account.current_email_label"></label>
+          <div class="flex-row flex-row--gap-sm flex-row--start">
+            <span id="currentEmailText" class="monospace"></span>
+            <span id="emailVerifiedBadge" class="status-badge status-done hidden" data-i18n="account.email_verified_badge"></span>
+            <span id="emailUnverifiedBadge" class="status-badge status-error hidden" data-i18n="account.email_unverified_badge"></span>
+          </div>
+        </div>
+
+        <p class="card card--info" id="pendingEmailNotice" role="status" aria-live="polite"></p>
+        <p class="form-error" id="pendingEmailFailedNotice" role="alert" aria-live="polite"></p>
+
+        <div class="form-group">
+          <label for="newEmail" data-i18n="account.new_email_label"></label>
+          <input type="email" id="newEmail" autocomplete="email" inputmode="email">
+        </div>
+
+        <div class="form-group">
+          <label for="emailCurrentPassword" data-i18n="account.current_password_label"></label>
+          <div class="password-field">
+            <input type="password" id="emailCurrentPassword" autocomplete="current-password">
+            <button type="button" class="password-toggle" id="emailCurrentPasswordToggle"
+                    data-i18n-attr="aria-label" data-i18n="login.show_password" aria-pressed="false">
+              <span class="icon-eye"><i data-icon="eye"></i></span>
+              <span class="icon-eye-off" hidden><i data-icon="eye_off"></i></span>
+            </button>
+          </div>
+          <span class="field-hint" data-i18n="account.current_password_hint"></span>
+        </div>
+
+        <p class="form-error" id="changeEmailError" role="alert" aria-live="polite"></p>
+        <button class="btn btn-primary" id="changeEmailBtn" data-i18n="account.change_email_btn"></button>
+      </section>
+
+      <!-- PASSWORD -->
+      <section class="card">
+        <h2 class="mb-md" data-i18n="account.password_section_title"></h2>
+
+        <div class="form-group">
+          <label for="oldPassword" data-i18n="account.old_password_label"></label>
+          <div class="password-field">
+            <input type="password" id="oldPassword" autocomplete="current-password">
+            <button type="button" class="password-toggle" id="oldPasswordToggle"
+                    data-i18n-attr="aria-label" data-i18n="login.show_password" aria-pressed="false">
+              <span class="icon-eye"><i data-icon="eye"></i></span>
+              <span class="icon-eye-off" hidden><i data-icon="eye_off"></i></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="newPassword" data-i18n="account.new_password_label"></label>
+          <div class="password-field">
+            <input type="password" id="newPassword" autocomplete="new-password" minlength="8"
+                   aria-describedby="newPasswordChecklist">
+            <button type="button" class="password-toggle" id="newPasswordToggle"
+                    data-i18n-attr="aria-label" data-i18n="login.show_password" aria-pressed="false">
+              <span class="icon-eye"><i data-icon="eye"></i></span>
+              <span class="icon-eye-off" hidden><i data-icon="eye_off"></i></span>
+            </button>
+          </div>
+          <ul class="password-checklist" id="newPasswordChecklist" role="list">
+            <li class="password-checklist-item" data-rule="length"><span class="password-checklist-icon"></span><span data-i18n="password_rule.length"></span></li>
+            <li class="password-checklist-item" data-rule="lowercase"><span class="password-checklist-icon"></span><span data-i18n="password_rule.lowercase"></span></li>
+            <li class="password-checklist-item" data-rule="uppercase"><span class="password-checklist-icon"></span><span data-i18n="password_rule.uppercase"></span></li>
+            <li class="password-checklist-item" data-rule="digit"><span class="password-checklist-icon"></span><span data-i18n="password_rule.digit"></span></li>
+            <li class="password-checklist-item" data-rule="special"><span class="password-checklist-icon"></span><span data-i18n="password_rule.special"></span></li>
+          </ul>
+        </div>
+
+        <div class="form-group">
+          <label for="newPasswordConfirm" data-i18n="account.new_password_confirm_label"></label>
+          <div class="password-field">
+            <input type="password" id="newPasswordConfirm" autocomplete="new-password" minlength="8">
+            <button type="button" class="password-toggle" id="newPasswordConfirmToggle"
+                    data-i18n-attr="aria-label" data-i18n="login.show_password" aria-pressed="false">
+              <span class="icon-eye"><i data-icon="eye"></i></span>
+              <span class="icon-eye-off" hidden><i data-icon="eye_off"></i></span>
+            </button>
+          </div>
+        </div>
+
+        <p class="form-error" id="changePasswordError" role="alert" aria-live="polite"></p>
+        <button class="btn btn-primary" id="changePasswordBtn" data-i18n="account.change_password_btn"></button>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+  <script src="/js/utils.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/toast.js"></script>
+  <script src="/js/header.js"></script>
+  <script src="/js/utils/password-policy.js"></script>
+  <script src="/js/pages/account-page.js"></script>
+</body>
+
+</html>

@@ -46,7 +46,10 @@ function touchAccess(dir) {
 
 function lastAccessMs(dir) {
     try {
-        return fs.statSync(path.join(dir, ACCESS_MARKER)).mtimeMs
+        const raw = fs.readFileSync(path.join(dir, ACCESS_MARKER), 'utf8')
+        const ms = Number(raw)
+        if (Number.isFinite(ms)) return ms
+        throw new Error('invalid marker content')
     } catch {
         // No marker (cache folder predates this feature, or the write above
         // failed once) - fall back to the newest data file's mtime so
@@ -104,7 +107,6 @@ function cleanupStaleCandleCache(maxAgeMs = DEFAULT_MAX_AGE_MS) {
             const pairDir = path.join(exchangeDir, pair)
             for (const timeframe of subDirs(pairDir)) {
                 const tfDir = path.join(pairDir, timeframe)
-                console.log(`${pairDir} - ${lastAccessMs(tfDir)} < ${cutoff}`)
                 if (lastAccessMs(tfDir) < cutoff) {
                     freedBytes += dirSizeBytes(tfDir)
                     fs.rmSync(tfDir, { recursive: true, force: true })

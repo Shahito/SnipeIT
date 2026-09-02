@@ -127,14 +127,38 @@ async function verifyEmail(token) {
     throw new Error('TOKEN_EXPIRED')
   }
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      emailVerified: true,
-      emailVerificationToken: null,
-      emailVerificationExpires: null,
-    },
-  })
+  if (user.pendingEmail) {
+    // This token confirms a NEW address (from changeEmail()), not the
+    // original one - swap it in now that ownership is proven.
+    const canonicalEmail = canonicalizeEmail(user.pendingEmail)
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        email: user.pendingEmail,
+        normalizedEmail: canonicalEmail,
+        emailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpires: null,
+        pendingEmail: null,
+        pendingEmailDeliveryFailed: false,
+        pendingEmailDeliveryFailedReason: null,
+        pendingEmailDeliveryFailedAt: null,
+        // Whatever was wrong with the OLD address is moot now - we just left it.
+        emailDeliveryFailed: false,
+        emailDeliveryFailedReason: null,
+        emailDeliveryFailedAt: null,
+      },
+    })
+  } else {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpires: null,
+      },
+    })
+  }
   return true
 }
 
@@ -161,6 +185,55 @@ async function resendVerificationEmail(username) {
     },
   })
   await sendVerificationEmail(user.email, verificationToken)
+  return true
+}
+
+async function changeEmail(userId, currentPassword, newEmail) {
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) throw new Error('USER_NOT_FOUND')
+
+  const ok = await bcrypt.compare(currentPassword, user.password)
+  if (!ok) throw new Error('INVALID_OLD_PASSWORD')
+
+  const normalizedEmail = normalizeEmail(newEmail || '')
+  if (!normalizedEmail || !EMAIL_RE.test(normalizedEmail)) throw new Error('EMAIL_INVALID')
+  if (!allowEmailAliases && hasAliasTag(normalizedEmail)) throw new Error('EMAIL_ALIAS_BLOCKED')
+
+  // Same domain-reachability guard as register() - no point sending a
+  // confirmation link to a domain that plainly doesn't exist.
+  const domain = normalizedEmail.slice(normalizedEmail.lastIndexOf('@') + 1)
+  if (!(await domainCanReceiveMail(domain))) throw new Error('EMAIL_DOMAIN_UNREACHABLE')
+
+  const canonicalEmail = canonicalizeEmail(normalizedEmail)
+  if (canonicalEmail === user.normalizedEmail) throw new Error('EMAIL_SAME_AS_CURRENT')
+
+  const taken = await prisma.user.findUnique({ where: { normalizedEmail: canonicalEmail } })
+  if (taken) throw new Error('EMAIL_TAKEN')
+
+  const verificationToken = generateVerificationToken()
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      pendingEmail: normalizedEmail,
+      emailVerificationToken: verificationToken,
+      emailVerificationExpires: new Date(Date.now() + VERIFICATION_TTL_MS),
+      // Fresh address, fresh slate - any previous pending-change bounce
+      // was necessarily about a different address than this one.
+      pendingEmailDeliveryFailed: false,
+      pendingEmailDeliveryFailedReason: null,
+      pendingEmailDeliveryFailedAt: null,
+    },
+  })
+
+  // Best-effort, same reasoning as register(): don't fail the request if
+  // the mail provider hiccups - the pending state is already saved, and the
+  // user (or a later webhook) can still act on it.
+  try {
+    await sendVerificationEmail(normalizedEmail, verificationToken)
+  } catch (e) {
+    console.error('[authService] Failed to send change-email confirmation:', e.message)
+  }
+
   return true
 }
 
@@ -194,6 +267,7 @@ module.exports = {
   register,
   login,
   changePassword,
+  changeEmail,
   logoutAll,
   verifyEmail,
   resendVerificationEmail,

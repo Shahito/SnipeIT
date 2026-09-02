@@ -37,7 +37,7 @@ async function handleResendEvent(event) {
       : 'Recipient marked the email as spam'
 
     // Only touch accounts that are still unverified.
-    const result = await prisma.user.updateMany({
+    const onCurrentEmail = await prisma.user.updateMany({
       where: { email: recipient, emailVerified: false },
       data: {
         emailDeliveryFailed: true,
@@ -46,15 +46,27 @@ async function handleResendEvent(event) {
       },
     })
 
-    console.log(`[webhookService] ${event.type} for "${recipient}" -> ${result.count} user(s) updated`)
-    return { handled: true, matchedUsers: result.count }
+    // Same bounce, but for an in-progress email-change (changeEmail()) -
+    // the bad address here is pendingEmail, not the account's current email.
+    const onPendingEmail = await prisma.user.updateMany({
+      where: { pendingEmail: recipient },
+      data: {
+        pendingEmailDeliveryFailed: true,
+        pendingEmailDeliveryFailedReason: String(reason).slice(0, 191),
+        pendingEmailDeliveryFailedAt: new Date(),
+      },
+    })
+
+    const matched = onCurrentEmail.count + onPendingEmail.count
+    console.log(`[webhookService] ${event.type} for "${recipient}" -> ${matched} user(s) updated`)
+    return { handled: true, matchedUsers: matched }
   }
 
   if (event.type === DELIVERED_EVENT) {
     // Real proof the address now works (suppression list expired, typo
     // fixed and this is a fresh address, etc.) - only now is it safe to
     // clear a previous bounce flag.
-    const result = await prisma.user.updateMany({
+    const onCurrentEmail = await prisma.user.updateMany({
       where: { email: recipient, emailDeliveryFailed: true },
       data: {
         emailDeliveryFailed: false,
@@ -63,8 +75,18 @@ async function handleResendEvent(event) {
       },
     })
 
-    console.log(`[webhookService] ${event.type} for "${recipient}" -> ${result.count} user(s) cleared`)
-    return { handled: true, matchedUsers: result.count }
+    const onPendingEmail = await prisma.user.updateMany({
+      where: { pendingEmail: recipient, pendingEmailDeliveryFailed: true },
+      data: {
+        pendingEmailDeliveryFailed: false,
+        pendingEmailDeliveryFailedReason: null,
+        pendingEmailDeliveryFailedAt: null,
+      },
+    })
+
+    const matched = onCurrentEmail.count + onPendingEmail.count
+    console.log(`[webhookService] ${event.type} for "${recipient}" -> ${matched} user(s) cleared`)
+    return { handled: true, matchedUsers: matched }
   }
 
   return { handled: false }

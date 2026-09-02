@@ -1,4 +1,4 @@
-const { register, login, changePassword, logoutAll, verifyEmail, resendVerificationEmail } = require('../services/authService')
+const { register, login, changePassword, changeEmail, logoutAll, verifyEmail, resendVerificationEmail } = require('../services/authService')
 const { isProd } = require('../utils/env')
 
 const COOKIE_OPTS = (isProd) => ({
@@ -19,6 +19,7 @@ const KNOWN_CODES = new Set([
   'EMAIL_ALIAS_BLOCKED',
   'EMAIL_DOMAIN_UNREACHABLE',
   'EMAIL_DELIVERY_FAILED',
+  'EMAIL_SAME_AS_CURRENT',
   'PASSWORD_TOO_SHORT',
   'PASSWORD_NEEDS_LOWERCASE',
   'PASSWORD_NEEDS_UPPERCASE',
@@ -88,6 +89,19 @@ async function changePasswordController(req, res) {
   }
 }
 
+async function changeEmailController(req, res) {
+  try {
+    const { currentPassword, newEmail } = req.body
+    if (!currentPassword || !newEmail)
+      return res.status(400).json({ error: 'MISSING_FIELDS' })
+
+    await changeEmail(req.user.id, currentPassword, newEmail)
+    res.json({ success: true })
+  } catch (e) {
+    res.status(400).json({ error: errorCode(e) })
+  }
+}
+
 async function verifyEmailController(req, res) {
   try {
     const { token } = req.body
@@ -126,6 +140,7 @@ module.exports = {
   loginController,
   meController,
   changePasswordController,
+  changeEmailController,
   verifyEmailController,
   resendVerificationController,
   logoutController,

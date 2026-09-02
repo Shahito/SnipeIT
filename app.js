@@ -113,8 +113,7 @@ cron.schedule('*/30 * * * * *', async () => {
 })
 
 const { cleanupStaleCandleCache } = require('./src/utils/candleCache')
-// cron.schedule('0 3 * * *', () => {
-cron.schedule('*/5 * * * * *', async () => {
+cron.schedule('0 3 * * *', () => {
   try { cleanupStaleCandleCache() }
   catch (e) { console.error('[SnipeIT] cleanupStaleCandleCache error:', e.message) }
 })

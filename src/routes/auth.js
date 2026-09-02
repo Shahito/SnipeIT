@@ -6,6 +6,7 @@ const {
   loginController,
   meController,
   changePasswordController,
+  changeEmailController,
   verifyEmailController,
   resendVerificationController,
   logoutController,
@@ -145,6 +146,35 @@ router.post('/resend-verification', resendVerificationController)
  *         description: MISSING_FIELDS / INVALID_OLD_PASSWORD / PASSWORD_TOO_SHORT
  */
 router.post('/change-password', authRequired, changePasswordController)
+
+/**
+ * @openapi
+ * /api/auth/change-email:
+ *   post:
+ *     tags: [auth]
+ *     summary: Request an email change - sends a confirmation link to the new address
+ *     description: >
+ *       Doesn't change the email immediately: sets it as pendingEmail and
+ *       sends a confirmation link (same flow/token as initial verification).
+ *       The swap only happens once /verify-email is called with that link.
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [currentPassword, newEmail]
+ *             properties:
+ *               currentPassword: { type: string }
+ *               newEmail: { type: string }
+ *     responses:
+ *       200:
+ *         description: OK (confirmation email sent to newEmail)
+ *       400:
+ *         description: MISSING_FIELDS / INVALID_OLD_PASSWORD / EMAIL_INVALID / EMAIL_ALIAS_BLOCKED / EMAIL_DOMAIN_UNREACHABLE / EMAIL_SAME_AS_CURRENT / EMAIL_TAKEN
+ */
+router.post('/change-email', authRequired, changeEmailController)
 
 /**
  * @openapi

@@ -20,6 +20,15 @@ model User {
   emailDeliveryFailed      Boolean       @default(false) // set by the Resend webhook on a hard bounce
   emailDeliveryFailedReason String?      // Resend's bounce message/subtype
   emailDeliveryFailedAt    DateTime?
+
+  // Email-change flow: a new address awaiting confirmation. The existing
+  // emailVerificationToken/Expires are reused for this - verifyEmail() swaps
+  // `email` <- `pendingEmail` on success instead of just flipping the verified flag.
+  pendingEmail                     String?   @unique
+  pendingEmailDeliveryFailed       Boolean   @default(false)
+  pendingEmailDeliveryFailedReason String?
+  pendingEmailDeliveryFailedAt     DateTime?
+
   tokenVersion             Int           @default(0)
   createdAt                DateTime      @default(now())
   lastActive               DateTime      @default(now())
