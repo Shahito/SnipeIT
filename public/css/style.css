@@ -3176,6 +3176,12 @@ select.field-invalid {
     justify-content: space-between;
 }
 
+.flex-row--wrap {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
 .flex-col--gap-sm {
     display: flex;
     flex-direction: column;
@@ -3346,7 +3352,7 @@ select.field-invalid {
 .card--info {
     background: var(--primary-dim);
     border-color: var(--primary);
-    padding: 1rem;
+    padding: 0.5rem 1rem;
 }
 
 .card--info-icon {
@@ -3532,6 +3538,34 @@ select.field-invalid {
 .custom-select-option.active {
     background: var(--primary-dim);
     color: var(--primary);
+}
+
+/* Account page */
+#accountForms {
+    display: flex;
+    flex-direction: row;
+    gap: 1.25rem;
+    width: 100%;
+}
+
+#accountForms .card {
+    width: 100%;
+    height: fit-content;
+    min-height: 100%;
+    gap: 0.4rem;
+}
+
+.mail-display {
+    display: flex;
+    align-items: center;
+    height: 2.5rem;
+}
+
+.mail-display span {
+    background-color: var(--bg2);
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
 }
 
 .toggle-group {
@@ -4280,6 +4314,20 @@ input[type="color"] {
         padding: 1rem 0.7rem 1.25rem;
     }
 
+    /* Header : hide nav - hamburger */
+    .header-nav,
+    .header-right {
+        display: none !important;
+    }
+
+    .hamburger-btn {
+        display: flex;
+    }
+
+    .app-header {
+        padding: 0 1rem;
+    }
+
     .edit-mobile-nav {
         display: flex;
         gap: 2px;
@@ -4358,20 +4406,6 @@ input[type="color"] {
     .editor-layout {
         gap: 1.7rem;
         /* 1.4 + 0.3 (scrollbar) */
-    }
-
-    /* Header : masquer nav + droite, afficher hamburger */
-    .header-nav,
-    .header-right {
-        display: none !important;
-    }
-
-    .hamburger-btn {
-        display: flex;
-    }
-
-    .app-header {
-        padding: 0 1rem;
     }
 
     #resultsContent {
@@ -4529,6 +4563,11 @@ input[type="color"] {
 
     .custom-select-trigger {
         width: 100%;
+    }
+
+    #accountForms {
+        flex-direction: column;
+        gap: 1rem;
     }
 
     .toggle-group {

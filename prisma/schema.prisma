@@ -29,6 +29,11 @@ model User {
   pendingEmailDeliveryFailedReason String?
   pendingEmailDeliveryFailedAt     DateTime?
 
+  // Cooldown guard shared by resendVerificationEmail() and changeEmail(): both
+  // send a verification-link email, so both should count against the same
+  // per-account budget
+  lastVerificationEmailAt DateTime?
+
   tokenVersion             Int           @default(0)
   createdAt                DateTime      @default(now())
   lastActive               DateTime      @default(now())

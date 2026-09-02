@@ -1,37 +1,31 @@
-const nodemailer = require('nodemailer')
+const { Resend } = require('resend')
 const { isProd } = require('./env')
 const { renderEmail } = require('./emailTemplate')
 
-let transporter = null
+let client = null
 
-function getTransporter() {
-  if (transporter) return transporter
+function getClient() {
+  if (client) return client
 
-  if (process.env.SMTP_HOST) {
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 587),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: process.env.SMTP_USER
-        ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-        : undefined,
-    })
+  if (process.env.RESEND_API_KEY) {
+    client = new Resend(process.env.RESEND_API_KEY)
   } else if (!isProd) {
-    // Dev fallback: no SMTP configured, just log to console instead of sending.
-    transporter = {
-      sendMail: async (opts) => {
-        console.log('\n[mailer:dev] Email not sent (no SMTP_HOST configured)')
-        console.log(`[mailer:dev] To: ${opts.to}`)
-        console.log(`[mailer:dev] Subject: ${opts.subject}`)
-        console.log(`[mailer:dev] ${opts.text}`)
-        return { messageId: 'dev-noop' }
+    client = {
+      emails: {
+        send: async (opts) => {
+          console.log('\n[mailer:dev] Email not sent (no RESEND_API_KEY configured)')
+          console.log(`[mailer:dev] To: ${opts.to}`)
+          console.log(`[mailer:dev] Subject: ${opts.subject}`)
+          console.log(`[mailer:dev] ${opts.text}`)
+          return { data: { id: 'dev-noop' }, error: null }
+        },
       },
     }
   } else {
-    throw new Error('SMTP_HOST is not set in .env - cannot send email in production.')
+    throw new Error('RESEND_API_KEY is not set in .env - cannot send email in production.')
   }
 
-  return transporter
+  return client
 }
 
 async function sendVerificationEmail(to, token) {
@@ -50,13 +44,20 @@ async function sendVerificationEmail(to, token) {
       Le lien ne fonctionne pas ? Copie-colle celui-ci : <a href="${link}" style="color:#7893CC;">${link}</a>`,
   }, baseUrl)
 
-  await getTransporter().sendMail({
+  const { data, error } = await getClient().emails.send({
     from: process.env.MAIL_FROM || 'SnipeIT <no-reply@snipeit.local>',
     to,
     subject: 'Confirme ton adresse e-mail - SnipeIT',
     text: `Bienvenue sur SnipeIT !\n\nConfirme ton adresse e-mail en cliquant sur ce lien (valable 24h) :\n${link}\n\nSi tu n'es pas à l'origine de cette inscription, ignore cet e-mail.`,
     html,
+    tags: [{ name: 'category', value: 'verification' }],
   })
+
+  if (error) {
+    throw new Error(`Resend failed to send verification email: ${error.message || error.name || 'unknown error'}`)
+  }
+
+  return data
 }
 
 module.exports = { sendVerificationEmail }

@@ -41,6 +41,7 @@ function renderEmailState() {
 
   const notice = document.getElementById('pendingEmailNotice')
   const failedNotice = document.getElementById('pendingEmailFailedNotice')
+  const noticeWrapper = notice.parentElement
 
   if (currentUser.pendingEmail && currentUser.pendingEmailDeliveryFailed) {
     notice.classList.add('hidden')
@@ -54,6 +55,8 @@ function renderEmailState() {
     notice.classList.add('hidden')
     failedNotice.classList.add('hidden')
   }
+
+  noticeWrapper.classList.toggle('hidden', notice.classList.contains('hidden') && failedNotice.classList.contains('hidden'))
 }
 
 // Change email

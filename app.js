@@ -82,6 +82,7 @@ if (isProd) {
   app.use('/api/auth/resend-verification', authLimiter)
   app.use('/api/auth/verify-email', verifyEmailLimiter)
   app.post('/api/auth/change-password', authLimiter)
+  app.post('/api/auth/change-email', authLimiter)
   app.post('/api/apikeys', authLimiter) // key creation only
 
   // Looser limit on write-heavy routes

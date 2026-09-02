@@ -10,6 +10,16 @@ const { domainCanReceiveMail } = require('../utils/emailDomainCheck')
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const VERIFICATION_TTL_MS = 1000 * 60 * 60 * 24 // 24h
+const VERIFICATION_RESEND_COOLDOWN_MS = 1000 * 60 // 60s between verification-type emails
+// for the same account (register / resend-verification / change-email all
+// share this), on top of the per-IP limiter in app.js.
+
+function verificationCooldownActive(user) {
+  return (
+    user.lastVerificationEmailAt &&
+    Date.now() - user.lastVerificationEmailAt.getTime() < VERIFICATION_RESEND_COOLDOWN_MS
+  )
+}
 
 function normalizeEmail(email) {
   return email.trim().toLowerCase()
@@ -77,6 +87,7 @@ async function register(displayUsername, password, email) {
       emailVerified: false,
       emailVerificationToken: verificationToken,
       emailVerificationExpires: new Date(Date.now() + VERIFICATION_TTL_MS),
+      lastVerificationEmailAt: new Date(),
     },
   })
 
@@ -170,12 +181,18 @@ async function resendVerificationEmail(username) {
   // already verified, to avoid leaking account info to an attacker.
   if (!user || user.emailVerified) return true
 
+  // Same silence applies to the cooldown: an attacker probing usernames
+  // shouldn't be able to tell "unknown account" apart from "known account,
+  // already resent recently" by comparing response codes/timing.
+  if (verificationCooldownActive(user)) return true
+
   const verificationToken = generateVerificationToken()
   await prisma.user.update({
     where: { id: user.id },
     data: {
       emailVerificationToken: verificationToken,
       emailVerificationExpires: new Date(Date.now() + VERIFICATION_TTL_MS),
+      lastVerificationEmailAt: new Date(),
       // Don't optimistically clear emailDeliveryFailed here: Resend puts
       // hard-bounced addresses on a suppression list, so a resend to the
       // SAME bad address is silently dropped and never produces a fresh
@@ -194,6 +211,8 @@ async function changeEmail(userId, currentPassword, newEmail) {
 
   const ok = await bcrypt.compare(currentPassword, user.password)
   if (!ok) throw new Error('INVALID_OLD_PASSWORD')
+  
+  if (verificationCooldownActive(user)) throw new Error('TOO_MANY_REQUESTS')
 
   const normalizedEmail = normalizeEmail(newEmail || '')
   if (!normalizedEmail || !EMAIL_RE.test(normalizedEmail)) throw new Error('EMAIL_INVALID')
@@ -217,6 +236,7 @@ async function changeEmail(userId, currentPassword, newEmail) {
       pendingEmail: normalizedEmail,
       emailVerificationToken: verificationToken,
       emailVerificationExpires: new Date(Date.now() + VERIFICATION_TTL_MS),
+      lastVerificationEmailAt: new Date(),
       // Fresh address, fresh slate - any previous pending-change bounce
       // was necessarily about a different address than this one.
       pendingEmailDeliveryFailed: false,
