@@ -161,6 +161,7 @@ function renderSnapshotWarning(snap, cur, job) {
   const FIELDS = ['timeframe', 'initialCapital', 'positionSize', 'stopLoss', 'trailingStopLoss', 'takeProfit', 'feeMaker', 'feeTaker', 'tradingHours']
   const stillMatches = (snapVal, curVal) => {
     if (curVal && typeof curVal === 'object' && !Array.isArray(curVal) && Array.isArray(curVal.sweep)) {
+      if (curVal.sweep.length > 1) return false
       return curVal.sweep.some(v => JSON.stringify(v) === JSON.stringify(snapVal))
     }
     return JSON.stringify(curVal) === JSON.stringify(snapVal)

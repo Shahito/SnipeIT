@@ -359,7 +359,7 @@ svg {
     outline-offset: 2px;
 }
 
-.password-toggle > span {
+.password-toggle>span {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -426,9 +426,17 @@ svg {
 }
 
 @keyframes passwordCheckPop {
-    0%   { transform: scale(0.6); }
-    60%  { transform: scale(1.2); }
-    100% { transform: scale(1); }
+    0% {
+        transform: scale(0.6);
+    }
+
+    60% {
+        transform: scale(1.2);
+    }
+
+    100% {
+        transform: scale(1);
+    }
 }
 
 .password-checklist-item--valid .password-checklist-icon::after {
@@ -1837,7 +1845,7 @@ input.field-invalid,
 textarea.field-invalid,
 select.field-invalid {
     border-color: var(--danger) !important;
-    box-shadow: 0 0 0 3px var(--danger-dim)!important;
+    box-shadow: 0 0 0 3px var(--danger-dim) !important;
 }
 
 .field-error-msg {
@@ -3106,7 +3114,8 @@ select.field-invalid {
     font-family: 'Courier New', monospace;
 }
 
-.hidden, [hidden] {
+.hidden,
+[hidden] {
     display: none !important;
 }
 
@@ -3234,6 +3243,27 @@ select.field-invalid {
     border-radius: 50%;
     animation: spin .6s linear infinite;
     flex-shrink: 0;
+}
+
+/* Button loading state (login / register, etc.) */
+.btn .btn-spinner {
+    display: none;
+    width: 1rem;
+    height: 1rem;
+    border-width: 2px;
+}
+
+.btn.is-loading {
+    cursor: wait;
+    pointer-events: none;
+}
+
+.btn.is-loading .btn-label {
+    display: none;
+}
+
+.btn.is-loading .btn-spinner {
+    display: inline-flex;
 }
 
 @keyframes spin {

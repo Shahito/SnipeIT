@@ -20,6 +20,7 @@ const webhookRoutes = require('./src/routes/webhooks')
 
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./src/config/swagger');
+const { PROTECTED_PAGES, requireAuthPage, redirectIfAuthed } = require('./src/middleware/pageAuth')
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -45,6 +46,8 @@ app.use(helmet({
     },
   },
 }))
+app.get(PROTECTED_PAGES, requireAuthPage)
+app.get('/', redirectIfAuthed)
 app.use(express.static('public'))
 
 app.set('trust proxy', 1)
@@ -107,6 +110,13 @@ const { timeoutStaleJobs } = require('./src/services/jobService')
 cron.schedule('*/30 * * * * *', async () => {
   try { await timeoutStaleJobs() }
   catch (e) { console.error('[SnipeIT] timeoutStaleJobs error:', e.message) }
+})
+
+const { cleanupStaleCandleCache } = require('./src/utils/candleCache')
+// cron.schedule('0 3 * * *', () => {
+cron.schedule('*/5 * * * * *', async () => {
+  try { cleanupStaleCandleCache() }
+  catch (e) { console.error('[SnipeIT] cleanupStaleCandleCache error:', e.message) }
 })
 
 app.listen(PORT, '127.0.0.1', () => {

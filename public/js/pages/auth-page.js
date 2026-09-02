@@ -1,9 +1,5 @@
 document.addEventListener('i18n:ready', async () => {
   document.getElementById('langBtn').textContent = t('header.lang')
-  try {
-    const { user } = await api('/auth/me')
-    if (user) window.location.href = '/strategies.html'
-  } catch (_) { }
 })
 initI18n()
 
@@ -149,6 +145,8 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
   }
 
   btn.disabled = true
+  btn.classList.add('is-loading')
+  btn.setAttribute('aria-busy', 'true')
   try {
     await api('/auth/login', {
       method: 'POST', body: {
@@ -166,7 +164,11 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
     if (err.code === 'EMAIL_NOT_VERIFIED' || err.code === 'EMAIL_DELIVERY_FAILED') {
       document.getElementById('resendVerificationWrap').classList.remove('hidden')
     }
-  } finally { btn.disabled = false }
+  } finally {
+    btn.disabled = false
+    btn.classList.remove('is-loading')
+    btn.removeAttribute('aria-busy')
+  }
 })
 
 document.getElementById('resendVerificationLink').addEventListener('click', async (e) => {
@@ -216,6 +218,8 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
   }
 
   btn.disabled = true
+  btn.classList.add('is-loading')
+  btn.setAttribute('aria-busy', 'true')
   try {
     await api('/auth/register', { method: 'POST', body: { username: u, email, password: p } })
     await api('/auth/login', { method: 'POST', body: { username: u, password: p } })
@@ -228,7 +232,11 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
     if (err.code === 'EMAIL_TAKEN' || err.code === 'EMAIL_ALIAS_BLOCKED' || err.code === 'EMAIL_DOMAIN_UNREACHABLE') {
       setFieldInvalid(regEmail, true)
     }
-  } finally { btn.disabled = false }
+  } finally {
+    btn.disabled = false
+    btn.classList.remove('is-loading')
+    btn.removeAttribute('aria-busy')
+  }
 })
 
 document.addEventListener('keydown', e => {

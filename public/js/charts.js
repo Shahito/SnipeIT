@@ -45,9 +45,25 @@ const _chartTooltip = (() => {
   return el
 })()
 
+const _isCoarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches
+
 function _showTooltip(e, html) {
   _chartTooltip.innerHTML = html
   _chartTooltip.classList.add('visible')
+
+  if (_isCoarsePointer) {
+    // Mobile / touch: center above the finger so it doesn't get covered
+    const tw = _chartTooltip.offsetWidth
+    const th = _chartTooltip.offsetHeight
+    let tx = e.clientX - tw / 2
+    tx = Math.max(8, Math.min(tx, window.innerWidth - tw - 8))
+    let ty = e.clientY - th - 18
+    if (ty < 8) ty = e.clientY + 18 // not enough room above, fall back below
+    _chartTooltip.style.left = tx + 'px'
+    _chartTooltip.style.top = ty + 'px'
+    return
+  }
+
   const tx = e.clientX + 14
   const ty = e.clientY - 10
   _chartTooltip.style.left = (tx + _chartTooltip.offsetWidth > window.innerWidth

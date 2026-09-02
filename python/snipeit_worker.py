@@ -17,6 +17,7 @@ Configuration (.env):
 import os
 import sys
 import time
+import platform
 import logging
 import threading
 import requests
@@ -42,6 +43,8 @@ from logger import (
     log_stopped,
 )
 
+__version__ = "1.0.0"
+
 load_dotenv()
 
 BASE_URL           = os.getenv("SNIPEIT_BASE_URL", "http://localhost:4000")
@@ -51,11 +54,19 @@ HEARTBEAT_INTERVAL = int(os.getenv("HEARTBEAT_INTERVAL", "20"))
 
 log = get_logger("snipeit")
 
+# User-Agent
+USER_AGENT = (
+    f"SnipeIT-Worker/{__version__} "
+    f"(Python {platform.python_version()}; {platform.system()} {platform.release()})"
+)
 
 # API client
-
 def _headers():
-    return {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
+    return {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json",
+        "User-Agent": USER_AGENT,
+    }
 
 def _post(path: str, payload: dict = None):
     payload_size_kb = len(json.dumps(payload or {}).encode('utf-8')) / 1024
