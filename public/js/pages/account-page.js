@@ -82,6 +82,8 @@ document.getElementById('changeEmailBtn').addEventListener('click', async () => 
 
   const btn = document.getElementById('changeEmailBtn')
   btn.disabled = true
+  btn.classList.add('is-loading')
+  btn.setAttribute('aria-busy', 'true')
   try {
     await api('/auth/change-email', { method: 'POST', body: { currentPassword, newEmail } })
     toast(t('account.email_change_success'), 'success')
@@ -98,6 +100,8 @@ document.getElementById('changeEmailBtn').addEventListener('click', async () => 
     }
   } finally {
     btn.disabled = false
+    btn.classList.remove('is-loading')
+    btn.removeAttribute('aria-busy')
   }
 })
 
@@ -171,6 +175,8 @@ document.getElementById('changePasswordBtn').addEventListener('click', async () 
 
   const btn = document.getElementById('changePasswordBtn')
   btn.disabled = true
+  btn.classList.add('is-loading')
+  btn.setAttribute('aria-busy', 'true')
   try {
     await api('/auth/change-password', { method: 'POST', body: { oldPassword, newPassword: newPassword.value } })
     toast(t('account.password_change_success'), 'success')
@@ -183,6 +189,8 @@ document.getElementById('changePasswordBtn').addEventListener('click', async () 
     if (err.code === 'INVALID_OLD_PASSWORD') setFieldInvalid(oldPasswordEl, true)
   } finally {
     btn.disabled = false
+    btn.classList.remove('is-loading')
+    btn.removeAttribute('aria-busy')
   }
 })
 

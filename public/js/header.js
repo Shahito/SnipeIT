@@ -124,12 +124,6 @@ document.addEventListener('i18n:ready', async () => {
   // Menu mobile (overlay)
   const mobileNavHTML = `
     <div class="mobile-nav-overlay" id="mobileNav">
-      ${navItems.map(item => `
-        <a class="nav-link${active === item.key ? ' active' : ''}" href="${item.href}">
-          ${item.icon} ${t(item.i18n)}
-        </a>
-      `).join('')}
-      <div class="mobile-nav-divider"></div>
       <div class="user-badge">${ICONS.user}<strong id="mobileHeaderUsername"></strong></div>
       <button class="btn btn-ghost btn-sm color-scheme-btn" id="colorSchemeBtnMobile">
         <span class="color-scheme-dots">
@@ -166,6 +160,21 @@ document.addEventListener('i18n:ready', async () => {
       <span></span><span></span><span></span>
     </button>
   `
+
+  // Bottom tab bar (mobile) - primary nav
+  const tabBarHTML = `
+    <nav class="bottom-tab-bar" id="bottomTabBar">
+      ${navItems.map(item => `
+        <a class="tab-item${active === item.key ? ' active' : ''}" href="${item.href}" aria-label="${t(item.i18n)}">
+          <span class="tab-icon">${item.icon}</span>
+          <span class="tab-label">${t(item.i18n)}</span>
+        </a>
+      `).join('')}
+    </nav>
+  `
+  const tabOverlay = document.createElement('div')
+  tabOverlay.innerHTML = tabBarHTML
+  document.body.appendChild(tabOverlay.firstElementChild)
 
   // Inject mobile overlay after the header
   const overlay = document.createElement('div')
