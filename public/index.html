@@ -114,6 +114,38 @@
         <p class="switch-link"><span id="toLogin" data-i18n="login.to_login"></span></p>
       </section>
 
+      <!-- PENDING VERIFICATION (post-register, persists across reloads via localStorage) -->
+      <section id="pendingSection" class="auth-section hidden">
+        <h2 data-i18n="login.pending_title"></h2>
+        <p id="pendingCheckInboxText"></p>
+
+        <p class="form-error" id="pendingCorrectionError" role="alert" aria-live="polite"></p>
+
+        <div id="pendingChangeForm" class="hidden">
+          <div class="form-group">
+            <label for="pendingNewEmail" data-i18n="login.pending_new_email_label"></label>
+            <input type="email" id="pendingNewEmail" autocomplete="email" inputmode="email">
+          </div>
+          <button class="btn btn-primary btn-full" id="pendingCorrectBtn" type="button">
+            <span class="btn-label" data-i18n="login.pending_correct_btn"></span>
+            <span class="btn-spinner spinner" aria-hidden="true"></span>
+          </button>
+        </div>
+
+        <p class="switch-link">
+          <span id="pendingWrongEmailLink" data-i18n="login.pending_wrong_email"></span>
+        </p>
+        <p class="switch-link">
+          <span id="pendingAlreadyVerifiedLink" data-i18n="login.pending_already_verified"></span>
+        </p>
+        <p class="switch-link">
+          <span id="pendingResendLink" data-i18n="login.resend_verification"></span>
+        </p>
+        <p class="switch-link">
+          <span id="pendingStartOverLink" data-i18n="login.pending_start_over"></span>
+        </p>
+      </section>
+
       <div class="auth-lang">
         <button class="btn btn-ghost btn-sm lang-btn" id="langBtn"></button>
       </div>

@@ -1,5 +1,33 @@
+const PENDING_STORAGE_KEY = 'snipeit_pending_registration'
+
+function getPendingRegistration() {
+  try {
+    const raw = localStorage.getItem(PENDING_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch (_) {
+    return null
+  }
+}
+function savePendingRegistration(data) {
+  localStorage.setItem(PENDING_STORAGE_KEY, JSON.stringify(data))
+}
+function clearPendingRegistration() {
+  localStorage.removeItem(PENDING_STORAGE_KEY)
+}
+
+let pendingRegistration = getPendingRegistration()
+
+function renderPendingSection() {
+  document.getElementById('pendingCheckInboxText').textContent =
+    t('login.pending_check_inbox', { email: pendingRegistration.email })
+  document.getElementById('pendingChangeForm').classList.add('hidden')
+  document.getElementById('pendingNewEmail').value = ''
+  document.getElementById('pendingCorrectionError').textContent = ''
+}
+
 document.addEventListener('i18n:ready', async () => {
   document.getElementById('langBtn').textContent = t('header.lang')
+  if (pendingRegistration) renderPendingSection()
 })
 initI18n()
 
@@ -9,11 +37,13 @@ document.getElementById('langBtn').addEventListener('click', () => {
 
 function showAuthForm(form, updateUrl = true) {
   const isRegister = form === 'register'
+  const isPending = form === 'pending'
 
-  document.getElementById('loginSection').classList.toggle('hidden', isRegister)
+  document.getElementById('loginSection').classList.toggle('hidden', isRegister || isPending)
   document.getElementById('registerSection').classList.toggle('hidden', !isRegister)
+  document.getElementById('pendingSection').classList.toggle('hidden', !isPending)
 
-  if (updateUrl) {
+  if (updateUrl && !isPending) {
     window.location.hash = isRegister ? 'register' : 'login'
   }
 }
@@ -24,8 +54,14 @@ function getAuthFormFromHash() {
     : 'login'
 }
 
-// Restore the form from the URL on page load.
-showAuthForm(getAuthFormFromHash(), false)
+// Restore the form from the URL on page load - unless a registration is
+// still pending confirmation (persists across reloads/tab closes), in which
+// case that always takes priority over the login/register hash.
+if (pendingRegistration) {
+  showAuthForm('pending', false)
+} else {
+  showAuthForm(getAuthFormFromHash(), false)
+}
 
 document.getElementById('toRegister').addEventListener('click', () => {
   showAuthForm('register')
@@ -221,9 +257,15 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
   btn.classList.add('is-loading')
   btn.setAttribute('aria-busy', 'true')
   try {
-    await api('/auth/register', { method: 'POST', body: { username: u, email, password: p } })
-    await api('/auth/login', { method: 'POST', body: { username: u, password: p } })
-    window.location.href = '/strategies.html'
+    const res = await api('/auth/register', { method: 'POST', body: { username: u, email, password: p } })
+    pendingRegistration = {
+      registrationEditToken: res.registrationEditToken,
+      username: res.username,
+      email: res.email,
+    }
+    savePendingRegistration(pendingRegistration)
+    showAuthForm('pending', false)
+    renderPendingSection()
   } catch (err) {
     errorEl.textContent = t('error.' + err.code)
     if (err.code === 'USERNAME_TAKEN' || err.code === 'USERNAME_LENGTH' || err.code === 'USERNAME_INVALID') {
@@ -239,8 +281,105 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
   }
 })
 
+document.getElementById('pendingWrongEmailLink').addEventListener('click', () => {
+  const form = document.getElementById('pendingChangeForm')
+  const willShow = form.classList.contains('hidden')
+  form.classList.toggle('hidden', !willShow)
+  if (willShow) {
+    const input = document.getElementById('pendingNewEmail')
+    input.value = pendingRegistration.email
+    input.focus()
+    input.select()
+  }
+})
+
+document.getElementById('pendingCorrectBtn').addEventListener('click', async () => {
+  const errorEl = document.getElementById('pendingCorrectionError')
+  errorEl.textContent = ''
+  const input = document.getElementById('pendingNewEmail')
+  const newEmail = input.value.trim()
+
+  if (!EMAIL_RE.test(newEmail)) {
+    errorEl.textContent = t('error.EMAIL_INVALID')
+    return
+  }
+
+  const btn = document.getElementById('pendingCorrectBtn')
+  btn.disabled = true
+  btn.classList.add('is-loading')
+  btn.setAttribute('aria-busy', 'true')
+  try {
+    const res = await api('/auth/correct-pending-email', {
+      method: 'POST',
+      body: { registrationEditToken: pendingRegistration.registrationEditToken, newEmail },
+    })
+    pendingRegistration = {
+      ...pendingRegistration,
+      email: res.email,
+      registrationEditToken: res.registrationEditToken,
+    }
+    savePendingRegistration(pendingRegistration)
+    renderPendingSection()
+  } catch (err) {
+    errorEl.textContent = t('error.' + err.code)
+    if (err.code === 'TOKEN_INVALID' || err.code === 'TOKEN_EXPIRED') {
+      // The pending registration is no longer valid server-side (e.g. it
+      // expired) - there's nothing left to correct, start fresh.
+      clearPendingRegistration()
+      pendingRegistration = null
+      showAuthForm('register', true)
+    }
+  } finally {
+    btn.disabled = false
+    btn.classList.remove('is-loading')
+    btn.removeAttribute('aria-busy')
+  }
+})
+
+document.getElementById('pendingResendLink').addEventListener('click', async (e) => {
+  const link = e.currentTarget
+  if (!pendingRegistration) return
+  link.textContent = t('login.resend_verification_sending')
+  try {
+    await api('/auth/resend-verification', { method: 'POST', body: { username: pendingRegistration.username } })
+  } catch (_) {
+    // stays silent by design - backend never leaks account state either
+  } finally {
+    link.textContent = t('login.resend_verification_sent')
+  }
+})
+
+document.getElementById('pendingStartOverLink').addEventListener('click', () => {
+  clearPendingRegistration()
+  pendingRegistration = null
+  showAuthForm('login', true)
+})
+
+document.getElementById('pendingAlreadyVerifiedLink').addEventListener('click', () => {
+  clearPendingRegistration()
+  pendingRegistration = null
+  showAuthForm('login', true)
+})
+
+// If the email got verified from ANOTHER tab of this same browser (e.g. the
+// confirmation link opened in a new tab), that tab clears the shared
+// localStorage key on success
+window.addEventListener('storage', (e) => {
+  if (e.key === PENDING_STORAGE_KEY && !e.newValue) {
+    pendingRegistration = null
+    showAuthForm('login', true)
+  }
+})
+
 document.addEventListener('keydown', e => {
   if (e.key !== 'Enter') return
+  const pendingVisible = !document.getElementById('pendingSection').classList.contains('hidden')
+  if (pendingVisible) {
+    if (!document.getElementById('pendingChangeForm').classList.contains('hidden')) {
+      document.getElementById('pendingCorrectBtn').click()
+    }
+    return
+  }
   const loginVisible = !document.getElementById('loginSection').classList.contains('hidden')
   if (loginVisible) document.getElementById('loginBtn').click()
   else document.getElementById('registerBtn').click()

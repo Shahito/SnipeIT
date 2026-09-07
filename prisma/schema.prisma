@@ -29,6 +29,12 @@ model User {
   pendingEmailDeliveryFailedReason String?
   pendingEmailDeliveryFailedAt     DateTime?
 
+  // Pre-verification "fix a typo" flow: a token returned directly in the
+  // register() response (never emailed) that proves the browser authenticity
+  // without needing username+password.
+  registrationEditToken            String?   @unique
+  registrationEditTokenExpires     DateTime?
+
   // Cooldown guard shared by resendVerificationEmail() and changeEmail(): both
   // send a verification-link email, so both should count against the same
   // per-account budget

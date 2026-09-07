@@ -7,6 +7,7 @@ const {
   meController,
   changePasswordController,
   changeEmailController,
+  correctPendingEmailController,
   verifyEmailController,
   resendVerificationController,
   logoutController,
@@ -121,6 +122,40 @@ router.post('/verify-email', verifyEmailController)
  *         description: OK (always returns success, doesn't reveal account state)
  */
 router.post('/resend-verification', resendVerificationController)
+
+/**
+ * @openapi
+ * /api/auth/correct-pending-email:
+ *   post:
+ *     tags: [auth]
+ *     summary: Fix a typo'd email right after registering, before ever verifying it
+ *     description: >
+ *       Public (no login needed) - proven instead by registrationEditToken,
+ *       a token returned once by /register (never emailed, unlike
+ *       emailVerificationToken) and kept client-side. Updates the account's
+ *       email directly (the account isn't verified yet, so no "pendingEmail"
+ *       swap step is needed) and sends a fresh verification link to the
+ *       corrected address. Returns a new registrationEditToken since the
+ *       previous one is rotated out.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [registrationEditToken, newEmail]
+ *             properties:
+ *               registrationEditToken: { type: string }
+ *               newEmail: { type: string }
+ *     responses:
+ *       200:
+ *         description: OK (new verification email sent, returns new registrationEditToken + email)
+ *       400:
+ *         description: MISSING_FIELDS / TOKEN_INVALID / TOKEN_EXPIRED / EMAIL_INVALID / EMAIL_ALIAS_BLOCKED / EMAIL_DOMAIN_UNREACHABLE / EMAIL_SAME_AS_CURRENT / EMAIL_TAKEN
+ *       429:
+ *         description: TOO_MANY_REQUESTS
+ */
+router.post('/correct-pending-email', correctPendingEmailController)
 
 /**
  * @openapi

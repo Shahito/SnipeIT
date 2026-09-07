@@ -76,6 +76,7 @@ async function register(displayUsername, password, email) {
 
   const hash = await bcrypt.hash(password, 12) // 12 rounds, safer than 10
   const verificationToken = generateVerificationToken()
+  const registrationEditToken = generateVerificationToken()
 
   const user = await prisma.user.create({
     data: {
@@ -88,6 +89,8 @@ async function register(displayUsername, password, email) {
       emailVerificationToken: verificationToken,
       emailVerificationExpires: new Date(Date.now() + VERIFICATION_TTL_MS),
       lastVerificationEmailAt: new Date(),
+      registrationEditToken,
+      registrationEditTokenExpires: new Date(Date.now() + VERIFICATION_TTL_MS),
     },
   })
 
@@ -257,6 +260,62 @@ async function changeEmail(userId, currentPassword, newEmail) {
   return true
 }
 
+async function correctPendingEmail(registrationEditToken, newEmail) {
+  if (!registrationEditToken) throw new Error('TOKEN_INVALID')
+
+  const user = await prisma.user.findUnique({ where: { registrationEditToken } })
+  if (!user) throw new Error('TOKEN_INVALID')
+  // Once verified, the registration flow is over - this token has nothing
+  // left to correct (use changeEmail() from the account page instead).
+  if (user.emailVerified) throw new Error('TOKEN_INVALID')
+  if (user.registrationEditTokenExpires && user.registrationEditTokenExpires < new Date()) {
+    throw new Error('TOKEN_EXPIRED')
+  }
+  if (verificationCooldownActive(user)) throw new Error('TOO_MANY_REQUESTS')
+
+  const normalizedEmail = normalizeEmail(newEmail || '')
+  if (!normalizedEmail || !EMAIL_RE.test(normalizedEmail)) throw new Error('EMAIL_INVALID')
+  if (!allowEmailAliases && hasAliasTag(normalizedEmail)) throw new Error('EMAIL_ALIAS_BLOCKED')
+
+  const domain = normalizedEmail.slice(normalizedEmail.lastIndexOf('@') + 1)
+  if (!(await domainCanReceiveMail(domain))) throw new Error('EMAIL_DOMAIN_UNREACHABLE')
+
+  const canonicalEmail = canonicalizeEmail(normalizedEmail)
+  if (canonicalEmail === user.normalizedEmail) throw new Error('EMAIL_SAME_AS_CURRENT')
+
+  const taken = await prisma.user.findUnique({ where: { normalizedEmail: canonicalEmail } })
+  if (taken) throw new Error('EMAIL_TAKEN')
+
+  const verificationToken = generateVerificationToken()
+  // Rotate this token too, so the previous (already-used) value can't be replayed.
+  const newRegistrationEditToken = generateVerificationToken()
+
+  const updated = await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      email: normalizedEmail,
+      normalizedEmail: canonicalEmail,
+      emailVerificationToken: verificationToken,
+      emailVerificationExpires: new Date(Date.now() + VERIFICATION_TTL_MS),
+      lastVerificationEmailAt: new Date(),
+      registrationEditToken: newRegistrationEditToken,
+      registrationEditTokenExpires: new Date(Date.now() + VERIFICATION_TTL_MS),
+      // Brand new address - any stale bounce info was necessarily about the old one.
+      emailDeliveryFailed: false,
+      emailDeliveryFailedReason: null,
+      emailDeliveryFailedAt: null,
+    },
+  })
+
+  try {
+    await sendVerificationEmail(normalizedEmail, verificationToken)
+  } catch (e) {
+    console.error('[authService] Failed to send corrected verification email:', e.message)
+  }
+
+  return { email: updated.email, registrationEditToken: updated.registrationEditToken }
+}
+
 async function changePassword(userId, oldPassword, newPassword) {
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) throw new Error('USER_NOT_FOUND')
@@ -288,6 +347,7 @@ module.exports = {
   login,
   changePassword,
   changeEmail,
+  correctPendingEmail,
   logoutAll,
   verifyEmail,
   resendVerificationEmail,

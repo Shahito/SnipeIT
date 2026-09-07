@@ -17,6 +17,9 @@ document.addEventListener('i18n:ready', async () => {
   }
   try {
     await api('/auth/verify-email', { method: 'POST', body: { token } })
+    // Same-browser cleanup: if the registration tab that's showing "check
+    // your inbox" is still open (same tab or another one)
+    localStorage.removeItem('snipeit_pending_registration')
     setVerifyState('success', 'verify.success')
   } catch (err) {
     setVerifyState('error', 'error.' + err.code)

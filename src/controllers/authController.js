@@ -1,4 +1,4 @@
-const { register, login, changePassword, changeEmail, logoutAll, verifyEmail, resendVerificationEmail } = require('../services/authService')
+const { register, login, changePassword, changeEmail, correctPendingEmail, logoutAll, verifyEmail, resendVerificationEmail } = require('../services/authService')
 const { isProd } = require('../utils/env')
 
 const COOKIE_OPTS = (isProd) => ({
@@ -48,8 +48,13 @@ async function registerController(req, res) {
     if (!username || !password || !email)
       return res.status(400).json({ error: 'MISSING_FIELDS' })
 
-    await register(username, password, email)
-    res.json({ success: true })
+    const user = await register(username, password, email)
+    res.json({
+      success: true,
+      registrationEditToken: user.registrationEditToken,
+      username: user.username,
+      email: user.email,
+    })
   } catch (e) {
     res.status(409).json({ error: errorCode(e) })
   }
@@ -106,6 +111,22 @@ async function changeEmailController(req, res) {
   }
 }
 
+async function correctPendingEmailController(req, res) {
+  try {
+    const { registrationEditToken, newEmail } = req.body
+    if (!registrationEditToken || !newEmail)
+      return res.status(400).json({ error: 'MISSING_FIELDS' })
+
+    const result = await correctPendingEmail(registrationEditToken, newEmail)
+    res.json({ success: true, ...result })
+  } catch (e) {
+    if (e.message === 'TOO_MANY_REQUESTS') {
+      return res.status(429).json({ error: e.message })
+    }
+    res.status(400).json({ error: errorCode(e) })
+  }
+}
+
 async function verifyEmailController(req, res) {
   try {
     const { token } = req.body
@@ -145,6 +166,7 @@ module.exports = {
   meController,
   changePasswordController,
   changeEmailController,
+  correctPendingEmailController,
   verifyEmailController,
   resendVerificationController,
   logoutController,
