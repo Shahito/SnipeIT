@@ -4697,6 +4697,7 @@ input[type="color"] {
 
 @media (max-width: 640px) {
     .auth-main { background: radial-gradient(ellipse at 50% 0%, rgba(108, 142, 255, .08) 0%, transparent 100%); }
+
     .api-tips .card--info-icon {
         display: none;
     }

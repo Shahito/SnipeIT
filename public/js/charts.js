@@ -57,7 +57,7 @@ function _showTooltip(e, html) {
     const th = _chartTooltip.offsetHeight
     let tx = e.clientX - tw / 2
     tx = Math.max(8, Math.min(tx, window.innerWidth - tw - 8))
-    let ty = e.clientY - th - 18
+    let ty = e.clientY - th - 42
     if (ty < 8) ty = e.clientY + 18 // not enough room above, fall back below
     _chartTooltip.style.left = tx + 'px'
     _chartTooltip.style.top = ty + 'px'
