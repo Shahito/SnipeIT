@@ -587,10 +587,10 @@ select option {
     background: var(--surface);
 }
 
-textarea {
+#fDescription {
     resize: vertical;
     min-height: 4rem;
-    max-height: 15rem;
+    max-height: 13rem;
 }
 
 select {
@@ -1795,12 +1795,8 @@ table::-webkit-scrollbar-track,
 /* Input with select */
 .input-with-select {
     display: flex;
-    align-items: stretch;
-}
-
-.input-with-select input {
-    border-radius: var(--radius) 0 0 var(--radius);
-    border-right: none;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .input-with-select select,
@@ -1856,7 +1852,19 @@ select.field-invalid {
 .field-error-msg {
     color: var(--danger);
     font-size: .78rem;
-    margin: .3rem 0 0;
+}
+
+.field-char-counter {
+    text-align: right;
+    margin: .25rem 0 0;
+}
+
+.field-char-counter.char-counter-warning {
+    color: var(--warning, #d97706);
+}
+
+.field-char-counter.char-counter-danger {
+    color: var(--danger);
 }
 
 .field-invalid-row {
@@ -3354,6 +3362,16 @@ select.field-invalid {
     text-decoration: underline;
 }
 
+.switch-link span.is-cooldown {
+    color: var(--text-muted);
+    cursor: default;
+    font-variant-numeric: tabular-nums;
+}
+
+.switch-link span.is-cooldown:hover {
+    text-decoration: none;
+}
+
 .card--info {
     background: var(--primary-dim);
     border-color: var(--primary);
@@ -4322,7 +4340,7 @@ input[type="color"] {
     bottom: 0;
     background: var(--surface);
     border-top: 1px solid var(--border);
-    z-index: 100;
+    z-index: 10000;
     padding-bottom: env(safe-area-inset-bottom, 0);
 }
 

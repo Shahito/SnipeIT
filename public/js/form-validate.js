@@ -49,8 +49,13 @@ function _asSweepArray(parsed) {
 const FIELD_VALIDATORS = {
   fName(el) {
     const v = el.value.trim()
+    document.getElementById('fNameCounter')?.classList.toggle('hidden', (!v || v.length < 2) || (v.length > NAME_MAX_LENGTH_CLIENT))
     if (!v || v.length < 2) return t('error.NAME_REQUIRED')
-    if (v.length > 70) return t('error.NAME_TOO_LONG')
+    if (v.length > NAME_MAX_LENGTH_CLIENT) return t('error.NAME_TOO_LONG')
+    return null
+  },
+  fDescription(el) {
+    if (el.value.trim().length > DESCRIPTION_MAX_LENGTH_CLIENT) return t('error.DESCRIPTION_TOO_LONG')
     return null
   },
   fStartDate() { return _validateDateRange() },

@@ -183,10 +183,14 @@ function renderJobRow(j) {
   return `<div class="job-row" data-id="${j.id}">
     <div class="job-row-main">
       <div class="job-row-left">
-        <span class="status-badge status-${j.status} ${j.status === 'error' && j.errorMessage ? 'has-error-msg' : ''} ${j.startedAt && j.completedAt ? 'has-duration' : ''}"
-          data-error-msg="${j.status === 'error' && j.errorMessage ? `${j.id}: ${escAttr(j.errorMessage)}` : ''}"
-          data-duration="${j.startedAt && j.completedAt ? escAttr(fmtDuration(new Date(j.completedAt) - new Date(j.startedAt))) : ''}">
-          <span class="status-dot"></span>${t('status.' + j.status)}
+        ${(() => {
+          const hasErrorMsg = j.status === 'error' && !!j.errorMessage
+          const hasDuration = !hasErrorMsg && j.startedAt && j.completedAt
+          return `<span class="status-badge status-${j.status} ${hasErrorMsg ? 'has-error-msg' : ''} ${hasDuration ? 'has-duration' : ''}"
+          data-error-msg="${hasErrorMsg ? `${j.id}: ${escAttr(j.errorMessage)}` : ''}"
+          data-duration="${hasDuration ? escAttr(fmtDuration(new Date(j.completedAt) - new Date(j.startedAt))) : ''}">
+          <span class="status-dot"></span>${t('status.' + j.status)}`
+        })()}
         </span>
         <div class="job-row-meta">
           <a href="/strategy-editor.html?id=${j.strategy.id}" class="job-strategy-name">${escHtml(j.strategy.name)}</a>

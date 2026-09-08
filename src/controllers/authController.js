@@ -36,6 +36,7 @@ const KNOWN_CODES = new Set([
   'TOKEN_EXPIRED',
   'EMAIL_NOT_VERIFIED',
   'TOO_MANY_REQUESTS',
+  'VERIFICATION_COOLDOWN_ACTIVE',
 ])
 
 function errorCode(e, fallback = 'UNKNOWN') {
@@ -104,8 +105,8 @@ async function changeEmailController(req, res) {
     await changeEmail(req.user.id, currentPassword, newEmail)
     res.json({ success: true })
   } catch (e) {
-    if (e.message === 'TOO_MANY_REQUESTS') {
-      return res.status(429).json({ error: e.message })
+    if (e.message === 'VERIFICATION_COOLDOWN_ACTIVE') {
+      return res.status(429).json({ error: e.message, retryAfter: e.retryAfter })
     }
     res.status(400).json({ error: errorCode(e) })
   }
@@ -120,8 +121,8 @@ async function correctPendingEmailController(req, res) {
     const result = await correctPendingEmail(registrationEditToken, newEmail)
     res.json({ success: true, ...result })
   } catch (e) {
-    if (e.message === 'TOO_MANY_REQUESTS') {
-      return res.status(429).json({ error: e.message })
+    if (e.message === 'VERIFICATION_COOLDOWN_ACTIVE') {
+      return res.status(429).json({ error: e.message, retryAfter: e.retryAfter })
     }
     res.status(400).json({ error: errorCode(e) })
   }

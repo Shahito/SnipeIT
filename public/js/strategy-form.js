@@ -43,10 +43,33 @@ function generateStrategyName() {
 }
 window.generateStrategyName = generateStrategyName
 
-// Warning guard rail, purely indicative on the front end (the API redoes the
-// calculation and applies the real limit - see src/config/sweep.js, keep
-// this in sync if the value changes server-side).
+// Warning guard rail, purely indicative on the front end
 const SWEEP_WARNING_THRESHOLD_CLIENT = 200
+
+// Field length caps, purely indicative on the front end
+const NAME_MAX_LENGTH_CLIENT = 60
+const DESCRIPTION_MAX_LENGTH_CLIENT = 500
+
+// Wires a live "n/max" counter under a text input/textarea. Also flips a
+// warning style once the user gets close to the cap
+const CHAR_COUNTER_WARNING_RATIO = 0.9
+
+function bindCharCounter(fieldId, counterId, maxLength) {
+  const field = document.getElementById(fieldId)
+  const counter = document.getElementById(counterId)
+  if (!field || !counter) return
+  const update = () => {
+    const n = field.value.length
+    const isFull = n >= maxLength
+    const isNearLimit = n >= maxLength * CHAR_COUNTER_WARNING_RATIO
+    counter.textContent = t('editor.field.char_counter', { n, max: maxLength })
+    counter.classList.toggle('char-counter-danger', isFull)
+    counter.classList.toggle('char-counter-warning', isNearLimit && !isFull)
+    field.classList.toggle('field-invalid', isFull)
+  }
+  field.addEventListener('input', update)
+  update()
+}
 
 // Leave-page guard
 

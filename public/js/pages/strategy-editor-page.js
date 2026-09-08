@@ -19,6 +19,8 @@ document.addEventListener('header:ready', async () => {
   renderChipGroup('fTpTypeGroup', RISK_TYPES, ['percent'])
   bindSweepChipGroups()
   bindCoinPickers()
+  bindCharCounter('fName', 'fNameCounter', NAME_MAX_LENGTH_CLIENT)
+  bindCharCounter('fDescription', 'fDescriptionCounter', DESCRIPTION_MAX_LENGTH_CLIENT)
 
   if (window._editId) {
     document.getElementById('pageTitle').textContent = t('editor.title.edit')

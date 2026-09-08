@@ -11,6 +11,21 @@ const { heartbeatController, pollController, resultController, statusController 
  *     tags: [worker]
  *     summary: Worker heartbeat
  *     security: [{ apiKeyAuth: [] }]
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               jobId:
+ *                 type: integer
+ *                 nullable: true
+ *                 description: >
+ *                   The job id this worker currently believes it's actively processing,
+ *                   or null/omitted if idle (including right after a restart with no
+ *                   memory of prior work). Any 'running' job under this API key that
+ *                   doesn't match is immediately reverted to 'pending'.
  *     responses:
  *       200:
  *         description: OK
@@ -24,6 +39,14 @@ router.post('/heartbeat', workerAuth, heartbeatController)
  *     tags: [worker]
  *     summary: Poll available jobs (also acts as heartbeat)
  *     security: [{ apiKeyAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: jobId
+ *         required: false
+ *         schema: { type: integer }
+ *         description: >
+ *           The job id this worker currently believes it's actively processing,
+ *           or omitted if idle. Same semantics as the heartbeat's jobId body field.
  *     responses:
  *       200:
  *         description: OK

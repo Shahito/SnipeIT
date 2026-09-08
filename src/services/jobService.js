@@ -240,6 +240,62 @@ async function submitResult(jobId, apiKeyId, payload) {
   return updated
 }
 
+// After this many times a job has been bounced back to 'pending' because its
+// worker apparently lost track of it, stop retrying and mark it 'error'
+const MAX_JOB_RESET_ATTEMPTS = 3
+
+// Shared by reconcileInFlightJob (immediate, per heartbeat/poll) and
+// timeoutStaleJobs (30s cron safety net)
+async function reviveOrFailJobs(jobs, errorMessage) {
+  if (jobs.length === 0) return
+
+  const toRetry = jobs.filter(j => j.resetCount < MAX_JOB_RESET_ATTEMPTS)
+  const toFail = jobs.filter(j => j.resetCount >= MAX_JOB_RESET_ATTEMPTS)
+
+  if (toRetry.length) {
+    await prisma.backtestJob.updateMany({
+      where: { id: { in: toRetry.map(j => j.id) } },
+      data: {
+        status: 'pending',
+        claimedAt: null,
+        startedAt: null,
+        apiKeyId: null,
+        resetCount: { increment: 1 },
+      },
+    })
+  }
+
+  if (toFail.length) {
+    await prisma.backtestJob.updateMany({
+      where: { id: { in: toFail.map(j => j.id) } },
+      data: {
+        status: 'error',
+        completedAt: new Date(),
+        errorMessage: `${errorMessage} (gave up after ${MAX_JOB_RESET_ATTEMPTS} reset attempts)`,
+      },
+    })
+  }
+
+  const affectedGroups = [...new Set(jobs.map(j => j.sweepGroupId).filter(Boolean))]
+  await Promise.all(affectedGroups.map(refreshSweepGroupStatus))
+}
+
+// Called on every worker heartbeat/poll. reportedJobId is the job (or null)
+// the worker currently believes it's actively processing.
+async function reconcileInFlightJob(apiKeyId, reportedJobId) {
+  const orphaned = await prisma.backtestJob.findMany({
+    where: {
+      status: 'running',
+      apiKeyId,
+      ...(reportedJobId ? { id: { not: reportedJobId } } : {}),
+    },
+    select: { id: true, sweepGroupId: true, resetCount: true },
+  })
+  await reviveOrFailJobs(orphaned, 'Worker lost track of this job')
+}
+
+// Secondary safety net for a different scenario than reconcileInFlightJob:
+// the worker process is stuck/hung and has stopped heartbeating entirely
 async function timeoutStaleJobs() {
   const cutoff = new Date(Date.now() - 60 * 1000)
   const stale = await prisma.backtestJob.findMany({
@@ -251,21 +307,12 @@ async function timeoutStaleJobs() {
         { apiKey: { lastHeartbeat: null } },
       ],
     },
-    select: { id: true, sweepGroupId: true },
+    select: { id: true, sweepGroupId: true, resetCount: true },
   })
-  if (stale.length === 0) return
-
-  await prisma.backtestJob.updateMany({
-    where: { id: { in: stale.map(j => j.id) } },
-    data: {
-      status: 'error',
-      completedAt: new Date(),
-      errorMessage: 'Worker disconnected',
-    },
-  })
-
-  const affectedGroups = [...new Set(stale.map(j => j.sweepGroupId).filter(Boolean))]
-  await Promise.all(affectedGroups.map(refreshSweepGroupStatus))
+  await reviveOrFailJobs(stale, 'Worker disconnected')
 }
 
-module.exports = { listJobs, getJob, cancelJob, claimPendingJobs, submitResult, timeoutStaleJobs }
+module.exports = {
+  listJobs, getJob, cancelJob, claimPendingJobs, submitResult,
+  reconcileInFlightJob, timeoutStaleJobs,
+}

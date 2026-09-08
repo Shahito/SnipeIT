@@ -1,5 +1,10 @@
-const { claimPendingJobs, submitResult } = require('../services/jobService')
+const { claimPendingJobs, submitResult, reconcileInFlightJob } = require('../services/jobService')
 const prisma = require('../utils/prisma')
+
+function parseReportedJobId(raw) {
+  const n = parseInt(raw, 10)
+  return Number.isInteger(n) && n > 0 ? n : null
+}
 
 async function heartbeatController(req, res) {
   try {
@@ -7,6 +12,8 @@ async function heartbeatController(req, res) {
       where: { id: req.apiKey.id },
       data:  { lastHeartbeat: new Date() },
     })
+    const reportedJobId = parseReportedJobId(req.body && req.body.jobId)
+    await reconcileInFlightJob(req.apiKey.id, reportedJobId)
     res.json({ ok: true })
   } catch (e) {
     res.status(500).json({ error: 'UNKNOWN' })
@@ -20,6 +27,8 @@ async function pollController(req, res) {
       where: { id: req.apiKey.id },
       data:  { lastHeartbeat: new Date(), lastUsedAt: new Date() },
     })
+    const reportedJobId = parseReportedJobId(req.query.jobId)
+    await reconcileInFlightJob(req.apiKey.id, reportedJobId)
     const jobs = await claimPendingJobs(req.apiKey.id, req.workerUser.id)
     res.json({ jobs })
   } catch (e) {

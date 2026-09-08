@@ -1,4 +1,25 @@
 const PENDING_STORAGE_KEY = 'snipeit_pending_registration'
+// Mirrors the server's VERIFICATION_RESEND_COOLDOWN_MS (authService.js).
+const RESEND_COOLDOWN_SECONDS = 60
+
+function resendCooldownKey(username) {
+  return `snipeit_resend_cooldown_${username.toLowerCase().trim()}`
+}
+
+// Puts a resend link into its countdown state, whether that's because we
+// just triggered a send or because a reload caught it mid-cooldown.
+function applyResendCooldown(link, username, remainingSeconds) {
+  startResendCountdown(link, remainingSeconds, {
+    onTick: (s) => { link.textContent = t('login.resend_verification_countdown', { seconds: s }) },
+    onDone: () => { link.textContent = t('login.resend_verification') },
+  })
+}
+
+// Restores any in-progress cooldown for a link after a page reload.
+function restoreResendCooldown(link, username) {
+  const remaining = resendCooldownRemaining(resendCooldownKey(username), RESEND_COOLDOWN_SECONDS)
+  if (remaining > 0) applyResendCooldown(link, username, remaining)
+}
 
 function getPendingRegistration() {
   try {
@@ -23,6 +44,7 @@ function renderPendingSection() {
   document.getElementById('pendingChangeForm').classList.add('hidden')
   document.getElementById('pendingNewEmail').value = ''
   document.getElementById('pendingCorrectionError').textContent = ''
+  restoreResendCooldown(document.getElementById('pendingResendLink'), pendingRegistration.username)
 }
 
 document.addEventListener('i18n:ready', async () => {
@@ -209,6 +231,7 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
 
 document.getElementById('resendVerificationLink').addEventListener('click', async (e) => {
   const link = e.currentTarget
+  if (link.classList.contains('is-cooldown')) return
   const username = document.getElementById('loginUsername').value
   if (!username) return
   link.textContent = t('login.resend_verification_sending')
@@ -217,7 +240,9 @@ document.getElementById('resendVerificationLink').addEventListener('click', asyn
   } catch (_) {
     // stays silent by design - backend never leaks account state either
   } finally {
+    markResendSent(resendCooldownKey(username))
     link.textContent = t('login.resend_verification_sent')
+    setTimeout(() => applyResendCooldown(link, username, RESEND_COOLDOWN_SECONDS), 1500)
   }
 })
 
@@ -338,14 +363,18 @@ document.getElementById('pendingCorrectBtn').addEventListener('click', async () 
 
 document.getElementById('pendingResendLink').addEventListener('click', async (e) => {
   const link = e.currentTarget
+  if (link.classList.contains('is-cooldown')) return
   if (!pendingRegistration) return
+  const username = pendingRegistration.username
   link.textContent = t('login.resend_verification_sending')
   try {
-    await api('/auth/resend-verification', { method: 'POST', body: { username: pendingRegistration.username } })
+    await api('/auth/resend-verification', { method: 'POST', body: { username } })
   } catch (_) {
     // stays silent by design - backend never leaks account state either
   } finally {
+    markResendSent(resendCooldownKey(username))
     link.textContent = t('login.resend_verification_sent')
+    setTimeout(() => applyResendCooldown(link, username, RESEND_COOLDOWN_SECONDS), 1500)
   }
 })
 

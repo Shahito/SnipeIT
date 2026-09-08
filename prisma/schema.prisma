@@ -1,6 +1,6 @@
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
+  url = env("DATABASE_URL")
 }
 
 generator client {
@@ -67,8 +67,8 @@ model ApiKey {
 model Strategy {
   id             Int           @id @default(autoincrement())
   userId         Int
-  name           String
-  description    String?       @db.Text
+  name           String        @db.VarChar(60)
+  description    String?       @db.VarChar(500)
   pairs          Json          // string[] - e.g. ["BTC/USDT"] (single run) or ["BTC/USDT","ETH/USDT",...] (sweep)
   // Sweepable fields: scalar OR { sweep: [v1, v2, ...] }. Resolved to a pure
   // scalar in BacktestJob.strategySnapshot at launch time (see sweepEngine).
@@ -110,6 +110,7 @@ model BacktestJob {
   startedAt      DateTime?
   completedAt    DateTime?
   errorMessage   String?   @db.Text
+  resetCount     Int       @default(0)
   result         Json?
   strategySnapshot Json?
 
@@ -155,7 +156,7 @@ model Tag {
   id        Int       @id @default(autoincrement())
   userId    Int
   name      String
-  color     String    @default("#6c8eff")  // couleur HEX
+  color     String    @default("#6c8eff")  // HEX color
   createdAt DateTime  @default(now())
 
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)

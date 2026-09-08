@@ -1,5 +1,14 @@
 const prisma = require('../utils/prisma')
 const { isSweepMarker } = require('../utils/sweepEngine')
+const { STRATEGY_NAME_MAX_LENGTH, STRATEGY_DESCRIPTION_MAX_LENGTH } = require('../config/strategy')
+
+// Appends a suffix (" (copie)", " (snapshot)") to a base name while guaranteeing the
+// result never exceeds STRATEGY_NAME_MAX_LENGTH. Trims the *base* name rather than the
+// suffix
+function appendSuffixTruncated(base, suffix) {
+  const maxBaseLength = Math.max(STRATEGY_NAME_MAX_LENGTH - suffix.length, 0)
+  return `${(base || '').slice(0, maxBaseLength)}${suffix}`
+}
 
 // Returns the values to validate for a potentially sweepable field:
 // scalar -> [value]; { sweep: [...] } -> the array itself.
@@ -117,7 +126,10 @@ function validateStrategy(data) {
   const { name, pairs, timeframe, startDate, endDate, initialCapital, positionSize, conditions } = data
 
   if (!name || name.trim().length < 2)          throw new Error('NAME_REQUIRED')
-  if (name.trim().length > 70)                  throw new Error('NAME_TOO_LONG')
+  if (name.trim().length > STRATEGY_NAME_MAX_LENGTH) throw new Error('NAME_TOO_LONG')
+
+  if (data.description != null && data.description.trim().length > STRATEGY_DESCRIPTION_MAX_LENGTH)
+    throw new Error('DESCRIPTION_TOO_LONG')
 
   // pairs: always an array (length 1 = single run). Treated as a sweep axis
   // just like the others (see sweepEngine).
@@ -260,7 +272,7 @@ async function cloneStrategy(id, userId) {
   return prisma.strategy.create({
     data: {
       ...rest,
-      name:       `${original.name} (copie)`,
+      name:       `${original.name} (copy)`,
       clonedFrom: original.id,
     },
   })
@@ -284,7 +296,7 @@ async function cloneFromSnapshot(jobId, userId) {
       ...rest,
       pairs:      [snapPair],
       userId,
-      name:       `${snap.name} (snapshot)`,
+      name:       appendSuffixTruncated(snap.name, ' (snapshot)'),
       clonedFrom: job.strategy.id,
     },
   })

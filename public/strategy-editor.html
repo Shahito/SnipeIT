@@ -65,11 +65,13 @@
             <div class="section-title" data-i18n="editor.section.general"></div>
             <div class="form-group">
               <label data-i18n="editor.field.name"></label>
-              <input type="text" id="fName" data-i18n-attr="placeholder" data-i18n="editor.field.name_ph" maxlength="80">
+              <input type="text" id="fName" data-i18n-attr="placeholder" data-i18n="editor.field.name_ph" maxlength="60">
+              <p class="text-muted text-sm field-char-counter" id="fNameCounter"></p>
             </div>
             <div class="form-group">
               <label data-i18n="editor.field.description"></label>
-              <textarea id="fDescription" data-i18n-attr="placeholder" data-i18n="editor.field.description_ph"></textarea>
+              <textarea id="fDescription" data-i18n-attr="placeholder" data-i18n="editor.field.description_ph" maxlength="500"></textarea>
+              <p class="text-muted text-sm field-char-counter" id="fDescriptionCounter"></p>
             </div>
           </div>
 

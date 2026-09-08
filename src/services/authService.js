@@ -21,6 +21,21 @@ function verificationCooldownActive(user) {
   )
 }
 
+// Seconds left before another verification-type email
+function verificationCooldownRemainingSeconds(user) {
+  if (!user.lastVerificationEmailAt) return 0
+  const elapsedMs = Date.now() - user.lastVerificationEmailAt.getTime()
+  const remainingMs = VERIFICATION_RESEND_COOLDOWN_MS - elapsedMs
+  return remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 0
+}
+
+// Distinct from the IP-based TOO_MANY_REQUESTS thrown by the express-rate-limit
+function throwCooldownError(user) {
+  const err = new Error('VERIFICATION_COOLDOWN_ACTIVE')
+  err.retryAfter = verificationCooldownRemainingSeconds(user)
+  throw err
+}
+
 function normalizeEmail(email) {
   return email.trim().toLowerCase()
 }
@@ -215,7 +230,7 @@ async function changeEmail(userId, currentPassword, newEmail) {
   const ok = await bcrypt.compare(currentPassword, user.password)
   if (!ok) throw new Error('INVALID_OLD_PASSWORD')
   
-  if (verificationCooldownActive(user)) throw new Error('TOO_MANY_REQUESTS')
+  if (verificationCooldownActive(user)) throwCooldownError(user)
 
   const normalizedEmail = normalizeEmail(newEmail || '')
   if (!normalizedEmail || !EMAIL_RE.test(normalizedEmail)) throw new Error('EMAIL_INVALID')
@@ -271,7 +286,7 @@ async function correctPendingEmail(registrationEditToken, newEmail) {
   if (user.registrationEditTokenExpires && user.registrationEditTokenExpires < new Date()) {
     throw new Error('TOKEN_EXPIRED')
   }
-  if (verificationCooldownActive(user)) throw new Error('TOO_MANY_REQUESTS')
+  if (verificationCooldownActive(user)) throwCooldownError(user)
 
   const normalizedEmail = normalizeEmail(newEmail || '')
   if (!normalizedEmail || !EMAIL_RE.test(normalizedEmail)) throw new Error('EMAIL_INVALID')

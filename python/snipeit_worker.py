@@ -75,10 +75,24 @@ def _post(path: str, payload: dict = None):
     r.raise_for_status()
     return r.json()
 
-def _get(path: str):
-    r = requests.get(f"{BASE_URL}{path}", headers=_headers(), timeout=15)
+def _get(path: str, params: dict = None):
+    r = requests.get(f"{BASE_URL}{path}", headers=_headers(), params=params, timeout=15)
     r.raise_for_status()
     return r.json()
+
+
+# In-flight job tracking
+_job_lock = threading.Lock()
+_current_job_id = None
+
+def _set_current_job(job_id):
+    global _current_job_id
+    with _job_lock:
+        _current_job_id = job_id
+
+def _get_current_job():
+    with _job_lock:
+        return _current_job_id
 
 
 # Heartbeat (separate thread)
@@ -87,7 +101,7 @@ def _heartbeat_loop():
     while True:
         time.sleep(HEARTBEAT_INTERVAL)
         try:
-            _post("/api/worker/heartbeat")
+            _post("/api/worker/heartbeat", {"jobId": _get_current_job()})
             log_heartbeat()
         except requests.exceptions.ConnectionError:
             log.warning(f"Server unreachable - heartbeat failed")
@@ -104,6 +118,7 @@ def _process_job(job: dict):
     strategy = job["strategy"]
     log.info(f"Job #{job_id} - {strategy['name']} ({strategy['pair']} {strategy['timeframe']})")
 
+    _set_current_job(job_id)
     try:
         with backtest_spinner(job_id, strategy["name"], strategy["pair"], strategy["timeframe"]):
             result = run_backtest(strategy)
@@ -115,6 +130,8 @@ def _process_job(job: dict):
             _post(f"/api/worker/jobs/{job_id}/result", {"success": False, "errorMessage": str(e)})
         except Exception as post_err:
             log.error(f"Could not submit error: {post_err}")
+    finally:
+        _set_current_job(None)
 
 
 # Main loop
@@ -169,14 +186,14 @@ def main():
 
     # Send an immediate heartbeat on startup
     try:
-        _post("/api/worker/heartbeat")
+        _post("/api/worker/heartbeat", {"jobId": None})
     except Exception:
         pass
 
     try:
         while not stop_event.is_set():
             try:
-                data = _get("/api/worker/jobs")
+                data = _get("/api/worker/jobs", params={"jobId": _get_current_job()})
                 jobs = data.get("jobs", [])
 
                 if jobs:

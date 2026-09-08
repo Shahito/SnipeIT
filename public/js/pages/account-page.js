@@ -98,6 +98,14 @@ document.getElementById('changeEmailBtn').addEventListener('click', async () => 
     if (['EMAIL_INVALID', 'EMAIL_TAKEN', 'EMAIL_ALIAS_BLOCKED', 'EMAIL_DOMAIN_UNREACHABLE', 'EMAIL_SAME_AS_CURRENT'].includes(err.code)) {
       setFieldInvalid(newEmailEl, true)
     }
+    if (err.code === 'VERIFICATION_COOLDOWN_ACTIVE' && err.data && err.data.retryAfter) {
+      startResendCountdown(btn.querySelector('.btn-label'), err.data.retryAfter, {
+        onTick: (s) => { btn.querySelector('.btn-label').textContent = t('login.resend_verification_countdown', { seconds: s }) },
+        onDone: () => { btn.querySelector('.btn-label').textContent = t('account.change_email_btn') },
+      })
+      btn.disabled = true
+      setTimeout(() => { btn.disabled = false }, err.data.retryAfter * 1000)
+    }
   } finally {
     btn.disabled = false
     btn.classList.remove('is-loading')
@@ -188,7 +196,6 @@ document.getElementById('changePasswordBtn').addEventListener('click', async () 
     errorEl.textContent = t('error.' + err.code)
     if (err.code === 'INVALID_OLD_PASSWORD') setFieldInvalid(oldPasswordEl, true)
   } finally {
-    btn.disabled = false
     btn.classList.remove('is-loading')
     btn.removeAttribute('aria-busy')
   }
