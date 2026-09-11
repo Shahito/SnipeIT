@@ -1,11 +1,11 @@
 const SUPPORTED = ['fr', 'en'];
-const DEFAULT_LANG = 'fr';
+const DEFAULT_LANG = 'en';
 
 function detectLang() {
   const saved = localStorage.getItem('lang');
   if (saved && SUPPORTED.includes(saved)) return saved;
 
-  const browser = (navigator.language || 'fr').slice(0, 2).toLowerCase();
+  const browser = (navigator.language || 'en').slice(0, 2).toLowerCase();
   if (SUPPORTED.includes(browser)) return browser;
 
   return DEFAULT_LANG;

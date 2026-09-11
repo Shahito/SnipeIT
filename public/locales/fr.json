@@ -119,6 +119,7 @@
   "editor.cond.empty": "Aucune condition - le type sera ignoré par le worker",
   "editor.cond.hint": "Toutes les conditions d'un même groupe sont combinées en AND. Les conditions entry déclenchent un achat, les conditions exit une vente.",
   "editor.cond.period": "Période",
+  "editor.cond.settings_restore_default": "Restaurer les réglages par défaut",
   "editor.cond.source_close": "CLOSE",
   "editor.sidebar.json_title": "Résumé JSON",
   "editor.sidebar.json_sub": "envoyé au worker",

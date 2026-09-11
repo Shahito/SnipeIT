@@ -2202,6 +2202,12 @@ select.field-invalid {
     max-width: 30rem;
 }
 
+.cs-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
 .cs-modal .checkbox-label {
     width: fit-content;
 }
@@ -3362,6 +3368,13 @@ select.field-invalid {
     text-decoration: underline;
 }
 
+.switch-link span:focus-visible {
+    outline: none;
+    text-decoration: underline;
+    box-shadow: 0 0 0 3px var(--primary-dim);
+    border-radius: 4px;
+}
+
 .switch-link span.is-cooldown {
     color: var(--text-muted);
     cursor: default;
@@ -3422,6 +3435,13 @@ select.field-invalid {
     gap: .75rem;
 }
 
+.jobs-toolbar > span {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
 .jobs-page-header {
     display: flex;
     align-items: center;
@@ -3470,6 +3490,33 @@ select.field-invalid {
     background: var(--primary-dim);
     color: var(--primary);
     border-color: transparent;
+}
+
+#filtersToggleBtn {
+    position: relative;
+}
+
+#filtersToggleBtn.has-active-filters {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+}
+
+#filtersToggleBtn.has-active-filters:hover {
+    background: var(--border);
+    border-color: var(--text-muted);
+}
+
+#filtersToggleBtn.has-active-filters::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--surface);
 }
 
 .custom-select {

@@ -43,13 +43,18 @@ function errorCode(e, fallback = 'UNKNOWN') {
   return KNOWN_CODES.has(e.message) ? e.message : fallback
 }
 
+const SUPPORTED_LANGS = new Set(['fr', 'en'])
+function resolveLang(lang) {
+  return SUPPORTED_LANGS.has(lang) ? lang : 'en'
+}
+
 async function registerController(req, res) {
   try {
-    const { username, password, email } = req.body
+    const { username, password, email, lang } = req.body
     if (!username || !password || !email)
       return res.status(400).json({ error: 'MISSING_FIELDS' })
 
-    const user = await register(username, password, email)
+    const user = await register(username, password, email, resolveLang(lang))
     res.json({
       success: true,
       registrationEditToken: user.registrationEditToken,
@@ -139,10 +144,10 @@ async function verifyEmailController(req, res) {
 }
 
 async function resendVerificationController(req, res) {
-  const { username } = req.body
+  const { username, lang } = req.body
   if (!username) return res.status(400).json({ error: 'MISSING_FIELDS' })
   try {
-    await resendVerificationEmail(username)
+    await resendVerificationEmail(username, resolveLang(lang))
   } catch (e) {
     console.error('[resendVerificationController]', e.message)
   }

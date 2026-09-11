@@ -7,6 +7,7 @@ let sortBy = _pref.sortBy || 'date'
 let sortAsc = _pref.sortAsc ?? false
 let groupBy = _pref.groupBy || 'none'
 let filterStat = _pref.filterStat || 'all'
+let filtersOpen = _pref.filtersOpen ?? false
 let popoverJobId = null
 let collapsedGroups = new Set()
 let autoRefreshTimer = null
@@ -36,7 +37,7 @@ function _showTooltip(e, html, variant = null) {
 function _hideTooltip() { _tooltip.classList.remove('visible') }
 
 function savePrefs() {
-  localStorage.setItem('jobs_prefs', JSON.stringify({ sortBy, sortAsc, groupBy, filterStat }))
+  localStorage.setItem('jobs_prefs', JSON.stringify({ sortBy, sortAsc, groupBy, filterStat, filtersOpen }))
 }
 
 const IDLE_POLL_MS = 5000

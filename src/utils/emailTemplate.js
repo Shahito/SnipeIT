@@ -23,11 +23,11 @@ function button(label, url) {
     </table>`
 }
 
-function renderEmail({ preheader = '', title, bodyHtml, cta = null, footerNote = '' }, appUrl) {
+function renderEmail({ preheader = '', title, bodyHtml, cta = null, footerNote = '' }, appUrl, lang = 'en') {
   const logoUrl = `${appUrl}/images/icons/192.png`
 
   return `<!DOCTYPE html>
-<html lang="fr">
+<html lang="${lang}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">

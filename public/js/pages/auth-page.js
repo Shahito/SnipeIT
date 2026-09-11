@@ -88,8 +88,18 @@ if (pendingRegistration) {
 document.getElementById('toRegister').addEventListener('click', () => {
   showAuthForm('register')
 })
+document.getElementById('toRegister').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return
+  e.preventDefault()
+  showAuthForm('register')
+})
 
 document.getElementById('toLogin').addEventListener('click', () => {
+  showAuthForm('login')
+})
+document.getElementById('toLogin').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return
+  e.preventDefault()
   showAuthForm('login')
 })
 
@@ -236,7 +246,7 @@ document.getElementById('resendVerificationLink').addEventListener('click', asyn
   if (!username) return
   link.textContent = t('login.resend_verification_sending')
   try {
-    await api('/auth/resend-verification', { method: 'POST', body: { username } })
+    await api('/auth/resend-verification', { method: 'POST', body: { username, lang: window.i18nCurrentLang() } })
   } catch (_) {
     // stays silent by design - backend never leaks account state either
   } finally {
@@ -282,7 +292,7 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
   btn.classList.add('is-loading')
   btn.setAttribute('aria-busy', 'true')
   try {
-    const res = await api('/auth/register', { method: 'POST', body: { username: u, email, password: p } })
+    const res = await api('/auth/register', { method: 'POST', body: { username: u, email, password: p, lang: window.i18nCurrentLang() } })
     pendingRegistration = {
       registrationEditToken: res.registrationEditToken,
       username: res.username,
@@ -368,7 +378,7 @@ document.getElementById('pendingResendLink').addEventListener('click', async (e)
   const username = pendingRegistration.username
   link.textContent = t('login.resend_verification_sending')
   try {
-    await api('/auth/resend-verification', { method: 'POST', body: { username } })
+    await api('/auth/resend-verification', { method: 'POST', body: { username, lang: window.i18nCurrentLang() } })
   } catch (_) {
     // stays silent by design - backend never leaks account state either
   } finally {

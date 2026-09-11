@@ -111,7 +111,10 @@
       <div class="modal cs-modal">
         <div class="modal-header">
           <span class="modal-title" id="csTitle"></span>
-          <button type="button" class="modal-close cs-close-btn" aria-label="${t('picker.close')}">${ICONS.cross}</button>
+          <div class="cs-header-actions">
+            <button type="button" class="modal-close cs-restore-btn" aria-label="${t('editor.cond.settings_restore_default')}" title="${t('editor.cond.settings_restore_default')}">${ICONS.brush}</button>
+            <button type="button" class="modal-close cs-close-btn" aria-label="${t('picker.close')}">${ICONS.cross}</button>
+          </div>
         </div>
         <div id="csBody"></div>
       </div>
@@ -120,6 +123,7 @@
     _overlayEl = el
     el.addEventListener('click', e => { if (e.target === el) _close() })
     el.querySelector('.cs-close-btn').addEventListener('click', _close)
+    el.querySelector('.cs-restore-btn').addEventListener('click', _restoreDefaults)
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape' && el.classList.contains('open')) _close()
     })
@@ -137,6 +141,21 @@
     _lockScroll()
     _setInert(true)
     requestAnimationFrame(() => _overlayEl.classList.add('open'))
+  }
+
+  // Resets every field this overlay edits back to "unset"
+  function _restoreDefaults() {
+    const cond = _cond, k = _refKeys(_prefix)
+    delete cond[k.per]; delete cond[k.src]; delete cond[k.set]
+    delete cond[k.off]; delete cond[k.tf]
+    delete cond[k.cop]; delete cond[k.cind]; delete cond[k.cper]
+    delete cond[k.csrc]; delete cond[k.coff]; delete cond[k.cset]
+    if (_prefix === 'value') {
+      delete cond.valueMultiplier
+      delete cond.valueMultiplierMode
+    }
+    _renderBody()
+    updatePreview()
   }
 
   function _close() {

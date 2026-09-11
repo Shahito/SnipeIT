@@ -7,7 +7,14 @@ async function authRequired(req, res, next) {
     if (!token) return res.status(401).json({ error: 'Not authenticated' })
     const decoded = verifyToken(token)
   
-    const user = await prisma.user.findUnique({ where: { id: decoded.id } })
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: {
+        id: true, username: true, displayUsername: true, email: true,
+        emailVerified: true, pendingEmail: true, pendingEmailDeliveryFailed: true,
+        tokenVersion: true, lastActive: true, // only needed below, stripped before req.user
+      },
+    })
     if (!user) return res.status(401).json({ error: 'User not found' })
     
     if (decoded.tokenVersion !== user.tokenVersion) {
@@ -15,7 +22,7 @@ async function authRequired(req, res, next) {
       return res.status(401).json({ error: 'Session expired or revoked' })
     }
 
-    const { password, ...safeUser } = user
+    const { tokenVersion, lastActive, ...safeUser } = user
     req.user = safeUser
 
     const LAST_ACTIVE_THROTTLE_MS = 5 * 60 * 1000 // 5m

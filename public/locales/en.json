@@ -119,6 +119,7 @@
   "editor.cond.empty": "No conditions - this type will be ignored by the worker",
   "editor.cond.hint": "All conditions within the same group are combined with AND. Entry conditions trigger a buy, exit conditions trigger a sell.",
   "editor.cond.period": "Period",
+  "editor.cond.settings_restore_default": "Restore default settings",
   "editor.cond.source_close": "CLOSE",
   "editor.sidebar.json_title": "JSON summary",
   "editor.sidebar.json_sub": "sent to worker",

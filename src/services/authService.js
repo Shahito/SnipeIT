@@ -53,7 +53,7 @@ function generateVerificationToken() {
   return crypto.randomBytes(32).toString('hex')
 }
 
-async function register(displayUsername, password, email) {
+async function register(displayUsername, password, email, lang = 'en') {
   const normalized = displayUsername.toLowerCase().trim()
   const normalizedEmail = normalizeEmail(email || '')
 
@@ -111,7 +111,7 @@ async function register(displayUsername, password, email) {
 
   // Best-effort: don't fail registration if the email provider is down.
   try {
-    await sendVerificationEmail(normalizedEmail, verificationToken)
+    await sendVerificationEmail(normalizedEmail, verificationToken, lang)
   } catch (e) {
     console.error('[authService] Failed to send verification email:', e.message)
   }
@@ -191,7 +191,7 @@ async function verifyEmail(token) {
   return true
 }
 
-async function resendVerificationEmail(username) {
+async function resendVerificationEmail(username, lang = 'en') {
   const normalized = username.toLowerCase().trim()
   const user = await prisma.user.findUnique({ where: { username: normalized } })
 
@@ -219,7 +219,7 @@ async function resendVerificationEmail(username) {
       // (see webhookService.js), i.e. real evidence it now works.
     },
   })
-  await sendVerificationEmail(user.email, verificationToken)
+  await sendVerificationEmail(user.email, verificationToken, lang)
   return true
 }
 

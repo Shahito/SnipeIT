@@ -1,6 +1,15 @@
+function areFiltersActive() {
+  return !(sortBy === 'date' && !sortAsc && groupBy === 'none' && filterStat === 'all')
+}
+
 function updateClearFiltersBtn() {
-  const isDefault = sortBy === 'date' && !sortAsc && groupBy === 'none' && filterStat === 'all'
-  document.getElementById('clearFiltersBtn').disabled = isDefault
+  document.getElementById('clearFiltersBtn').disabled = !areFiltersActive()
+  updateFiltersDot()
+}
+
+function updateFiltersDot() {
+  const panelClosed = document.getElementById('jobsFiltersPanel').classList.contains('hidden')
+  document.getElementById('filtersToggleBtn').classList.toggle('has-active-filters', areFiltersActive() && panelClosed)
 }
 
 document.getElementById('filtersToggleBtn').addEventListener('click', () => {
@@ -9,6 +18,9 @@ document.getElementById('filtersToggleBtn').addEventListener('click', () => {
   const isOpen = panel.classList.toggle('hidden') === false
   btn.classList.toggle('active', isOpen)
   btn.setAttribute('aria-expanded', String(isOpen))
+  filtersOpen = isOpen
+  savePrefs()
+  updateFiltersDot()
 })
 
 // Controls
@@ -75,6 +87,14 @@ function restoreControlsUI() {
   filterSelect.setValue(filterStat, { silent: true })
   updateSortIndicators()
   updateClearFiltersBtn()
+
+  if (filtersOpen) {
+    document.getElementById('jobsFiltersPanel').classList.remove('hidden')
+    const btn = document.getElementById('filtersToggleBtn')
+    btn.classList.add('active')
+    btn.setAttribute('aria-expanded', 'true')
+    updateFiltersDot()
+  }
 }
 
 function updateSortIndicators() {
