@@ -2,7 +2,7 @@ const express = require('express')
 const router = express.Router()
 const authRequired = require('../middleware/auth')
 const {
-  listController, getController, createController,
+  listController, listDeletedController, getController, createController,
   updateController, cloneController, cloneFromSnapshotController, deleteController, restoreController,
 } = require('../controllers/strategyController')
 
@@ -18,6 +18,19 @@ const {
  *         description: OK
  */
 router.get('/', authRequired, listController)
+
+/**
+ * @openapi
+ * /api/strategies/deleted:
+ *   get:
+ *     tags: [strategy]
+ *     summary: List soft-deleted strategies still within their recovery window
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200:
+ *         description: OK
+ */
+router.get('/deleted', authRequired, listDeletedController)
 
 /**
  * @openapi

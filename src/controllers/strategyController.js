@@ -1,5 +1,5 @@
 const {
-  listStrategies, getStrategy, createStrategy,
+  listStrategies, listDeletedStrategies, getStrategy, createStrategy,
   updateStrategy, cloneStrategy, cloneFromSnapshot, deleteStrategy, restoreStrategy,
 } = require('../services/strategyService')
 
@@ -18,6 +18,15 @@ function errorCode(e, fallback = 'UNKNOWN') {
 async function listController(req, res) {
   try {
     const strategies = await listStrategies(req.user.id)
+    res.json({ strategies })
+  } catch (e) {
+    res.status(500).json({ error: errorCode(e) })
+  }
+}
+
+async function listDeletedController(req, res) {
+  try {
+    const strategies = await listDeletedStrategies(req.user.id)
     res.json({ strategies })
   } catch (e) {
     res.status(500).json({ error: errorCode(e) })
@@ -95,6 +104,6 @@ async function restoreController(req, res) {
 }
 
 module.exports = {
-  listController, getController, createController,
+  listController, listDeletedController, getController, createController,
   updateController, cloneController, cloneFromSnapshotController, deleteController, restoreController,
 }

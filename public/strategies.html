@@ -21,10 +21,16 @@
           <h1 data-i18n="strategies.title"></h1>
           <p data-i18n="strategies.subtitle"></p>
         </div>
-        <a href="/strategy-editor.html" class="btn btn-primary">
-          <i data-icon="plus"></i>
-          <span data-i18n="strategies.new_btn"></span>
-        </a>
+        <div class="page-header-actions">
+          <button class="btn btn-ghost hidden" id="trashBtn">
+            <i data-icon="history"></i>
+            <span data-i18n="strategies.trash.btn"></span>
+          </button>
+          <a href="/strategy-editor.html" class="btn btn-primary">
+            <i data-icon="plus"></i>
+            <span data-i18n="strategies.new_btn"></span>
+          </a>
+        </div>
       </div>
 
       <div id="loadingState" class="loading-spinner"><div class="spinner"></div></div>
@@ -43,6 +49,16 @@
 
       <div id="strategiesGrid" class="strategies-grid hidden"></div>
     </main>
+  </div>
+
+  <div id="trashModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" data-i18n="strategies.trash.title"></div>
+        <button class="modal-close" id="trashModalClose"><i data-icon="cross"></i></button>
+      </div>
+      <div id="trashList" class="tags-manage-list"></div>
+    </div>
   </div>
 
   <div id="sweepConfirmModal" class="modal-overlay hidden">
@@ -68,5 +84,6 @@
   <script src="/js/overlay-a11y.js"></script>
   <script src="/js/pages/strategies-list.js"></script>
   <script src="/js/pages/strategies-actions.js"></script>
+  <script src="/js/pages/strategies-trash.js"></script>
 </body>
 </html>

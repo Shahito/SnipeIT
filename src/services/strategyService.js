@@ -48,6 +48,15 @@ async function getStrategy(id, userId) {
   return s
 }
 
+// Feeds the "Deleted items" trash panel
+async function listDeletedStrategies(userId) {
+  return prisma.strategy.findMany({
+    where: { userId, deletedAt: { not: null } },
+    orderBy: { deletedAt: 'desc' },
+    select: { id: true, name: true, deletedAt: true },
+  })
+}
+
 function validateConditions(conditions) {
   if (!conditions || typeof conditions !== 'object') throw new Error('CONDITIONS_INVALID')
   if (!Array.isArray(conditions.entry)) throw new Error('CONDITIONS_INVALID')
@@ -328,6 +337,6 @@ async function purgeSoftDeletedStrategies() {
 }
 
 module.exports = {
-  listStrategies, getStrategy, createStrategy, updateStrategy, cloneStrategy, cloneFromSnapshot,
+  listStrategies, listDeletedStrategies, getStrategy, createStrategy, updateStrategy, cloneStrategy, cloneFromSnapshot,
   deleteStrategy, restoreStrategy, purgeSoftDeletedStrategies,
 }
