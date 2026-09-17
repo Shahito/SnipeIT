@@ -39,7 +39,7 @@ async function listJobs(userId, { page = 1, limit = 20, sort = 'createdAt', orde
 
   if (sweepGroupId) {
     const where = {
-      strategy: { userId },
+      strategy: { userId, deletedAt: null },
       sweepGroupId: parseInt(sweepGroupId),
       ...(statusFilter ? { status: statusFilter } : {}),
     }
@@ -63,8 +63,9 @@ async function listJobs(userId, { page = 1, limit = 20, sort = 'createdAt', orde
   const unionSql = Prisma.sql`
     SELECT 'sweep' AS itemType, sg.id AS id, ${sweepSortExpr} AS sortVal
     FROM SweepGroup sg
+    JOIN Strategy s ON s.id = sg.strategyId
     LEFT JOIN BacktestJob bj ON bj.sweepGroupId = sg.id
-    WHERE sg.userId = ${userId} AND sg.totalRuns > 1
+    WHERE sg.userId = ${userId} AND sg.totalRuns > 1 AND s.deletedAt IS NULL
     ${sweepStatusCond}
     GROUP BY sg.id
 
@@ -73,7 +74,8 @@ async function listJobs(userId, { page = 1, limit = 20, sort = 'createdAt', orde
     SELECT 'job' AS itemType, bj.id AS id, ${jobSortCol} AS sortVal
     FROM BacktestJob bj
     JOIN SweepGroup sg2 ON sg2.id = bj.sweepGroupId
-    WHERE sg2.userId = ${userId} AND sg2.totalRuns = 1
+    JOIN Strategy s2 ON s2.id = sg2.strategyId
+    WHERE sg2.userId = ${userId} AND sg2.totalRuns = 1 AND s2.deletedAt IS NULL
     ${jobStatusCond}
   `
 
@@ -137,7 +139,7 @@ async function listJobs(userId, { page = 1, limit = 20, sort = 'createdAt', orde
 
 async function getJob(id, userId) {
   const job = await prisma.backtestJob.findFirst({
-    where: { id, strategy: { userId } },
+    where: { id, strategy: { userId, deletedAt: null } },
     include: {
       strategy: true,
       sweepGroup: { select: { id: true, totalRuns: true, status: true } },
@@ -150,7 +152,7 @@ async function getJob(id, userId) {
 
 async function cancelJob(id, userId) {
   const job = await prisma.backtestJob.findFirst({
-    where: { id, strategy: { userId } },
+    where: { id, strategy: { userId, deletedAt: null } },
   })
   if (!job) throw new Error('JOB_NOT_FOUND')
   if (job.status !== 'pending') throw new Error('JOB_NOT_CANCELABLE')
@@ -169,7 +171,7 @@ async function claimPendingJobs(apiKeyId, userId) {
   const potentialJobs = await prisma.backtestJob.findMany({
     where: {
       status: 'pending',
-      strategy: { userId: userId },
+      strategy: { userId: userId, deletedAt: null },
     },
     orderBy: { createdAt: 'asc' },
     take: 5,

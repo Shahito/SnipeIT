@@ -1,6 +1,6 @@
 const {
   listStrategies, getStrategy, createStrategy,
-  updateStrategy, cloneStrategy, cloneFromSnapshot, deleteStrategy,
+  updateStrategy, cloneStrategy, cloneFromSnapshot, deleteStrategy, restoreStrategy,
 } = require('../services/strategyService')
 
 const KNOWN_CODES = new Set([
@@ -85,7 +85,16 @@ async function deleteController(req, res) {
   }
 }
 
+async function restoreController(req, res) {
+  try {
+    await restoreStrategy(parseInt(req.params.id), req.user.id)
+    res.json({ success: true })
+  } catch (e) {
+    res.status(404).json({ error: errorCode(e) })
+  }
+}
+
 module.exports = {
   listController, getController, createController,
-  updateController, cloneController, cloneFromSnapshotController, deleteController,
+  updateController, cloneController, cloneFromSnapshotController, deleteController, restoreController,
 }

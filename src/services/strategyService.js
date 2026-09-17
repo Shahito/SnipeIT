@@ -25,7 +25,7 @@ function normalizeNumber(v, parser = parseFloat) {
 
 async function listStrategies(userId) {
   return prisma.strategy.findMany({
-    where: { userId },
+    where: { userId, deletedAt: null },
     orderBy: { updatedAt: 'desc' },
     select: {
       id: true, name: true, description: true,
@@ -43,7 +43,7 @@ async function listStrategies(userId) {
 }
 
 async function getStrategy(id, userId) {
-  const s = await prisma.strategy.findFirst({ where: { id, userId } })
+  const s = await prisma.strategy.findFirst({ where: { id, userId, deletedAt: null } })
   if (!s) throw new Error('STRATEGY_NOT_FOUND')
   return s
 }
@@ -233,7 +233,7 @@ async function createStrategy(userId, data) {
 }
 
 async function updateStrategy(id, userId, data) {
-  const existing = await prisma.strategy.findFirst({ where: { id, userId } })
+  const existing = await prisma.strategy.findFirst({ where: { id, userId, deletedAt: null } })
   if (!existing) throw new Error('STRATEGY_NOT_FOUND')
 
   validateStrategy(data)
@@ -264,10 +264,10 @@ async function updateStrategy(id, userId, data) {
 }
 
 async function cloneStrategy(id, userId) {
-  const original = await prisma.strategy.findFirst({ where: { id, userId } })
+  const original = await prisma.strategy.findFirst({ where: { id, userId, deletedAt: null } })
   if (!original) throw new Error('STRATEGY_NOT_FOUND')
 
-  const { id: _id, createdAt: _c, updatedAt: _u, ...rest } = original
+  const { id: _id, createdAt: _c, updatedAt: _u, deletedAt: _d, ...rest } = original
 
   return prisma.strategy.create({
     data: {
@@ -302,11 +302,32 @@ async function cloneFromSnapshot(jobId, userId) {
   })
 }
 
+// A soft-deleted strategy is recoverable via restoreStrategy()
+const STRATEGY_TRASH_GRACE_MS = 24 * 60 * 60 * 1000
+
 async function deleteStrategy(id, userId) {
-  const existing = await prisma.strategy.findFirst({ where: { id, userId } })
+  const existing = await prisma.strategy.findFirst({ where: { id, userId, deletedAt: null } })
   if (!existing) throw new Error('STRATEGY_NOT_FOUND')
-  await prisma.strategy.delete({ where: { id } })
+  await prisma.strategy.update({ where: { id }, data: { deletedAt: new Date() } })
   return true
 }
 
-module.exports = { listStrategies, getStrategy, createStrategy, updateStrategy, cloneStrategy, cloneFromSnapshot, deleteStrategy }
+async function restoreStrategy(id, userId) {
+  const existing = await prisma.strategy.findFirst({ where: { id, userId, deletedAt: { not: null } } })
+  if (!existing) throw new Error('STRATEGY_NOT_FOUND')
+  await prisma.strategy.update({ where: { id }, data: { deletedAt: null } })
+  return true
+}
+
+// Cron-driven (app.js, daily): hard-deletes anything past its grace period.
+// Cascades to BacktestJob/SweepGroup via the schema's onDelete: Cascade,
+// same end result as the old immediate hard-delete, just deferred.
+async function purgeSoftDeletedStrategies() {
+  const cutoff = new Date(Date.now() - STRATEGY_TRASH_GRACE_MS)
+  await prisma.strategy.deleteMany({ where: { deletedAt: { lt: cutoff } } })
+}
+
+module.exports = {
+  listStrategies, getStrategy, createStrategy, updateStrategy, cloneStrategy, cloneFromSnapshot,
+  deleteStrategy, restoreStrategy, purgeSoftDeletedStrategies,
+}

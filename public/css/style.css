@@ -1296,9 +1296,7 @@ tbody td {
 .editor-layout {
     display: grid;
     grid-template-columns: 15rem 1fr 16rem;
-    grid-template-areas:
-        "general center sidebar-top"
-        "general center sidebar-bottom";
+    grid-template-areas: "general center sidebar";
     gap: 0.8rem;
     align-items: start;
 }
@@ -1313,16 +1311,15 @@ tbody td {
     grid-area: general;
 }
 
-.mobile-step[data-step="1"] {
-    grid-area: sidebar-top;
-}
-
 .mobile-step[data-step="2"] {
     grid-area: center;
 }
 
-.mobile-step[data-step="3"] {
-    grid-area: sidebar-bottom;
+.editor-sidebar {
+    grid-area: sidebar;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
 }
 
 .sidebar-panel {
@@ -2192,12 +2189,6 @@ select.field-invalid {
     border: 1px solid var(--surface);
 }
 
-/* Condition-settings overlay (condition-settings.js) - the body is built
-   entirely out of the editor's existing .form-group / .form-row /
-   .section-title / .divider / .checkbox-label, same as Capital, Position
-   size, SL/TP etc. elsewhere on this page - no parallel style needed.
-   Just a touch more width than the default .modal for the 3-wide MACD
-   settings row (fast/slow/signal) to breathe. */
 .cs-modal {
     max-width: 30rem;
 }
@@ -3077,6 +3068,25 @@ select.field-invalid {
     box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, .35);
     min-width: 10rem;
     animation: toastIn .2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+}
+
+.toast-text {
+    flex: 1;
+}
+
+.toast-action {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-weight: 600;
+    color: inherit;
+    text-decoration: underline;
+    cursor: pointer;
 }
 
 @keyframes toastIn {
@@ -4492,10 +4502,37 @@ input[type="color"] {
         grid-template-areas: none;
     }
 
+    .editor-sidebar {
+        display: contents;
+    }
+
     .mobile-step {
         flex-shrink: 0;
         width: 100%;
         box-sizing: border-box;
+        height: 0;
+        overflow: hidden;
+    }
+
+    .mobile-step.active {
+        height: auto;
+        overflow: visible;
+    }
+
+    .mobile-step[data-step="0"] {
+        order: 0;
+    }
+
+    .mobile-step[data-step="1"] {
+        order: 1;
+    }
+
+    .mobile-step[data-step="2"] {
+        order: 2;
+    }
+
+    .mobile-step[data-step="3"] {
+        order: 3;
     }
 
     .sidebar-panel {

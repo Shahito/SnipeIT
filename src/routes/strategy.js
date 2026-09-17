@@ -3,7 +3,7 @@ const router = express.Router()
 const authRequired = require('../middleware/auth')
 const {
   listController, getController, createController,
-  updateController, cloneController, cloneFromSnapshotController, deleteController,
+  updateController, cloneController, cloneFromSnapshotController, deleteController, restoreController,
 } = require('../controllers/strategyController')
 
 /**
@@ -156,7 +156,10 @@ router.post('/jobs/:jobId/clone-snapshot', authRequired, cloneFromSnapshotContro
  * /api/strategies/{id}:
  *   delete:
  *     tags: [strategy]
- *     summary: Delete a strategy
+ *     summary: Soft-delete a strategy
+ *     description: >
+ *       Sets deletedAt instead of hard-deleting. The strategy stops showing up anywhere
+ *       and is recoverable via POST /{id}/restore until it's purged after the grace period.
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
@@ -170,5 +173,25 @@ router.post('/jobs/:jobId/clone-snapshot', authRequired, cloneFromSnapshotContro
  *         description: STRATEGY_NOT_FOUND
  */
 router.delete('/:id', authRequired, deleteController)
+
+/**
+ * @openapi
+ * /api/strategies/{id}/restore:
+ *   post:
+ *     tags: [strategy]
+ *     summary: Undo a pending soft-delete
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200:
+ *         description: OK
+ *       404:
+ *         description: STRATEGY_NOT_FOUND (already purged, not soft-deleted, or not yours)
+ */
+router.post('/:id/restore', authRequired, restoreController)
 
 module.exports = router

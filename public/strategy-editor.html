@@ -60,7 +60,7 @@
       <div class="editor-layout" id="editorLayout">
 
         <!-- Step 0: General + Market -->
-        <div class="mobile-step" data-step="0">
+        <div class="mobile-step active" data-step="0">
           <div class="card">
             <div class="section-title" data-i18n="editor.section.general"></div>
             <div class="form-group">
@@ -113,76 +113,89 @@
           </div>
         </div>
 
-        <!-- Step 1: Risk -->
-        <div class="mobile-step" data-step="1">
-          <div class="card sidebar-panel">
-            <div class="section-title" data-i18n="editor.section.risk"></div>
-            <div class="form-row">
+        <div class="editor-sidebar">
+          <!-- Step 1: Risk -->
+          <div class="mobile-step" data-step="1">
+            <div class="card sidebar-panel">
+              <div class="section-title" data-i18n="editor.section.risk"></div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label data-i18n="editor.field.capital"></label>
+                  <input type="number" id="fCapital" value="1000" min="1" step="1">
+                </div>
+                <div class="form-group">
+                  <label data-i18n="editor.field.position_size"></label>
+                  <input type="text" id="fPositionSize" value="10" inputmode="decimal">
+                  <p class="text-muted text-sm mt-sm" data-i18n="editor.field.sweep_number_hint"></p>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group fee-group">
+                  <label><span data-i18n="editor.field.fee_taker"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
+                  <div class="input-with-select">
+                    <input type="number" id="fFeeTaker" value="0.1" min="0" max="10" step="0.01" placeholder="0.1">
+                    <span class="input-addon">%</span>
+                  </div>
+                </div>
+                <div class="form-group fee-group">
+                  <label><span data-i18n="editor.field.fee_maker"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
+                  <div class="input-with-select">
+                    <input type="number" id="fFeeMaker" value="0.1" min="0" max="10" step="0.01" placeholder="0.1">
+                    <span class="input-addon">%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="divider mt-md mb-md"></div>
+
+              <div class="form-row">
+                <div class="form-group risk-group">
+                  <label><span data-i18n="editor.field.stop_loss"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
+                  <div class="input-with-select">
+                    <input type="text" id="fStopLoss" data-i18n-attr="placeholder" data-i18n="editor.field.sl_ph" inputmode="decimal">
+                    <div class="toggle-group" id="fSlTypeGroup"></div>
+                  </div>
+                  <label class="checkbox-label sl-trailing-label">
+                    <input type="checkbox" id="fSlTrailing">
+                    <span class="text-muted" data-i18n="editor.field.sl_trailing"></span>
+                  </label>
+                  <p class="text-muted text-sm mt-sm" data-i18n="editor.field.sweep_number_hint"></p>
+                </div>
+                <div class="form-group risk-group">
+                  <label><span data-i18n="editor.field.take_profit"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
+                  <div class="input-with-select">
+                    <input type="text" id="fTakeProfit" data-i18n-attr="placeholder" data-i18n="editor.field.tp_ph" inputmode="decimal">
+                    <div class="toggle-group" id="fTpTypeGroup"></div>
+                  </div>
+                  <p class="text-muted text-sm mt-sm" data-i18n="editor.field.sweep_number_hint"></p>
+                </div>
+              </div>
+              <div class="form-row" id="atrPeriodGroup" style="display:none">
+                <div class="form-group">
+                  <label data-i18n="editor.field.atr_period"></label>
+                  <input type="text" id="fAtrPeriod" value="14" inputmode="numeric">
+                </div>
+              </div>
+
+              <div class="divider mt-md mb-md"></div>
+
               <div class="form-group">
-                <label data-i18n="editor.field.capital"></label>
-                <input type="number" id="fCapital" value="1000" min="1" step="1">
-              </div>
-              <div class="form-group">
-                <label data-i18n="editor.field.position_size"></label>
-                <input type="text" id="fPositionSize" value="10" inputmode="decimal">
-                <p class="text-muted text-sm mt-sm" data-i18n="editor.field.sweep_number_hint"></p>
+                <label data-i18n="editor.field.trading_hours"></label>
+                <div id="tradingHoursContainer"></div>
+                <button type="button" class="btn btn-ghost btn-sm mt-sm" id="addTradingHourBtn" data-i18n="editor.field.trading_hours_add"></button>
+                <p class="text-muted text-sm mt-sm" data-i18n="editor.field.trading_hours_hint"></p>
               </div>
             </div>
-            <div class="form-row">
-              <div class="form-group fee-group">
-                <label><span data-i18n="editor.field.fee_taker"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
-                <div class="input-with-select">
-                  <input type="number" id="fFeeTaker" value="0.1" min="0" max="10" step="0.01" placeholder="0.1">
-                  <span class="input-addon">%</span>
-                </div>
-              </div>
-              <div class="form-group fee-group">
-                <label><span data-i18n="editor.field.fee_maker"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
-                <div class="input-with-select">
-                  <input type="number" id="fFeeMaker" value="0.1" min="0" max="10" step="0.01" placeholder="0.1">
-                  <span class="input-addon">%</span>
-                </div>
-              </div>
-            </div>
+          </div>
 
-            <div class="divider mt-md mb-md"></div>
-
-            <div class="form-row">
-              <div class="form-group risk-group">
-                <label><span data-i18n="editor.field.stop_loss"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
-                <div class="input-with-select">
-                  <input type="text" id="fStopLoss" data-i18n-attr="placeholder" data-i18n="editor.field.sl_ph" inputmode="decimal">
-                  <div class="toggle-group" id="fSlTypeGroup"></div>
-                </div>
-                <label class="checkbox-label sl-trailing-label">
-                  <input type="checkbox" id="fSlTrailing">
-                  <span class="text-muted" data-i18n="editor.field.sl_trailing"></span>
-                </label>
-                <p class="text-muted text-sm mt-sm" data-i18n="editor.field.sweep_number_hint"></p>
+          <!-- Step 3: Preview + indicators legend -->
+          <div class="mobile-step" data-step="3">
+            <div class="card sidebar-panel">
+              <div class="card-header">
+                <div class="section-title" data-i18n="editor.sidebar.json_title"></div>
+                <span class="text-muted text-sm" data-i18n="editor.sidebar.json_sub"></span>
               </div>
-              <div class="form-group risk-group">
-                <label><span data-i18n="editor.field.take_profit"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
-                <div class="input-with-select">
-                  <input type="text" id="fTakeProfit" data-i18n-attr="placeholder" data-i18n="editor.field.tp_ph" inputmode="decimal">
-                  <div class="toggle-group" id="fTpTypeGroup"></div>
-                </div>
-                <p class="text-muted text-sm mt-sm" data-i18n="editor.field.sweep_number_hint"></p>
-              </div>
-            </div>
-            <div class="form-row" id="atrPeriodGroup" style="display:none">
-              <div class="form-group">
-                <label data-i18n="editor.field.atr_period"></label>
-                <input type="text" id="fAtrPeriod" value="14" inputmode="numeric">
-              </div>
-            </div>
-
-            <div class="divider mt-md mb-md"></div>
-
-            <div class="form-group">
-              <label data-i18n="editor.field.trading_hours"></label>
-              <div id="tradingHoursContainer"></div>
-              <button type="button" class="btn btn-ghost btn-sm mt-sm" id="addTradingHourBtn" data-i18n="editor.field.trading_hours_add"></button>
-              <p class="text-muted text-sm mt-sm" data-i18n="editor.field.trading_hours_hint"></p>
+              <pre class="preview-json" id="jsonPreview">{}</pre>
             </div>
           </div>
         </div>
@@ -212,17 +225,6 @@
               </div>
             </div>
             <p class="text-muted text-sm mt-md" data-i18n="editor.cond.hint"></p>
-          </div>
-        </div>
-
-        <!-- Step 3: Preview + indicators legend -->
-        <div class="mobile-step" data-step="3">
-          <div class="card sidebar-panel">
-            <div class="card-header">
-              <div class="section-title" data-i18n="editor.sidebar.json_title"></div>
-              <span class="text-muted text-sm" data-i18n="editor.sidebar.json_sub"></span>
-            </div>
-            <pre class="preview-json" id="jsonPreview">{}</pre>
           </div>
         </div>
 

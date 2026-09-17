@@ -493,6 +493,9 @@ document.getElementById('sweepConfirmClose').addEventListener('click', () => doc
 
 function goToStep(n) {
   document.querySelectorAll('.mnav-item').forEach((el, i) => el.classList.toggle('active', i === n))
+  document.querySelectorAll('.mobile-step').forEach((el) => {
+    el.classList.toggle('active', parseInt(el.dataset.step, 10) === n)
+  })
   if (window.innerWidth <= 1100) {
     document.getElementById('editorLayout').style.transform = `translateX(${-n * 100}vw)`
   }

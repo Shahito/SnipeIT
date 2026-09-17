@@ -60,7 +60,7 @@ function buildSnapshot(strategy, combo) {
 
 // Preview (for the front end, before confirmation): number of combinations + axis details.
 async function previewSweep(strategyId, userId) {
-  const strategy = await prisma.strategy.findFirst({ where: { id: strategyId, userId } })
+  const strategy = await prisma.strategy.findFirst({ where: { id: strategyId, userId, deletedAt: null } })
   if (!strategy) throw new Error('STRATEGY_NOT_FOUND')
 
   const { totalRuns, axes } = resolveSweep(buildDefinition(strategy)) // throws SWEEP_TOO_LARGE si > max
@@ -72,7 +72,7 @@ async function previewSweep(strategyId, userId) {
 }
 
 async function launchSweep(strategyId, userId, { confirmLarge = false } = {}) {
-  const strategy = await prisma.strategy.findFirst({ where: { id: strategyId, userId } })
+  const strategy = await prisma.strategy.findFirst({ where: { id: strategyId, userId, deletedAt: null } })
   if (!strategy) throw new Error('STRATEGY_NOT_FOUND')
 
   const active = await prisma.backtestJob.findFirst({

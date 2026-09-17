@@ -85,12 +85,17 @@ model Strategy {
   atrPeriod      Json?         // Int or { sweep: [...] }
   feeTaker       Float         @default(0.0)
   feeMaker       Float         @default(0.0)
-  tradingHours   Json?                          // [{start:"08:00", end:"17:00", blockSell:false}]
+  tradingHours   Json?         // [{start:"08:00", end:"17:00", blockSell:false}]
   conditions     Json
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+  // ! No FK constraint - just an id, not enforced at the DB level. If the
+  // source strategy is later hard-deleted (via purgeSoftDeletedStrategies),
+  // this becomes a dangling reference. Currently unused for display/lookup
+  // anywhere, so it's harmless today - but any future feature that resolves
+  // this id (e.g. a "cloned from X" link) MUST handle the not-found case.
   clonedFrom     Int?
-
+  deletedAt      DateTime?     // soft-delete
   user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobs           BacktestJob[]
   sweepGroups    SweepGroup[]

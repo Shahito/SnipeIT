@@ -1,5 +1,3 @@
-let deleteTargetId = null
-
 function bindCardActions() {
   bindTooltips()
 
@@ -33,9 +31,32 @@ function bindCardActions() {
     })
   })
   document.querySelectorAll('.delete-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      deleteTargetId = parseInt(btn.dataset.id)
-      openModal('deleteModal', 'deleteCancelBtn')
+    btn.addEventListener('click', async () => {
+      const id = parseInt(btn.dataset.id)
+      btn.disabled = true
+      try {
+        // Soft-delete
+        await api(`/strategies/${id}`, { method: 'DELETE' })
+        loadStrategies()
+        toast(t('strategies.deleted'), 'info', {
+          duration: 6000,
+          action: {
+            label: t('strategies.delete.undo'),
+            onClick: async () => {
+              try {
+                await api(`/strategies/${id}/restore`, { method: 'POST' })
+                toast(t('strategies.restored'), 'success')
+                loadStrategies()
+              } catch (e) {
+                toast(t('error.' + e.code), 'error')
+              }
+            },
+          },
+        })
+      } catch (e) {
+        toast(t('error.' + e.code), 'error')
+        btn.disabled = false
+      }
     })
   })
 }
@@ -67,24 +88,3 @@ bindModalKeys('sweepConfirmModal', {
   onCancel: () => document.getElementById('sweepConfirmCancel').click(),
 })
 document.getElementById('sweepConfirmClose').addEventListener('click', () => document.getElementById('sweepConfirmCancel').click())
-
-document.getElementById('deleteModalClose').addEventListener('click', closeDeleteModal)
-document.getElementById('deleteCancelBtn').addEventListener('click', closeDeleteModal)
-document.getElementById('deleteConfirmBtn').addEventListener('click', async () => {
-  if (!deleteTargetId) return
-  try {
-    await api(`/strategies/${deleteTargetId}`, { method: 'DELETE' })
-    toast(t('strategies.deleted'), 'success')
-    closeDeleteModal(); loadStrategies()
-  } catch (e) { toast(t('error.' + e.code), 'error') }
-})
-
-bindModalKeys('deleteModal', {
-  onConfirm: () => document.getElementById('deleteConfirmBtn').click(),
-  onCancel: closeDeleteModal,
-})
-
-function closeDeleteModal() {
-  deleteTargetId = null
-  closeModal('deleteModal')
-}

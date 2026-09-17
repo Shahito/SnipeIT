@@ -119,6 +119,12 @@ cron.schedule('0 3 * * *', () => {
   catch (e) { console.error('[SnipeIT] cleanupStaleCandleCache error:', e.message) }
 })
 
+const { purgeSoftDeletedStrategies } = require('./src/services/strategyService')
+cron.schedule('0 3 * * *', async () => {
+  try { await purgeSoftDeletedStrategies() }
+  catch (e) { console.error('[SnipeIT] purgeSoftDeletedStrategies error:', e.message) }
+})
+
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`[SnipeIT] Server running at http://localhost:${PORT}`)
 })
