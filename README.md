@@ -7,7 +7,7 @@
 
 <br/>
 
-[![Open the app](https://img.shields.io/badge/✨_Open_the_app-app.snipeit.shabox.dev-7893CC?style=for-the-badge&labelColor=15171F)](https://app.snipeit.shabox.dev)
+[![Open the app](https://img.shields.io/badge/✨_Open_the_app-app.snipeit.shabox.dev-7893CC?style=for-the-badge&labelColor=212530)](https://app.snipeit.shabox.dev)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
 ![Express](https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white)
 ![Prisma](https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white)
@@ -37,7 +37,7 @@ The heavy simulation work runs on a separate **Python worker**, decoupled from t
 
 Try it straight away, no install needed:
 
-[![Open the app](https://img.shields.io/badge/Open_the_app-%F0%9F%94%97%E2%80%8B-15171F?style=for-the-badge&labelColor=7893CC)](https://app.snipeit.shabox.dev)
+[![Open the app](https://img.shields.io/badge/Open_the_app-%F0%9F%94%97%E2%80%8B-212530?style=for-the-badge&labelColor=7893CC)](https://app.snipeit.shabox.dev)
 
 1. Create an account
 2. Build a strategy in the editor (pairs, timeframe, entry/exit conditions, risk settings)
