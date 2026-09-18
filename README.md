@@ -130,7 +130,7 @@ python snipeit_worker.py
 
 ## License
 
-MIT - code is yours to use, just don't claim it as your own 💛
+MIT - code is yours to use, just don't claim it as your own 💙
 
 ---
 

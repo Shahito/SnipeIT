@@ -82,5 +82,6 @@ document.getElementById('cloneOriginalBtn').addEventListener('click', async () =
 
 // Chart (TV-like)
 document.getElementById('graphBtn').addEventListener('click', async () => {
-  window.open(`/chart.html?jobId=${jobId}`, '_blank')
+  // window.open(`/chart.html?jobId=${jobId}`, '_blank')
+  window.location.href = `/chart.html?jobId=${jobId}`
 })
