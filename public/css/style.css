@@ -4282,7 +4282,7 @@ input[type="color"] {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: .75rem;
     padding: .6rem 1.25rem;
     border-bottom: 1px solid var(--border);
@@ -4295,6 +4295,11 @@ input[type="color"] {
     align-items: center;
     gap: 1rem;
     min-width: 0;
+    flex: 1 1 auto;
+}
+
+#backToResultsBtn {
+    flex: 0 0 auto;
 }
 
 .chart-topbar-right {
@@ -4311,6 +4316,8 @@ input[type="color"] {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    min-width: 0;
+    flex: 1 1 auto;
 }
 
 #indicatorsBtn.active {
@@ -4402,15 +4409,17 @@ input[type="color"] {
     position: absolute;
     top: .4rem;
     left: .6rem;
+    right: 3.6rem;
     z-index: 5;
     font-size: .68rem;
-    line-height: 1.7;
+    line-height: 1.5;
     color: var(--text);
     pointer-events: none;
-    white-space: nowrap;
     background: rgba(0, 0, 0, .35);
-    padding: .15rem .5rem;
+    padding: .2rem .5rem;
     border-radius: var(--radius-sm);
+    max-width: 65%;
+    overflow: hidden;
 }
 
 .pane-legend b {
@@ -4418,8 +4427,67 @@ input[type="color"] {
     font-weight: 700;
 }
 
-.pane-legend .legend-item {
-    margin-left: .6rem;
+.legend-row {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chart-bb-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.chart-loading {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.25rem;
+    padding: 2rem;
+    text-align: center;
+}
+
+.chart-loading-skeleton {
+    display: flex;
+    align-items: flex-end;
+    gap: .3rem;
+    width: 100%;
+    max-width: 26rem;
+    height: 8rem;
+}
+
+.skeleton-bar {
+    flex: 1;
+    background: linear-gradient(180deg, var(--surface2), var(--border));
+    border-radius: .15rem;
+    animation: chartSkeletonPulse 1.4s ease-in-out infinite;
+}
+
+.skeleton-bar:nth-child(4n+1) { animation-delay: 0s; }
+.skeleton-bar:nth-child(4n+2) { animation-delay: .15s; }
+.skeleton-bar:nth-child(4n+3) { animation-delay: .3s; }
+.skeleton-bar:nth-child(4n+4) { animation-delay: .45s; }
+
+@keyframes chartSkeletonPulse {
+    0%, 100% { opacity: .35; }
+    50% { opacity: .9; }
+}
+
+.chart-loading-text {
+    color: var(--text);
+    font-size: .9rem;
+}
+
+.chart-loading-subtext {
+    color: var(--text-muted);
+    font-size: .78rem;
+    margin-top: -.75rem;
 }
 
 /* Indicators dropdown, anchored under #indicatorsBtn - same pattern as
@@ -5135,6 +5203,36 @@ input[type="color"] {
 
     .metrics-grid {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    .pane-legend {
+        font-size: .6rem;
+        max-width: 58%;
+        right: 3rem;
+        line-height: 1.4;
+    }
+
+    .chart-topbar {
+        padding: .5rem .75rem;
+        gap: .4rem;
+    }
+
+    .chart-topbar-left {
+        gap: .5rem;
+    }
+
+    #backToResultsBtn span,
+    #indicatorsBtn span {
+        display: none;
+    }
+
+    #backToResultsBtn,
+    #indicatorsBtn {
+        padding: .4rem .5rem;
+    }
+
+    .chart-meta {
+        font-size: .68rem;
     }
 }
 

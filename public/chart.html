@@ -16,7 +16,28 @@
     <header class="app-header" id="appHeader" data-active="jobs"></header>
 
     <main class="chart-page">
-      <div id="loadingState" class="loading-spinner"><div class="spinner"></div></div>
+      <div id="loadingState" class="chart-loading">
+        <div class="chart-loading-skeleton">
+          <div class="skeleton-bar" style="height:55%"></div>
+          <div class="skeleton-bar" style="height:35%"></div>
+          <div class="skeleton-bar" style="height:70%"></div>
+          <div class="skeleton-bar" style="height:45%"></div>
+          <div class="skeleton-bar" style="height:85%"></div>
+          <div class="skeleton-bar" style="height:60%"></div>
+          <div class="skeleton-bar" style="height:30%"></div>
+          <div class="skeleton-bar" style="height:50%"></div>
+          <div class="skeleton-bar" style="height:75%"></div>
+          <div class="skeleton-bar" style="height:40%"></div>
+          <div class="skeleton-bar" style="height:65%"></div>
+          <div class="skeleton-bar" style="height:90%"></div>
+          <div class="skeleton-bar" style="height:55%"></div>
+          <div class="skeleton-bar" style="height:35%"></div>
+          <div class="skeleton-bar" style="height:60%"></div>
+          <div class="skeleton-bar" style="height:45%"></div>
+        </div>
+        <p class="chart-loading-text" data-i18n="chart.loading"></p>
+        <p class="chart-loading-subtext hidden" id="loadingSubtext" data-i18n="chart.loading_slow"></p>
+      </div>
 
       <div id="errorState" class="empty-state hidden">
         <div class="empty-state-icon"><i data-icon="warning"></i></div>

@@ -24,6 +24,26 @@ function reasonLabel(reason) {
     ?? t('results.exit_reasons.label_unknown')
 }
 
+// Shortened display name for an indicator column - the raw labels
+// (SMA_CLOSE_20, BB_UPPER_20, STOCH_RSI_14@4h...) are the wire format shared
+// with indicators.py, not meant to be read as-is in a cramped legend/menu.
+function shortLabel(rawLabel) {
+  const [base, tf] = rawLabel.split('@')
+  const suffix = tf ? ` @${tf}` : ''
+  if (base.startsWith('MACD_histogram_')) return 'Hist' + suffix
+  if (base.startsWith('MACD_signal_'))    return 'Signal' + suffix
+  if (base.startsWith('MACD_'))           return 'MACD' + suffix
+  if (base.startsWith('BB_UPPER_'))       return `BB Upper ${base.slice(9)}` + suffix
+  if (base.startsWith('BB_MID_'))         return `BB Mid ${base.slice(7)}` + suffix
+  if (base.startsWith('BB_LOWER_'))       return `BB Lower ${base.slice(9)}` + suffix
+  if (base.startsWith('SMA_CLOSE_'))      return `SMA ${base.slice(10)}` + suffix
+  if (base.startsWith('EMA_CLOSE_'))      return `EMA ${base.slice(10)}` + suffix
+  if (base.startsWith('STOCH_RSI_'))      return `Stoch RSI ${base.slice(10)}` + suffix
+  if (base.startsWith('RSI_'))            return `RSI ${base.slice(4)}` + suffix
+  if (base.startsWith('ATR_'))            return `ATR ${base.slice(4)}` + suffix
+  return base + suffix
+}
+
 // Resolve the platform's current CSS custom properties once. Reading these
 // (instead of hardcoding hex values) keeps the chart's colors - including
 // win/loss coloring - in sync with the user's chosen color scheme (see
@@ -39,6 +59,7 @@ function themeColors() {
 
 document.addEventListener('header:ready', async () => {
   const loadingEl      = document.getElementById('loadingState')
+  const loadingSubtextEl = document.getElementById('loadingSubtext')
   const errorEl        = document.getElementById('errorState')
   const errorMsgEl     = document.getElementById('errorMsg')
   const pendingEl      = document.getElementById('pendingState')
@@ -54,11 +75,21 @@ document.addEventListener('header:ready', async () => {
   const menuEmptyEl    = document.getElementById('indicatorsMenuEmpty')
   const mainLegendEl   = document.getElementById('legend-main')
 
+  // First load (cold cache) can take a while server-side - the skeleton
+  // loader alone can still read as "stuck" past a few seconds, so a short
+  // reassurance line fades in rather than leaving a silent wait.
+  let slowLoadTimer = null
+
   function showState(state) {
     loadingEl.classList.toggle('hidden', state !== 'loading')
     errorEl.classList.toggle('hidden', state !== 'error')
     pendingEl.classList.toggle('hidden', state !== 'pending')
     contentEl.classList.toggle('hidden', state !== 'content')
+    clearTimeout(slowLoadTimer)
+    if (state === 'loading') {
+      loadingSubtextEl.classList.add('hidden')
+      slowLoadTimer = setTimeout(() => loadingSubtextEl.classList.remove('hidden'), 2500)
+    }
   }
 
   function showError(message) {
@@ -300,7 +331,7 @@ document.addEventListener('header:ready', async () => {
     crosshair: {
       mode: LightweightCharts.CrosshairMode.Normal,
       vertLine: { labelBackgroundColor: colors.primary },
-      horzLine: { labelBackgroundColor: colors.primary },
+      horzLine: { labelVisible: false }, // ambiguous with >1 series/pane - .pane-legend covers this per series
     },
     autoSize: true,
   })
@@ -313,6 +344,79 @@ document.addEventListener('header:ready', async () => {
   })
   candleSeries.setData(candles.map(c => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close })))
   candleSeries.setMarkers(markers)
+
+  // Bollinger Bands fill: lightweight-charts has no built-in "fill between two
+  // series" primitive, so this is a plain canvas painted underneath the chart's
+  // own canvas (inserted first in the DOM = lowest paint layer), redrawn from
+  // priceToCoordinate()/timeToCoordinate() on every pan/zoom/resize.
+  const bbCanvas = document.createElement('canvas')
+  bbCanvas.className = 'chart-bb-fill'
+  chartMainPaneEl.insertBefore(bbCanvas, chartMainPaneEl.firstChild)
+  const bbCtx = bbCanvas.getContext('2d')
+
+  function bbFamilyKey(label) {
+    if (label.startsWith('BB_UPPER_')) return label.slice('BB_UPPER_'.length)
+    if (label.startsWith('BB_MID_'))   return label.slice('BB_MID_'.length)
+    if (label.startsWith('BB_LOWER_')) return label.slice('BB_LOWER_'.length)
+    return null
+  }
+  const bbFamilies = new Map() // key -> { upper, mid, lower }
+  for (const label of overlayLabels) {
+    const key = bbFamilyKey(label)
+    if (key === null) continue
+    if (!bbFamilies.has(key)) bbFamilies.set(key, {})
+    const fam = bbFamilies.get(key)
+    if (label.startsWith('BB_UPPER_')) fam.upper = label
+    else if (label.startsWith('BB_MID_')) fam.mid = label
+    else fam.lower = label
+  }
+  const bbFillVisible = {} // key -> boolean, defaults to true once the family is confirmed complete
+
+  function resizeBBCanvas() {
+    const rect = chartMainPaneEl.getBoundingClientRect()
+    const dpr = window.devicePixelRatio || 1
+    bbCanvas.width = Math.max(1, Math.round(rect.width * dpr))
+    bbCanvas.height = Math.max(1, Math.round(rect.height * dpr))
+    bbCanvas.style.width = `${rect.width}px`
+    bbCanvas.style.height = `${rect.height}px`
+    bbCtx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  }
+
+  function renderBBFills() {
+    if (!bbFamilies.size) return
+    const rect = chartMainPaneEl.getBoundingClientRect()
+    resizeBBCanvas()
+    bbCtx.clearRect(0, 0, rect.width, rect.height)
+    for (const [key, fam] of bbFamilies.entries()) {
+      if (!fam.upper || !fam.lower || bbFillVisible[key] === false) continue
+      const upperSeries = overlaySeriesByLabel[fam.upper]
+      const lowerSeries = overlaySeriesByLabel[fam.lower]
+      const upperVals = rawSeries[fam.upper]
+      const lowerVals = rawSeries[fam.lower]
+      const upperPts = []
+      const lowerPts = []
+      for (let i = 0; i < times.length; i++) {
+        const uv = upperVals[i]
+        const lv = lowerVals[i]
+        if (uv == null || lv == null) continue
+        const x = mainChart.timeScale().timeToCoordinate(times[i])
+        if (x === null) continue
+        const uy = upperSeries.priceToCoordinate(uv)
+        const ly = lowerSeries.priceToCoordinate(lv)
+        if (uy === null || ly === null) continue
+        upperPts.push([x, uy])
+        lowerPts.push([x, ly])
+      }
+      if (upperPts.length < 2) continue
+      bbCtx.beginPath()
+      bbCtx.moveTo(upperPts[0][0], upperPts[0][1])
+      for (const [x, y] of upperPts) bbCtx.lineTo(x, y)
+      for (let i = lowerPts.length - 1; i >= 0; i--) bbCtx.lineTo(lowerPts[i][0], lowerPts[i][1])
+      bbCtx.closePath()
+      bbCtx.fillStyle = colorOf[fam.upper] + '1a' // ~10% opacity, matches the upper band's line color
+      bbCtx.fill()
+    }
+  }
 
   // "In position" shaded zones (semi-transparent band from entry to exit)
   const zonesLayer = document.createElement('div')
@@ -346,7 +450,7 @@ document.addEventListener('header:ready', async () => {
       zonesLayer.appendChild(zone)
     }
   }
-  mainChart.timeScale().subscribeVisibleLogicalRangeChange(() => renderPositionZones())
+  mainChart.timeScale().subscribeVisibleLogicalRangeChange(() => { renderPositionZones(); renderBBFills() })
 
   // Fixed palette for multi-series overlays/indicators (distinct from the
   // theme's success/danger/primary tokens, which are reserved for win/loss
@@ -357,6 +461,7 @@ document.addEventListener('header:ready', async () => {
 
   const toggleables = [] // individual line toggles - overlay indicators only (they share the main pane, no dedicated graph to remove)
   const colorOf = {}
+  const overlaySeriesByLabel = {}
 
   overlayLabels.forEach((label, i) => {
     const color = OVERLAY_COLORS[i % OVERLAY_COLORS.length]
@@ -364,6 +469,7 @@ document.addEventListener('header:ready', async () => {
     const s = mainChart.addLineSeries({ color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, title: label })
     s.setData(pointSeries[label])
     toggleables.push({ label, series: s, color })
+    overlaySeriesByLabel[label] = s
   })
 
   // Sub-panes (real separate synced chart instances, resizable)
@@ -402,7 +508,7 @@ document.addEventListener('header:ready', async () => {
       s.setData(pointSeries[label])
       if (!refSeries) refSeries = s
     })
-    paneEntries.push({ chart, legendEl, refSeries, priceLabel: oscillatorLabels[0], kind: 'oscillator', labels: oscillatorLabels })
+    paneEntries.push({ chart, legendEl, refSeries, priceLabel: oscillatorLabels[0], kind: 'oscillator', labels: oscillatorLabels, panelEl })
     paneToggles.push({ label: t('chart.pane.momentum'), panelEl, chart, color: OSC_COLORS[0] })
   }
 
@@ -462,7 +568,7 @@ document.addEventListener('header:ready', async () => {
         paneLabels.push(f.signal)
       }
 
-      paneEntries.push({ chart, legendEl, refSeries, priceLabel: f.line || f.hist || f.signal, kind: 'macd', labels: paneLabels })
+      paneEntries.push({ chart, legendEl, refSeries, priceLabel: f.line || f.hist || f.signal, kind: 'macd', labels: paneLabels, panelEl })
       paneToggles.push({ label: macdFamilyDisplayName(key), panelEl, chart, color: '#42a5f5' })
     }
   }
@@ -476,7 +582,7 @@ document.addEventListener('header:ready', async () => {
       s.setData(pointSeries[label])
       if (!refSeries) refSeries = s
     })
-    paneEntries.push({ chart, legendEl, refSeries, priceLabel: atrLabels[0], kind: 'atr', labels: atrLabels })
+    paneEntries.push({ chart, legendEl, refSeries, priceLabel: atrLabels[0], kind: 'atr', labels: atrLabels, panelEl })
     paneToggles.push({ label: t('chart.unit.atr'), panelEl, chart, color: '#4dd0e1' })
   }
 
@@ -493,6 +599,18 @@ document.addEventListener('header:ready', async () => {
       rangeSyncing = false
     })
   })
+
+  // A separate date axis per pane is redundant once you have more than one
+  // pane (main + RSI + MACD... all showing the same dates) - keep only the
+  // bottom-most currently VISIBLE pane's time axis, recomputed whenever a
+  // whole pane gets toggled off/on from the indicators menu.
+  function updateTimeAxisVisibility() {
+    const visible = paneEntries.filter(e => !e.panelEl || e.panelEl.style.display !== 'none')
+    visible.forEach((e, i) => {
+      e.chart.timeScale().applyOptions({ visible: i === visible.length - 1 })
+    })
+  }
+  updateTimeAxisVisibility()
 
   // Align price-scale widths across panes so the crosshair lines up vertically
   // Each chart auto-sizes its own price-scale column based on the label widths it
@@ -513,28 +631,32 @@ document.addEventListener('header:ready', async () => {
   }
   requestAnimationFrame(() => {
     alignPriceScaleWidths()
-    setTimeout(alignPriceScaleWidths, 50) // safety re-check once layout has fully settled
+    renderBBFills()
+    setTimeout(() => { alignPriceScaleWidths(); renderBBFills() }, 50) // safety re-check once layout has fully settled
   })
-  window.addEventListener('resize', () => setTimeout(() => { alignPriceScaleWidths(); renderPositionZones() }, 50))
+  window.addEventListener('resize', () => setTimeout(() => { alignPriceScaleWidths(); renderPositionZones(); renderBBFills() }, 50))
 
-  // Legends (default to latest values; update on crosshair hover)
+  // Legends (default to latest values; update on crosshair hover). Each
+  // series gets its own row (rather than one long inline string) so long
+  // indicator lists wrap cleanly instead of overflowing under the price axis
+  // on narrow screens.
   const lastIdx = times.length - 1
 
   function legendHtmlFor(entry, idx) {
     const i = idx === null ? lastIdx : idx
     if (entry.kind === 'main') {
       const c = candles[i]
-      let html = `<b>O</b> ${fmt(c.open)} <b>H</b> ${fmt(c.high)} <b>L</b> ${fmt(c.low)} <b>C</b> ${fmt(c.close)}`
+      let html = `<div class="legend-row"><b>O</b> ${fmt(c.open)} <b>H</b> ${fmt(c.high)} <b>L</b> ${fmt(c.low)} <b>C</b> ${fmt(c.close)}</div>`
       for (const label of entry.labels) {
         const v = rawSeries[label][i]
-        html += `<span class="legend-item" style="color:${colorOf[label]}">${label}: ${v == null ? '–' : fmt(v)}</span>`
+        html += `<div class="legend-row" style="color:${colorOf[label]}">${shortLabel(label)}: ${v == null ? '–' : fmt(v)}</div>`
       }
       return html
     }
     return entry.labels.map(label => {
       const v = rawSeries[label][i]
-      return `<span style="color:${colorOf[label]}">${label}: ${v == null ? '–' : fmt(v)}</span>`
-    }).join('<span class="legend-item"></span>')
+      return `<div class="legend-row" style="color:${colorOf[label]}">${shortLabel(label)}: ${v == null ? '–' : fmt(v)}</div>`
+    }).join('')
   }
 
   function updateAllLegends(idx) {
@@ -604,7 +726,12 @@ document.addEventListener('header:ready', async () => {
     title.textContent = t('chart.group.overlays')
     menuBodyEl.appendChild(title)
     for (const tg of toggleables) {
-      addToggleRow(tg.color, tg.label, checked => tg.series.applyOptions({ visible: checked }))
+      addToggleRow(tg.color, shortLabel(tg.label), checked => tg.series.applyOptions({ visible: checked }))
+    }
+    for (const [key, fam] of bbFamilies.entries()) {
+      if (!fam.upper || !fam.lower) continue
+      bbFillVisible[key] = true
+      addToggleRow(colorOf[fam.upper], t('chart.bb_fill'), checked => { bbFillVisible[key] = checked; renderBBFills() })
     }
   }
 
@@ -614,7 +741,10 @@ document.addEventListener('header:ready', async () => {
     title.textContent = t('chart.group.indicators')
     menuBodyEl.appendChild(title)
     for (const p of paneToggles) {
-      addToggleRow(p.color, p.label, checked => { p.panelEl.style.display = checked ? '' : 'none' })
+      addToggleRow(p.color, p.label, checked => {
+        p.panelEl.style.display = checked ? '' : 'none'
+        updateTimeAxisVisibility()
+      })
     }
   }
 
@@ -627,4 +757,5 @@ document.addEventListener('header:ready', async () => {
   const initialRange = { from: Math.max(0, total - INITIAL_VISIBLE_CANDLES), to: total - 1 }
   allCharts.forEach(c => c.timeScale().setVisibleLogicalRange(initialRange))
   renderPositionZones()
+  renderBBFills()
 })
