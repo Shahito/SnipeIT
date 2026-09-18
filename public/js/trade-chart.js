@@ -4,42 +4,87 @@
 // indicators.py exactly - see candleController.js + utils/indicatorEngine.js).
 // Real multi-pane layout: one Lightweight Charts instance per pane, synced
 // on pan/zoom and crosshair, each with its own hover legend, resizable by
-// dragging, and toggled via a floating drawer.
+// dragging, and toggled via a dropdown menu.
 // Usage: chart.html?jobId=123
 
-(async function () {
-  const params = new URLSearchParams(location.search)
-  const jobId  = params.get('jobId')
+initI18n()
 
-  const statusEl     = document.getElementById('status')
-  const infoEl       = document.getElementById('info')
-  const chartEl      = document.getElementById('chart')
-  const panelsEl     = document.getElementById('panels')
-  const drawerEl      = document.getElementById('toggle-drawer')
-  const toggleBtnEl   = document.getElementById('toggle-btn')
-  const mainLegendEl = document.getElementById('legend-main')
+const jobId = new URLSearchParams(location.search).get('jobId')
 
-  function setStatus(msg, isError) {
-    statusEl.textContent = msg || ''
-    statusEl.style.color = isError ? '#e74c3c' : '#8a8f98'
+// How many of the most recent candles to show by default. The full dataset
+// is still loaded and reachable by scrolling/zooming out - this only sets
+// the initial view so the chart doesn't open zoomed out to the whole range.
+const INITIAL_VISIBLE_CANDLES = 200
+
+// Exit reason -> display label. Mirrors the map used on the results page
+// (see js/pages/results-charts.js REASON_LABELS) so a trade's reason reads
+// the same way everywhere in the app.
+function reasonLabel(reason) {
+  return { risk: 'TP/SL', signal: 'Signal', tsl: 'Trailing SL', end: t('results.exit_reasons.label_end') }[reason]
+    ?? t('results.exit_reasons.label_unknown')
+}
+
+// Resolve the platform's current CSS custom properties once. Reading these
+// (instead of hardcoding hex values) keeps the chart's colors - including
+// win/loss coloring - in sync with the user's chosen color scheme (see
+// js/header.js applyColorScheme) and with light/dark theme changes.
+function themeColors() {
+  const style = getComputedStyle(document.documentElement)
+  const v = name => style.getPropertyValue(name).trim()
+  return {
+    bg2: v('--bg2'), border: v('--border'), text: v('--text'), textMuted: v('--text-muted'),
+    primary: v('--primary'), success: v('--success'), danger: v('--danger'),
+  }
+}
+
+document.addEventListener('header:ready', async () => {
+  const loadingEl      = document.getElementById('loadingState')
+  const errorEl        = document.getElementById('errorState')
+  const errorMsgEl     = document.getElementById('errorMsg')
+  const pendingEl      = document.getElementById('pendingState')
+  const contentEl      = document.getElementById('chartContent')
+  const metaEl         = document.getElementById('chartMeta')
+  const backBtn        = document.getElementById('backToResultsBtn')
+  const warningsEl     = document.getElementById('chartWarnings')
+  const chartMainPaneEl = document.getElementById('chartMainPane')
+  const panelsEl       = document.getElementById('panels')
+  const indicatorsBtn  = document.getElementById('indicatorsBtn')
+  const indicatorsMenu = document.getElementById('indicatorsMenu')
+  const menuBodyEl     = document.getElementById('indicatorsMenuBody')
+  const menuEmptyEl    = document.getElementById('indicatorsMenuEmpty')
+  const mainLegendEl   = document.getElementById('legend-main')
+
+  function showState(state) {
+    loadingEl.classList.toggle('hidden', state !== 'loading')
+    errorEl.classList.toggle('hidden', state !== 'error')
+    pendingEl.classList.toggle('hidden', state !== 'pending')
+    contentEl.classList.toggle('hidden', state !== 'content')
+  }
+
+  function showError(message) {
+    errorMsgEl.textContent = message
+    showState('error')
   }
 
   if (!jobId) {
-    setStatus('jobId manquant dans l\'URL (ex: chart.html?jobId=42)', true)
+    window.location.href = '/jobs.html'
     return
   }
+  backBtn.href = `/results.html?jobId=${jobId}`
 
-  // Floating drawer open/close
-  toggleBtnEl.addEventListener('click', e => {
+  // Indicators dropdown open/close
+  indicatorsBtn.addEventListener('click', e => {
     e.stopPropagation()
-    drawerEl.classList.toggle('open')
-    toggleBtnEl.classList.toggle('active', drawerEl.classList.contains('open'))
+    const open = indicatorsMenu.classList.toggle('hidden') === false
+    indicatorsBtn.classList.toggle('active', open)
+    indicatorsBtn.setAttribute('aria-expanded', String(open))
   })
   document.addEventListener('click', e => {
-    if (!drawerEl.classList.contains('open')) return
-    if (drawerEl.contains(e.target) || toggleBtnEl.contains(e.target)) return
-    drawerEl.classList.remove('open')
-    toggleBtnEl.classList.remove('active')
+    if (indicatorsMenu.classList.contains('hidden')) return
+    if (indicatorsMenu.contains(e.target) || indicatorsBtn.contains(e.target)) return
+    indicatorsMenu.classList.add('hidden')
+    indicatorsBtn.classList.remove('active')
+    indicatorsBtn.setAttribute('aria-expanded', 'false')
   })
 
   // Decode the columnar trades table produced by compute_results.py (_pack_trades)
@@ -61,17 +106,17 @@
     })
   }
 
-  function buildMarkers(trades) {
+  function buildMarkers(trades, colors) {
     const markers = []
-    for (const t of trades) {
-      markers.push({ time: t.entryTime, position: 'belowBar', color: '#3fa8f4', shape: 'arrowUp', text: 'Achat' })
-      const win = t.pnlPct >= 0
+    for (const trade of trades) {
+      markers.push({ time: trade.entryTime, position: 'belowBar', color: colors.primary, shape: 'arrowUp', text: t('chart.marker.buy') })
+      const win = trade.pnlPct >= 0
       markers.push({
-        time: t.exitTime,
+        time: trade.exitTime,
         position: 'aboveBar',
-        color: win ? '#2ecc71' : '#e74c3c',
+        color: win ? colors.success : colors.danger,
         shape: 'arrowDown',
-        text: `${win ? '+' : ''}${t.pnlPct.toFixed(1)}% (${t.reason})`,
+        text: `${win ? '+' : ''}${trade.pnlPct.toFixed(1)}% (${reasonLabel(trade.reason)})`,
       })
     }
     markers.sort((a, b) => a.time - b.time)
@@ -97,10 +142,10 @@
 
   // Drag-to-resize a pane, like TradingView. Grabbing the handle at the
   // top of a panel and dragging up grows it, dragging down shrinks it - the
-  // main chart (flex:1) absorbs the difference automatically.
+  // main pane (flex:1) absorbs the difference automatically.
   function addResizeHandle(panel) {
     const handle = document.createElement('div')
-    handle.className = 'panel-resize-handle'
+    handle.className = 'chart-panel-resize-handle'
     panel.insertBefore(handle, panel.firstChild)
 
     let dragging = false
@@ -134,38 +179,60 @@
     handle.addEventListener('pointercancel', stop)
   }
 
+  function addWarning(message) {
+    warningsEl.classList.remove('hidden')
+    const banner = document.createElement('div')
+    banner.className = 'chart-warning-banner'
+    banner.innerHTML = `${ICONS.warning}<span>${message}</span>`
+    warningsEl.appendChild(banner)
+  }
+
   // Fetch job
   let job
   try {
-    setStatus('Chargement du job...')
+    showState('loading')
     const data = await api(`/jobs/${jobId}`)
     job = data.job
   } catch (e) {
-    setStatus(`Erreur job: ${e.code || e.message}`, true)
+    if (e.code === 'JOB_NOT_FOUND') {
+      showError(t('error.JOB_NOT_FOUND'))
+    } else {
+      showError(t('error.' + e.code))
+    }
     return
   }
 
+  if (job.status === 'pending' || job.status === 'running') {
+    showState('pending')
+    return
+  }
+  if (job.status === 'error') {
+    showError(job.errorMessage || t('error.UNKNOWN'))
+    return
+  }
   if (job.status !== 'done' || !job.result) {
-    setStatus(`Ce job n'est pas terminé (status: ${job.status})`, true)
+    showError(t('error.UNKNOWN'))
     return
   }
 
   // Fetch candles + indicators (single call)
   let candlesData
   try {
-    setStatus('Chargement des bougies et indicateurs (Binance)...')
     candlesData = await api(`/jobs/${jobId}/candles`)
   } catch (e) {
-    setStatus(`Erreur bougies: ${e.code || e.message}`, true)
+    showError(t('error.' + e.code))
     return
   }
 
   const { candles, pair, timeframe, indicators } = candlesData
   if (!candles || !candles.length) {
-    setStatus('Aucune bougie retournée.', true)
+    showError(t('error.UNKNOWN'))
     return
   }
 
+  showState('content')
+
+  const colors = themeColors()
   const trades = unpackTrades(job.result.trades)
 
   const times = candles.map(c => c.time)
@@ -175,7 +242,7 @@
   // (e.g. the chart's candle cap kicked in for a very long backtest). Markers
   // whose time doesn't match a real candle get visually clamped/stacked by
   // lightweight-charts, which is misleading - filter them out and count them.
-  const allMarkers = buildMarkers(trades)
+  const allMarkers = buildMarkers(trades, colors)
   const markers = allMarkers.filter(m => timeToIdx.has(m.time))
   const hiddenMarkersCount = allMarkers.length - markers.length
 
@@ -202,19 +269,22 @@
   const totalTrades = job.result.totalTrades ?? trades.length
   const sampled = job.result.trades && job.result.trades.sampled
   const nIndicators = Object.keys(pointSeries).length
-  infoEl.textContent = `${pair} · ${timeframe} · ${candles.length} bougies · ` +
-    `${trades.length}${sampled ? ` / ${totalTrades} trades (échantillonné)` : ' trades'}` +
-    (nIndicators ? ` · ${nIndicators} indicateur(s)` : '')
 
-  const warnings = []
+  const metaParts = [
+    pair, timeframe,
+    t('chart.meta.candles', { count: candles.length }),
+    sampled ? t('chart.meta.trades_sampled', { count: trades.length, total: totalTrades }) : t('chart.meta.trades', { count: trades.length }),
+  ]
+  if (nIndicators) metaParts.push(t('chart.meta.indicators', { count: nIndicators }))
+  metaEl.textContent = metaParts.join(' · ')
+
   if (candlesData.truncated) {
-    const from = new Date(candlesData.effectiveStartDate).toLocaleDateString('fr-FR')
-    warnings.push(`Période trop longue pour ${timeframe} : affichage limité aux ${candlesData.maxCandles.toLocaleString('fr-FR')} bougies les plus récentes (depuis le ${from}).`)
+    const from = new Date(candlesData.effectiveStartDate).toLocaleDateString(i18nCurrentLang() === 'fr' ? 'fr-FR' : 'en-US')
+    addWarning(t('chart.warning.truncated', { timeframe, max: candlesData.maxCandles.toLocaleString(i18nCurrentLang() === 'fr' ? 'fr-FR' : 'en-US'), date: from }))
   }
   if (hiddenMarkersCount) {
-    warnings.push(`${hiddenMarkersCount} marqueur(s) de trade masqué(s) car hors de la plage de bougies chargée.`)
+    addWarning(t('chart.warning.hidden_markers', { count: hiddenMarkersCount }))
   }
-  setStatus(warnings.join(' '), warnings.length > 0)
 
   // Group labels by pane kind
   const overlayLabels    = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'overlay')
@@ -223,23 +293,23 @@
   const atrLabels        = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'atr')
 
   const CHART_OPTS = () => ({
-    layout: { background: { color: '#131722' }, textColor: '#d1d4dc' },
-    grid: { vertLines: { color: '#1e222d' }, horzLines: { color: '#1e222d' } },
-    timeScale: { timeVisible: true, secondsVisible: false },
-    rightPriceScale: { borderColor: '#2a2e39' },
+    layout: { background: { color: colors.bg2 }, textColor: colors.text },
+    grid: { vertLines: { color: colors.border }, horzLines: { color: colors.border } },
+    timeScale: { timeVisible: true, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true, rightOffset: 5 },
+    rightPriceScale: { borderColor: colors.border },
     crosshair: {
       mode: LightweightCharts.CrosshairMode.Normal,
-      vertLine: { labelBackgroundColor: '#3fa8f4' },
-      horzLine: { labelBackgroundColor: '#3fa8f4' },
+      vertLine: { labelBackgroundColor: colors.primary },
+      horzLine: { labelBackgroundColor: colors.primary },
     },
     autoSize: true,
   })
 
   // Main chart: candles + overlay indicators
-  const mainChart = LightweightCharts.createChart(chartEl, CHART_OPTS())
+  const mainChart = LightweightCharts.createChart(chartMainPaneEl, CHART_OPTS())
   const candleSeries = mainChart.addCandlestickSeries({
-    upColor: '#2ecc71', downColor: '#e74c3c', borderVisible: false,
-    wickUpColor: '#2ecc71', wickDownColor: '#e74c3c',
+    upColor: colors.success, downColor: colors.danger, borderVisible: false,
+    wickUpColor: colors.success, wickDownColor: colors.danger,
   })
   candleSeries.setData(candles.map(c => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close })))
   candleSeries.setMarkers(markers)
@@ -254,14 +324,14 @@
   zonesLayer.style.pointerEvents = 'none'
   zonesLayer.style.overflow = 'hidden'
   zonesLayer.style.zIndex = '1' // above the candle canvas, below .pane-legend (z-index 5)
-  chartEl.appendChild(zonesLayer)
+  chartMainPaneEl.appendChild(zonesLayer)
 
   function renderPositionZones() {
     zonesLayer.innerHTML = ''
     const ts = mainChart.timeScale()
-    for (const t of trades) {
-      const x1 = ts.timeToCoordinate(t.entryTime)
-      const x2 = ts.timeToCoordinate(t.exitTime)
+    for (const trade of trades) {
+      const x1 = ts.timeToCoordinate(trade.entryTime)
+      const x2 = ts.timeToCoordinate(trade.exitTime)
       if (x1 == null || x2 == null) continue // trade outside the current visible range
       const left = Math.min(x1, x2)
       const width = Math.abs(x2 - x1)
@@ -272,12 +342,16 @@
       zone.style.bottom = '0'
       zone.style.left = `${left}px`
       zone.style.width = `${width}px`
-      zone.style.background = t.pnlPct >= 0 ? 'rgba(46, 204, 113, 0.10)' : 'rgba(231, 76, 60, 0.10)'
+      zone.style.background = trade.pnlPct >= 0 ? 'color-mix(in srgb, var(--success) 10%, transparent)' : 'color-mix(in srgb, var(--danger) 10%, transparent)'
       zonesLayer.appendChild(zone)
     }
   }
   mainChart.timeScale().subscribeVisibleLogicalRangeChange(() => renderPositionZones())
 
+  // Fixed palette for multi-series overlays/indicators (distinct from the
+  // theme's success/danger/primary tokens, which are reserved for win/loss
+  // and interactive accents - see js/pages/results-charts.js REASON_COLORS
+  // for the same approach on the results page).
   const OVERLAY_COLORS = ['#f4b400', '#ab47bc', '#26c6da', '#ff7043', '#66bb6a', '#42a5f5', '#ec407a']
   const OSC_COLORS      = ['#ffd54f', '#ba68c8', '#4fc3f7', '#81c784']
 
@@ -298,13 +372,12 @@
 
   function createPane() {
     const panel = document.createElement('div')
-    panel.className = 'panel'
-    panel.style.height = '150px'
+    panel.className = 'chart-panel'
     const legend = document.createElement('div')
     legend.className = 'pane-legend'
     panel.appendChild(legend)
     const chartDiv = document.createElement('div')
-    chartDiv.className = 'panel-chart'
+    chartDiv.className = 'chart-panel-inner'
     panel.appendChild(chartDiv)
     panelsEl.appendChild(panel)
     addResizeHandle(panel)
@@ -316,7 +389,7 @@
     const { chart, legendEl, panelEl } = createPane()
     for (const level of [30, 70]) {
       const guide = chart.addLineSeries({
-        color: '#3a3f4b', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted,
+        color: colors.border, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted,
         priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
       })
       guide.setData(times.map(t => ({ time: t, value: level })))
@@ -330,7 +403,7 @@
       if (!refSeries) refSeries = s
     })
     paneEntries.push({ chart, legendEl, refSeries, priceLabel: oscillatorLabels[0], kind: 'oscillator', labels: oscillatorLabels })
-    paneToggles.push({ label: 'RSI / StochRSI', panelEl, chart, color: OSC_COLORS[0] })
+    paneToggles.push({ label: t('chart.pane.momentum'), panelEl, chart, color: OSC_COLORS[0] })
   }
 
   if (macdLabels.length) {
@@ -362,7 +435,7 @@
 
     for (const [key, f] of families.entries()) {
       const { chart, legendEl, panelEl } = createPane()
-      const zero = chart.addLineSeries({ color: '#3a3f4b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false })
+      const zero = chart.addLineSeries({ color: colors.border, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false })
       zero.setData(times.map(t => ({ time: t, value: 0 })))
 
       let refSeries = null
@@ -371,7 +444,7 @@
       if (f.hist) {
         colorOf[f.hist] = '#66bb6a'
         const hist = chart.addHistogramSeries({ title: f.hist })
-        hist.setData(pointSeries[f.hist].map(p => ({ time: p.time, value: p.value, color: p.value >= 0 ? '#2ecc7099' : '#e74c3c99' })))
+        hist.setData(pointSeries[f.hist].map(p => ({ time: p.time, value: p.value, color: p.value >= 0 ? `${colors.success}99` : `${colors.danger}99` })))
         paneLabels.push(f.hist)
       }
       if (f.line) {
@@ -404,7 +477,7 @@
       if (!refSeries) refSeries = s
     })
     paneEntries.push({ chart, legendEl, refSeries, priceLabel: atrLabels[0], kind: 'atr', labels: atrLabels })
-    paneToggles.push({ label: 'ATR', panelEl, chart, color: '#4dd0e1' })
+    paneToggles.push({ label: t('chart.unit.atr'), panelEl, chart, color: '#4dd0e1' })
   }
 
   // Sync pan/zoom across all panes
@@ -454,14 +527,14 @@
       let html = `<b>O</b> ${fmt(c.open)} <b>H</b> ${fmt(c.high)} <b>L</b> ${fmt(c.low)} <b>C</b> ${fmt(c.close)}`
       for (const label of entry.labels) {
         const v = rawSeries[label][i]
-        html += ` &nbsp; <span style="color:${colorOf[label]}">${label}: ${v == null ? '–' : fmt(v)}</span>`
+        html += `<span class="legend-item" style="color:${colorOf[label]}">${label}: ${v == null ? '–' : fmt(v)}</span>`
       }
       return html
     }
     return entry.labels.map(label => {
       const v = rawSeries[label][i]
       return `<span style="color:${colorOf[label]}">${label}: ${v == null ? '–' : fmt(v)}</span>`
-    }).join(' &nbsp; ')
+    }).join('<span class="legend-item"></span>')
   }
 
   function updateAllLegends(idx) {
@@ -497,53 +570,61 @@
     })
   })
 
-  // Drawer contents
+  // Indicators dropdown contents
   function addToggleRow(color, labelText, onChange) {
     const row = document.createElement('label')
-    row.className = 'toggle-row'
-    const swatch = document.createElement('span')
-    swatch.className = 'swatch'
-    swatch.style.background = color
+    row.className = 'indicators-toggle-row'
     const checkbox = document.createElement('input')
     checkbox.type = 'checkbox'
     checkbox.checked = true
     checkbox.addEventListener('change', () => onChange(checkbox.checked))
+    const swatch = document.createElement('span')
+    swatch.className = 'indicators-swatch'
+    swatch.style.background = color
     const text = document.createElement('span')
+    text.className = 'indicators-toggle-label'
     text.textContent = labelText
     row.append(checkbox, swatch, text)
-    drawerEl.appendChild(row)
+    menuBodyEl.appendChild(row)
   }
 
   if (trades.length) {
     const title = document.createElement('div')
-    title.className = 'group-title'
-    title.textContent = 'Position'
-    drawerEl.appendChild(title)
-    addToggleRow('rgba(63,168,244,0.5)', 'Zones en position', checked => {
+    title.className = 'indicators-group-title'
+    title.textContent = t('chart.group.position')
+    menuBodyEl.appendChild(title)
+    addToggleRow(`${colors.primary}80`, t('chart.position_zones'), checked => {
       zonesLayer.style.display = checked ? '' : 'none'
     })
   }
 
   if (toggleables.length) {
     const title = document.createElement('div')
-    title.className = 'group-title'
-    title.textContent = 'Prix (overlay)'
-    drawerEl.appendChild(title)
-    for (const t of toggleables) {
-      addToggleRow(t.color, t.label, checked => t.series.applyOptions({ visible: checked }))
+    title.className = 'indicators-group-title'
+    title.textContent = t('chart.group.overlays')
+    menuBodyEl.appendChild(title)
+    for (const tg of toggleables) {
+      addToggleRow(tg.color, tg.label, checked => tg.series.applyOptions({ visible: checked }))
     }
   }
 
   if (paneToggles.length) {
     const title = document.createElement('div')
-    title.className = 'group-title'
-    title.textContent = 'Indicateurs'
-    drawerEl.appendChild(title)
+    title.className = 'indicators-group-title'
+    title.textContent = t('chart.group.indicators')
+    menuBodyEl.appendChild(title)
     for (const p of paneToggles) {
       addToggleRow(p.color, p.label, checked => { p.panelEl.style.display = checked ? '' : 'none' })
     }
   }
 
-  allCharts.forEach(c => c.timeScale().fitContent())
+  if (!trades.length && !toggleables.length && !paneToggles.length) {
+    menuEmptyEl.classList.remove('hidden')
+  }
+
+  // Initial view: the most recent N candles rather than the full history
+  const total = times.length
+  const initialRange = { from: Math.max(0, total - INITIAL_VISIBLE_CANDLES), to: total - 1 }
+  allCharts.forEach(c => c.timeScale().setVisibleLogicalRange(initialRange))
   renderPositionZones()
-})()
+})

@@ -108,19 +108,22 @@ if (!isProd) {
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
 
 const { timeoutStaleJobs } = require('./src/services/jobService')
+// 30s
 cron.schedule('*/30 * * * * *', async () => {
   try { await timeoutStaleJobs() }
   catch (e) { console.error('[SnipeIT] timeoutStaleJobs error:', e.message) }
 })
 
 const { cleanupStaleCandleCache } = require('./src/utils/candleCache')
+// 3AM
 cron.schedule('0 3 * * *', () => {
   try { cleanupStaleCandleCache() }
   catch (e) { console.error('[SnipeIT] cleanupStaleCandleCache error:', e.message) }
 })
 
 const { purgeSoftDeletedStrategies } = require('./src/services/strategyService')
-cron.schedule('0 3 * * *', async () => {
+// Hourly
+cron.schedule('0 * * * *', async () => {
   try { await purgeSoftDeletedStrategies() }
   catch (e) { console.error('[SnipeIT] purgeSoftDeletedStrategies error:', e.message) }
 })
