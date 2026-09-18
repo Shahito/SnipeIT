@@ -4418,6 +4418,7 @@ input[type="color"] {
     background: rgba(0, 0, 0, .35);
     padding: .2rem .5rem;
     border-radius: var(--radius-sm);
+    width: fit-content;
     max-width: 65%;
     overflow: hidden;
 }
@@ -4458,7 +4459,7 @@ input[type="color"] {
     align-items: flex-end;
     gap: .3rem;
     width: 100%;
-    max-width: 26rem;
+    max-width: 15rem;
     height: 8rem;
 }
 
