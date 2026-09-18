@@ -1,8 +1,7 @@
 <div align="center">
 <br/>
-<img src="https://app.snipeit.shabox.dev/images/tab/tab-icon.png" height="56" />
 
-# SnipeIT
+# <img src="https://app.snipeit.shabox.dev/images/tab/tab-icon.png" height="32" /> SnipeIT
 
 ### *Design a crypto trading strategy, backtest it against real market data, and sweep every parameter to find what actually works.*
 
@@ -88,6 +87,8 @@ cp .env.example .env    # fill in DATABASE_URL, JWT_SECRET, etc. - see below
 npx prisma migrate dev --name init
 npm run dev
 ```
+
+> Create the database with `utf8mb4` / `utf8mb4_unicode_ci` (e.g. `CREATE DATABASE snipeit CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`) - it's what every table is migrated with.
 
 ### Environment variables
 
