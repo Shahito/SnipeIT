@@ -106,12 +106,17 @@ class LtfResolver:
         base_minutes) in chronological order, updating the trailing high as
         it goes, and returns the first of TSL/SL/TP that triggers.
 
-        Returns (exit_price, reason, new_trailing_high, resolution):
+        Returns (exit_price, reason, new_trailing_high, resolution, mfe_high, mae_low):
           - exit_price/reason are None if nothing triggered this candle
           - resolution is the LTF timeframe actually used ("1m"/"5m"/"15m"),
             or "base" if this window falls in a gap on every LTF in the
             fallback chain - the caller then falls back to its own
-            base-timeframe high/low logic for this candle only.
+            base-timeframe high/low logic for this candle only (mfe_high/
+            mae_low are also None in that case)
+          - mfe_high/mae_low are the highest high / lowest low actually
+            reached up to and including the trigger point (or across the
+            whole window if nothing triggered) - NOT the full base candle,
+            which could include price action after the real exit moment
         """
         start = pd.Timestamp(candle_start).to_datetime64().astype("datetime64[ns]")
         end = (start + pd.Timedelta(minutes=self.base_minutes)).to_datetime64().astype(
@@ -125,8 +130,12 @@ class LtfResolver:
             o, h, l = sliced
 
             th = trailing_high
+            mfe_high = float("-inf")
+            mae_low = float("inf")
             for i in range(len(o)):
                 oi, hi, li = float(o[i]), float(h[i]), float(l[i])
+                mfe_high = max(mfe_high, hi)
+                mae_low = min(mae_low, li)
 
                 if tsl_pct is not None and hi > th:
                     th = hi
@@ -140,11 +149,14 @@ class LtfResolver:
                     # Gap slippage: if the sub-candle opened past the
                     # trigger, the real fill is the open, not the level.
                     if tsl_hit:
-                        return (oi if oi <= tsl_price else tsl_price), "tsl", th, tf
+                        exit_price = oi if oi <= tsl_price else tsl_price
+                        return exit_price, "tsl", th, tf, mfe_high, mae_low
                     if sl_hit:
-                        return (oi if oi <= sl_price else sl_price), "risk", th, tf
-                    return (oi if oi >= tp_price else tp_price), "risk", th, tf
+                        exit_price = oi if oi <= sl_price else sl_price
+                        return exit_price, "risk", th, tf, mfe_high, mae_low
+                    exit_price = oi if oi >= tp_price else tp_price
+                    return exit_price, "tp", th, tf, mfe_high, mae_low
 
-            return None, None, th, tf  # full coverage this candle, nothing hit
+            return None, None, th, tf, mfe_high, mae_low  # full coverage, nothing hit
 
-        return None, None, trailing_high, "base"
+        return None, None, trailing_high, "base", None, None

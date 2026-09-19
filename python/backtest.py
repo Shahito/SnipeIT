@@ -800,12 +800,19 @@ def run_backtest(strategy: dict) -> dict:
         # MAE/MFE tracking: lowest low / highest high reached since entry,
         # updated before any exit path so the exit candle's own low/high is
         # included regardless of which branch closes the trade below.
+        # prev_* is kept so an LTF-resolved exit later this same candle can
+        # correct for price action that happened AFTER the real intra-candle
+        # trigger point - the full base-candle high/low below would
+        # otherwise leak post-exit movement into MFE/MAE (see the LTF
+        # resolution branch further down).
+        prev_highest_high = position["highest_high"] if position is not None else None
+        prev_lowest_low = position["lowest_low"] if position is not None else None
         if position is not None:
             position["lowest_low"] = min(position["lowest_low"], float(low_arr[idx]))
             position["highest_high"] = max(
                 position["highest_high"], float(high_arr[idx])
             )
-
+        
         # Execute orders decided on the previous candle
         if pending_entry and position is None:
             if can_buy:
@@ -980,15 +987,39 @@ def run_backtest(strategy: dict) -> dict:
 
             if needs_resolution and ltf_resolver is not None:
                 log.debug(f"LTF lookup {date} - ambiguous candle ({resolution_trigger})")
-                exit_price, reason, position["trailing_high"], resolution = (
-                    ltf_resolver.resolve(
-                        ts_arr[idx],
-                        sl_price,
-                        tp_price,
-                        trailing_stop_loss_val,
-                        position["trailing_high"],
-                    )
+                (
+                    exit_price,
+                    reason,
+                    position["trailing_high"],
+                    resolution,
+                    ltf_mfe_high,
+                    ltf_mae_low,
+                ) = ltf_resolver.resolve(
+                    ts_arr[idx],
+                    sl_price,
+                    tp_price,
+                    trailing_stop_loss_val,
+                    position["trailing_high"],
                 )
+
+                if resolution != "base":
+                    # The top-of-loop update above used the FULL base
+                    # candle's high/low, which can include price action
+                    # after the real intra-candle trigger point. Replace it
+                    # with the true bound: prior state (or entry price, if
+                    # the trade entered and exited this same candle) capped
+                    # by what the LTF walk actually saw up to the trigger.
+                    entry_price = position["entry_price"]
+                    prev_hh = (
+                        prev_highest_high
+                        if prev_highest_high is not None
+                        else entry_price
+                    )
+                    prev_ll = (
+                        prev_lowest_low if prev_lowest_low is not None else entry_price
+                    )
+                    position["highest_high"] = max(prev_hh, ltf_mfe_high)
+                    position["lowest_low"] = min(prev_ll, ltf_mae_low)
 
             if resolution == "base":
                 # Compute trailing SL - update high from entry
