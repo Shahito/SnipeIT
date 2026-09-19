@@ -121,6 +121,7 @@
     `
     document.body.appendChild(el)
     _overlayEl = el
+    window.enableDrawerSwipe?.(el, el.querySelector('.cs-modal'), _close)
     el.addEventListener('click', e => { if (e.target === el) _close() })
     el.querySelector('.cs-close-btn').addEventListener('click', _close)
     el.querySelector('.cs-restore-btn').addEventListener('click', _restoreDefaults)

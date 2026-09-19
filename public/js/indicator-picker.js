@@ -80,9 +80,9 @@
     function _ensureOverlay() {
         if (_overlayEl) return
         const el = document.createElement('div')
-        el.className = 'ip-overlay'
+        el.className = 'ip-overlay modal-overlay'
         el.innerHTML = `
-      <div class="ip-panel">
+      <div class="ip-panel modal">
         <div class="ip-search-row">
             ${ICONS.search}
             <input type="text" class="ip-search-input" placeholder="${t('picker.search_ph')}" autocomplete="off">
@@ -98,6 +98,8 @@
     `
         document.body.appendChild(el)
         _overlayEl = el
+
+        window.enableDrawerSwipe?.(el, el.querySelector('.ip-panel'), _close)
 
         el.addEventListener('click', e => { if (e.target === el) _close() })
         el.querySelector('.ip-close-btn').addEventListener('click', _close)

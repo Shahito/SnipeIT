@@ -73,9 +73,9 @@
     function _injectModal() {
         const el = document.createElement('div')
         el.id = 'exportModal'
-        el.className = 'exp-overlay hidden'
+        el.className = 'exp-overlay modal-overlay hidden'
         el.innerHTML = `
-        <div class="exp-modal">
+        <div class="exp-modal modal">
             <div class="exp-modal-header">
             <div>
                 <span class="exp-title" id="expTitleText">${t('export.title')}</span>
@@ -109,6 +109,8 @@
         </div>
         `
         document.body.appendChild(el)
+
+        window.enableDrawerSwipe?.(el, el.querySelector('.exp-modal'), _closeModal)
 
         document.getElementById('expCloseBtn').addEventListener('click', _closeModal)
         el.addEventListener('click', e => { if (e.target === el) _closeModal() })
