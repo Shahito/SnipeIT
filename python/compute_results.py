@@ -47,8 +47,6 @@ SCATTER_BINS_Y = 14
 
 # Shared exit-reason code mapping
 REASON_CODES = {"risk": 0, "tsl": 1, "signal": 2, "end": 3}
-# "base" also covers signal/end exits (never go through LTF) and LTF fallback.
-RESOLUTION_CODES = {"base": 0, "1m": 1, "5m": 2, "15m": 3}
 
 
 # Pnl buckets (histogram)
@@ -336,16 +334,14 @@ def _exposure_pct(trades: list, equity_dates: list) -> float:
 def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
     """
     Columnar encoding of all sell trades.
-    Cols: [entryDateOffset, exitDateOffset, entryPrice, exitPrice, qty, reasonCode, ltfResolutionCode]
+    Cols: [entryDateOffset, exitDateOffset, entryPrice, exitPrice, qty, reasonCode]
     Offsets are integer seconds relative to t0 (first entry date).
     Falls back to stride-sampling only if the full set exceeds max_bytes.
     """
-    _COLS = ["eOff", "xOff", "ep", "xp", "a", "r", "lr"]
-
     if not sell_trades:
         return {
             "t0": 0,
-            "cols": _COLS,
+            "cols": ["eOff", "xOff", "ep", "xp", "a", "r"],
             "rows": [],
             "sampled": False,
             "rate": 1,
@@ -361,7 +357,6 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
             t["price"],
             t["allocated"],
             REASON_CODES.get(t.get("reason", "signal"), 2),
-            RESOLUTION_CODES.get(t.get("exitResolution", "base"), 0),
         ]
 
     def _encode(stride):
@@ -376,7 +371,7 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
             json.dumps(
                 {
                     "t0": t0,
-                    "cols": _COLS,
+                    "cols": ["eOff", "xOff", "ep", "xp", "a", "r"],
                     "rows": rows,
                 },
                 separators=(",", ":"),
@@ -399,7 +394,7 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
     rows = _encode(stride)
     return {
         "t0": t0,
-        "cols": _COLS,
+        "cols": ["eOff", "xOff", "ep", "xp", "a", "r"],
         "rows": rows,
         "sampled": stride > 1,
         "rate": stride,

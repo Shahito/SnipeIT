@@ -571,131 +571,6 @@ def _compute_htf_columns(
     return df_base
 
 
-# LTF (lower-timeframe) intra-candle resolution: TP/SL/TSL are exchange-side
-# orders, independent of the strategy's own candle timeframe. Above 1m,
-# resolving them from base high/low alone means guessing trigger order and
-# missing the real trailing-stop path. Fetch finer candles to resolve exactly.
-
-_LTF_FALLBACK_CHAIN = ["1m", "5m", "15m"]  # finest first
-
-
-def _needs_ltf_resolution(stop_loss_val, take_profit_val, trailing_stop_loss_val) -> bool:
-    # Ambiguity only exists when SL+TP are both armed, or TSL is active.
-    # A lone SL or TP has nothing to disambiguate - base high/low is exact.
-    return (stop_loss_val is not None and take_profit_val is not None) or trailing_stop_loss_val is not None
-
-
-def _merge_windows(windows: list) -> list:
-    """Merges overlapping/adjacent (start, end) windows, sorted by start."""
-    merged = []
-    for w in sorted(windows, key=lambda w: w["start"]):
-        if merged and w["start"] <= merged[-1]["end"]:
-            merged[-1]["end"] = max(merged[-1]["end"], w["end"])
-        else:
-            merged.append(dict(w))
-    return merged
-
-
-def _calc_pnl(qty: float, allocated: float, exit_price: float, fee_taker: float):
-    buy_fee = allocated * fee_taker
-    sell_fee = qty * exit_price * fee_taker
-    proceeds = qty * exit_price - sell_fee
-    pct_change = (proceeds - (allocated + buy_fee)) / (allocated + buy_fee)
-    return proceeds, round(pct_change * 100, 2)
-
-
-def _resolve_ambiguous_trades(ambiguous: list, trades: list, pair: str, exchange: str,
-                               timeframe: str, fee_taker: float):
-    """Fetches 1m (falling back to 5m/15m) for only the flagged candles'
-    windows - merged to cut down on calls - and patches those trades' exit
-    price/reason/pnl in place. Trades with no LTF coverage for their window
-    (gap) are left as the flat-logic result."""
-    from ohlcv_cache import get_ohlcv
-
-    windows = _merge_windows([{"start": a["start"], "end": a["end"]} for a in ambiguous])
-    base_minutes = _timeframe_to_minutes(timeframe)
-
-    ltf_df = ltf_tf_used = None
-    for tf in _LTF_FALLBACK_CHAIN:
-        if _timeframe_to_minutes(tf) >= base_minutes:
-            break
-        try:
-            parts = [
-                get_ohlcv(pair, tf, w["start"].strftime("%Y-%m-%d"), w["end"].strftime("%Y-%m-%d"), exchange)
-                for w in windows
-            ]
-        except Exception as e:
-            log.warning(f"LTF fetch failed for {pair} {tf}: {e}")
-            continue
-        parts = [p for p in parts if not p.empty]
-        if parts:
-            ltf_df = (
-                pd.concat(parts).drop_duplicates("timestamp").sort_values("timestamp").reset_index(drop=True)
-            )
-            ltf_tf_used = tf
-            break
-
-    if ltf_df is None:
-        log.warning(f"LTF resolution needed for {pair} but no sub-timeframe data available ({_LTF_FALLBACK_CHAIN})")
-        return
-
-    ts_arr = ltf_df["timestamp"].to_numpy()
-    o_arr = ltf_df["open"].to_numpy(dtype=float)
-    h_arr = ltf_df["high"].to_numpy(dtype=float)
-    l_arr = ltf_df["low"].to_numpy(dtype=float)
-
-    for a in ambiguous:
-        s = np.searchsorted(ts_arr, np.datetime64(a["start"]), side="left")
-        e = np.searchsorted(ts_arr, np.datetime64(a["end"]), side="left")
-        if s >= e:
-            continue  # gap for this candle - leave as flat-logic result
-
-        exit_price, reason, _ = _resolve_ltf_exit(
-            o_arr[s:e], h_arr[s:e], l_arr[s:e],
-            a["trailing_high"], a["sl_price"], a["tp_price"], a["tsl_pct"],
-        )
-        if exit_price is None:
-            continue
-
-        trade = trades[a["trade_idx"]]
-        proceeds, pnl_pct = _calc_pnl(trade["quantity"], trade["allocated"], exit_price, fee_taker)
-        trade["price"] = round(exit_price, 4)
-        trade["value"] = round(proceeds, 2)
-        trade["pnl"] = pnl_pct
-        trade["reason"] = reason
-        trade["exitResolution"] = ltf_tf_used
-
-
-def _resolve_ltf_exit(sub_opens, sub_highs, sub_lows, trailing_high: float,
-                       sl_price, tp_price, tsl_pct):
-    """Walks one base candle's sub-candles in order; first level actually
-    touched wins (replacing the "SL wins ties" guess). Trailing high advances
-    per sub-candle instead of jumping to the base candle's peak. Fill price
-    uses the sub-candle's open if it already gapped past the level.
-    Returns (exit_price, reason, new_trailing_high); exit_price is None if
-    nothing triggered. reason: "tsl" or "risk" (same convention as before -
-    TP and SL share "risk")."""
-    for o, h, l in zip(sub_opens, sub_highs, sub_lows):
-        if tsl_pct is not None:
-            if h > trailing_high:
-                trailing_high = h
-            tsl_price = trailing_high * (1 - tsl_pct / 100)
-        else:
-            tsl_price = None
-
-        if tsl_price is not None and l <= tsl_price:
-            fill = o if o <= tsl_price else tsl_price
-            return fill, "tsl", trailing_high
-        if sl_price is not None and l <= sl_price:
-            fill = o if o <= sl_price else sl_price
-            return fill, "risk", trailing_high
-        if tp_price is not None and h >= tp_price:
-            fill = o if o >= tp_price else tp_price
-            return fill, "risk", trailing_high
-
-    return None, None, trailing_high
-
-
 def run_backtest(strategy: dict) -> dict:
     """
     Runs the backtest and returns the results dict.
@@ -830,13 +705,6 @@ def run_backtest(strategy: dict) -> dict:
         htf_tfs = sorted({n[3] for n in htf_needed})
         log.info(f"HTF indicators requested: {htf_tfs}")
         df = _compute_htf_columns(df, htf_needed, pair, exchange, start_date)
-
-    # LTF resolution only fires for candles that are actually ambiguous
-    # (found during the loop below) - nothing fetched upfront.
-    ltf_needed = timeframe != "1m" and _needs_ltf_resolution(
-        stop_loss_val, take_profit_val, trailing_stop_loss_val
-    )
-    _ambiguous = []  # candles flagged during the loop, resolved after it
 
     # Simulation
     capital = initial_capital
@@ -1063,31 +931,26 @@ def run_backtest(strategy: dict) -> dict:
                     tp_price = position["entry_price"] * (1 + take_profit_val / 100)
             else:
                 tp_price = None
-            
-            trailing_high_before = position["trailing_high"]
+
+            # Compute trailing SL - update high from entry
             if trailing_stop_loss_val is not None:
                 if high > position["trailing_high"]:
                     position["trailing_high"] = high
-                tsl_price = position["trailing_high"] * (1 - trailing_stop_loss_val / 100)
+                tsl_price = position["trailing_high"] * (
+                    1 - trailing_stop_loss_val / 100
+                )
             else:
                 tsl_price = None
 
-            # Convention if both hit: SL wins ties (worst case).
+            # Intra-candle SL/TP: exact price reached within the candle, immediate execution
+            # Convention if both are hit: SL takes priority (worst case)
             exit_price = None
-            reason = None
-            ambiguous = False
             if tsl_price and low <= tsl_price:
-                exit_price, reason = tsl_price, "tsl"
-                # Same-candle high-then-low: trailing high was raised by
-                # THIS candle's own high, then breached by its own low -
-                # real order unknown from OHLC alone.
-                ambiguous = high > trailing_high_before
+                exit_price = tsl_price
             elif sl_price and low <= sl_price:
-                exit_price, reason = sl_price, "risk"
-                ambiguous = tp_price is not None and high >= tp_price
+                exit_price = sl_price
             elif tp_price and high >= tp_price:
-                exit_price, reason = tp_price, "risk"
-                ambiguous = sl_price is not None and low <= sl_price
+                exit_price = tp_price
 
             if exit_price is not None:
                 buy_fee = position["allocated"] * fee_taker
@@ -1096,6 +959,11 @@ def run_backtest(strategy: dict) -> dict:
                 net_entry = position["allocated"] + buy_fee
                 pct_change = (proceeds - net_entry) / net_entry
                 pnl_pct = round(pct_change * 100, 2)
+                reason = (
+                    "tsl"
+                    if tsl_price is not None and exit_price == tsl_price
+                    else "risk"
+                )
                 trades.append(
                     {
                         "side": "buy",
@@ -1120,29 +988,74 @@ def run_backtest(strategy: dict) -> dict:
                         "entryPrice": round(position["entry_price"], 4),
                         "allocated": round(position["allocated"], 2),
                         "reason": reason,
-                        "exitResolution": "base",
                         "mae": mae_pct,
                         "maeAtr": mae_atr,
                         "mfe": mfe_pct,
                         "mfeAtr": mfe_atr,
                     }
                 )
-                if ltf_needed and ambiguous:
-                    candle_ts = pd.Timestamp(ts_arr[idx])
-                    _ambiguous.append({
-                        "trade_idx": len(trades) - 1,
-                        "start": candle_ts,
-                        "end": candle_ts + pd.Timedelta(minutes=tf_minutes),
-                        "sl_price": sl_price,
-                        "tp_price": tp_price,
-                        "tsl_pct": trailing_stop_loss_val if reason == "tsl" else None,
-                        "trailing_high": trailing_high_before,
-                    })
                 log.debug(f"SL/TP {date} @ {exit_price:.4f} PnL {pnl_pct:+.2f}%")
                 capital += proceeds
+                position = None
+            else:
+                # No SL/TP hit - evaluate exit_conds (executed on next candle)
+                if exit_conds:
+                    if use_vec_exit:
+                        exit_hit = bool(exit_signal_arr[idx])
+                    else:
+                        exit_hit = eval_conditions(df, exit_conds, idx)
+                    if exit_hit:
+                        pending_exit = True
 
-    if _ambiguous:
-        _resolve_ambiguous_trades(_ambiguous, trades, pair, exchange, timeframe, fee_taker)
+    # Build equity_curve (same list-of-dicts shape as the original) with a
+    # single vectorized rounding pass instead of calling round() once per
+    # candle inside the hot loop (measured: this was the single biggest
+    # remaining cost after the numpy-array optimizations above).
+    equity_rounded = np.round(np.array(equity_raw, dtype=np.float64), 2)
+    equity_curve = [
+        {"date": d, "equity": float(e)} for d, e in zip(equity_dates, equity_rounded)
+    ]
+
+    # Liquidate open position on the last candle
+    if position:
+        buy_fee = position["allocated"] * fee_taker
+        last_price = float(close_arr[-1])
+        last_date = str(date_arr[-1])
+        sell_fee = position["qty"] * last_price * fee_taker
+        proceeds = position["qty"] * last_price - sell_fee
+        net_entry = position["allocated"] + buy_fee
+        pct_change = (proceeds - net_entry) / net_entry
+        trades.append(
+            {
+                "side": "buy",
+                "date": position["entry_date"],
+                "price": round(position["entry_price"], 4),
+                "quantity": round(position["qty"], 6),
+                "value": round(position["allocated"], 2),
+                "pnl": None,
+            }
+        )
+        mae_pct, mae_atr = _mae(position)
+        mfe_pct, mfe_atr = _mfe(position)
+        trades.append(
+            {
+                "side": "sell",
+                "date": last_date,
+                "price": round(last_price, 4),
+                "quantity": round(position["qty"], 6),
+                "value": round(proceeds, 2),
+                "pnl": round(pct_change * 100, 2),
+                "entryDate": position["entry_date"],
+                "entryPrice": round(position["entry_price"], 4),
+                "allocated": round(position["allocated"], 2),
+                "reason": "end",
+                "mae": mae_pct,
+                "maeAtr": mae_atr,
+                "mfe": mfe_pct,
+                "mfeAtr": mfe_atr,
+            }
+        )
+        capital += proceeds
 
     equity_rounded = np.round(np.array(equity_raw, dtype=np.float64), 2)
 
