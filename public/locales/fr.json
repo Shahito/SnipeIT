@@ -230,6 +230,8 @@
   "results.metric.profit_factor": "Profit factor",
   "results.metric.capital": "Capital final",
   "results.metric.exposure": "Exposition",
+  "results.metric.max_mae": "MAE max",
+  "results.metric.max_mfe": "MFE max",
   "results.trade.buy": "ACHAT",
   "results.trade.sell": "VENTE",
   "results.trade.price": "Prix :",

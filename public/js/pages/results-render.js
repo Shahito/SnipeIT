@@ -1,9 +1,10 @@
 // Metrics
 const METRIC_TARGET_CARD = {
   'results.metric.pnl_pct': 'equityCard',
-  'results.metric.maxdd': 'maeDistributionCard',
   'results.metric.trades': 'tradesCard',
   'results.metric.winrate': 'pnlDistributionCard',
+  'results.metric.max_mae': 'maeDistributionCard',
+  'results.metric.max_mfe': 'mfeDistributionCard',
 }
 
 initMetricCardInteractivity('metricsGrid', METRIC_TARGET_CARD)
@@ -20,6 +21,8 @@ function renderMetrics(r) {
     { key: 'results.metric.sharpe', value: r.sharpeRatio, fmt: v => v.toFixed(2), cls: v => v >= 1.5 ? 'positive' : v >= 0 ? 'neutral' : 'negative' },
     { key: 'results.metric.profit_factor', value: r.profitFactor, fmt: v => v.toFixed(2), cls: v => v >= 1.75 ? 'positive' : v >= 1 ? 'neutral' : 'negative' },
     { key: 'results.metric.exposure', value: r.exposurePct, fmt: v => `${v.toFixed(1)}%`, cls: () => 'neutral' },
+    { key: 'results.metric.max_mae', value: r.maxMae, fmt: v => `${v.toFixed(2)}%`, cls: () => 'negative' },
+    { key: 'results.metric.max_mfe', value: r.maxMfe, fmt: v => `+${v.toFixed(2)}%`, cls: () => 'positive' },
   ]
   document.getElementById('metricsGrid').innerHTML = metrics.map(m => {
     const formatted = m.value != null ? m.fmt(m.value) : '-'

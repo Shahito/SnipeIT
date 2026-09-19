@@ -455,6 +455,19 @@ def _scalar_metrics(
 
     duration_days = (pd.Timestamp(end_date[:10]) - pd.Timestamp(start_date[:10])).days
 
+    # Deepest adverse move endured by a trade that still closed as a win
+    mae_values = [
+        t["mae"] for t in sell_trades
+        if t.get("pnl") and t["pnl"] > 0 and t.get("mae") is not None
+    ]
+    max_mae = min(mae_values) if mae_values else None
+
+    mfe_values = [
+        t["mfe"] for t in sell_trades
+        if t.get("pnl") and t["pnl"] < 0 and t.get("mfe") is not None
+    ]
+    max_mfe = max(mfe_values) if mfe_values else None
+
     return {
         "pnlPercent": pnl_pct,
         "pnlAbsolute": pnl_abs,
@@ -468,6 +481,8 @@ def _scalar_metrics(
         "sharpeRatio": sharpe,
         "profitFactor": profit_factor,
         "durationDays": duration_days,
+        "maxMae": max_mae,
+        "maxMfe": max_mfe,
     }
 
 
