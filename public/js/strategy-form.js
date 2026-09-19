@@ -470,6 +470,16 @@ document.getElementById('saveAndRunBtn').addEventListener('click', async () => {
   }
 })
 
+// Ctrl+Enter (Cmd+Enter on Mac) = Save & Run, from anywhere in the editor
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey)) return
+  if (document.querySelector('.modal-overlay.open')) return
+  const btn = document.getElementById('saveAndRunBtn')
+  if (btn.disabled) return
+  e.preventDefault()
+  btn.click()
+})
+
   // Field change -> preview
 
   ;['fName', 'fStartDate', 'fEndDate', 'fCapital',

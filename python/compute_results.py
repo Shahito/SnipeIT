@@ -66,10 +66,15 @@ def _pnl_buckets(sell_trades: list, min_bins: int = 8, max_bins: int = 40) -> li
     mn, mx = float(arr.min()), float(arr.max())
     if mn == mx:
         wins = int((arr >= 0).sum())
-        return [{
-            "count": len(arr), "wins": wins, "losses": len(arr) - wins,
-            "lo": round(mn, 2), "hi": round(mn + 1, 2),
-        }]
+        return [
+            {
+                "count": len(arr),
+                "wins": wins,
+                "losses": len(arr) - wins,
+                "lo": round(mn, 2),
+                "hi": round(mn + 1, 2),
+            }
+        ]
 
     bin_count = max(10, min(50, math.ceil(2.45 * math.sqrt(len(vals)))))
     size = (mx - mn) / bin_count
@@ -87,10 +92,15 @@ def _pnl_buckets(sell_trades: list, min_bins: int = 8, max_bins: int = 40) -> li
         cnt = sum(1 for v in vals if in_buck(v))
         if cnt:
             wins = sum(1 for v in vals if in_buck(v) and v >= 0)
-            buckets.append({
-                "count": cnt, "wins": wins, "losses": cnt - wins,
-                "lo": round(lo, 2), "hi": round(hi, 2),
-            })
+            buckets.append(
+                {
+                    "count": cnt,
+                    "wins": wins,
+                    "losses": cnt - wins,
+                    "lo": round(lo, 2),
+                    "hi": round(hi, 2),
+                }
+            )
     return buckets
 
 

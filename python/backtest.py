@@ -706,6 +706,21 @@ def run_backtest(strategy: dict) -> dict:
         log.info(f"HTF indicators requested: {htf_tfs}")
         df = _compute_htf_columns(df, htf_needed, pair, exchange, start_date)
 
+    # LTF resolver: only needed when SL+TP could conflict within the same
+    # candle, or when TSL is active (see ltf_resolver.py). Plain SL-alone
+    # or TP-alone doesn't need it - base-timeframe high/low is already exact.
+    # No fetch happens here: the resolver only pulls 1m/5m/15m data lazily,
+    # per day, the first time an actually-ambiguous candle calls resolve()
+    # below - never the full backtest range up front.
+    needs_ltf = trailing_stop_loss_val is not None or (
+        stop_loss_val is not None and take_profit_val is not None
+    )
+    ltf_resolver = None
+    if needs_ltf and tf_minutes > 1:
+        from ltf_resolver import LtfResolver
+
+        ltf_resolver = LtfResolver(pair, exchange, tf_minutes)
+
     # Simulation
     capital = initial_capital
     position = None  # dict or None
@@ -932,25 +947,69 @@ def run_backtest(strategy: dict) -> dict:
             else:
                 tp_price = None
 
-            # Compute trailing SL - update high from entry
-            if trailing_stop_loss_val is not None:
-                if high > position["trailing_high"]:
-                    position["trailing_high"] = high
-                tsl_price = position["trailing_high"] * (
-                    1 - trailing_stop_loss_val / 100
-                )
-            else:
-                tsl_price = None
-
-            # Intra-candle SL/TP: exact price reached within the candle, immediate execution
-            # Convention if both are hit: SL takes priority (worst case)
             exit_price = None
-            if tsl_price and low <= tsl_price:
-                exit_price = tsl_price
-            elif sl_price and low <= sl_price:
-                exit_price = sl_price
-            elif tp_price and high >= tp_price:
-                exit_price = tp_price
+            reason = None
+            resolution = "base"
+
+            # Only walk LTF when this candle is actually ambiguous: for
+            # TSL, that means a new high is made in THIS candle AND the
+            # candle's low already breaches the resulting (higher)
+            # trailing stop - i.e. the naive "update high then check low"
+            # would trigger, but whether the pullback happened before or
+            # after the new high is unknown from the base candle alone.
+            # A new high with no such breach isn't ambiguous - nothing
+            # could have triggered regardless of order - so it's skipped
+            # (no LTF fetch happens on those candles). Same idea for
+            # SL+TP: only a real simultaneous hit needs resolving.
+            needs_resolution = False
+            resolution_trigger = None
+            if trailing_stop_loss_val is not None and high > position["trailing_high"]:
+                prospective_tsl = high * (1 - trailing_stop_loss_val / 100)
+                if low <= prospective_tsl:
+                    needs_resolution = True
+                    resolution_trigger = "tsl_pullback"
+            if (
+                not needs_resolution
+                and sl_price is not None
+                and tp_price is not None
+                and low <= sl_price
+                and high >= tp_price
+            ):
+                needs_resolution = True
+                resolution_trigger = "sl_tp_conflict"
+
+            if needs_resolution and ltf_resolver is not None:
+                log.debug(f"LTF lookup {date} - ambiguous candle ({resolution_trigger})")
+                exit_price, reason, position["trailing_high"], resolution = (
+                    ltf_resolver.resolve(
+                        ts_arr[idx],
+                        sl_price,
+                        tp_price,
+                        trailing_stop_loss_val,
+                        position["trailing_high"],
+                    )
+                )
+
+            if resolution == "base":
+                # Compute trailing SL - update high from entry
+                if trailing_stop_loss_val is not None:
+                    if high > position["trailing_high"]:
+                        position["trailing_high"] = high
+                    tsl_price = position["trailing_high"] * (
+                        1 - trailing_stop_loss_val / 100
+                    )
+                else:
+                    tsl_price = None
+
+                # Intra-candle SL/TP: exact price reached within the candle,
+                # immediate execution. Convention if both are hit: SL takes
+                # priority (worst case) - no finer data to resolve the real order.
+                if tsl_price and low <= tsl_price:
+                    exit_price, reason = tsl_price, "tsl"
+                elif sl_price and low <= sl_price:
+                    exit_price, reason = sl_price, "risk"
+                elif tp_price and high >= tp_price:
+                    exit_price, reason = tp_price, "risk"
 
             if exit_price is not None:
                 buy_fee = position["allocated"] * fee_taker
@@ -959,11 +1018,6 @@ def run_backtest(strategy: dict) -> dict:
                 net_entry = position["allocated"] + buy_fee
                 pct_change = (proceeds - net_entry) / net_entry
                 pnl_pct = round(pct_change * 100, 2)
-                reason = (
-                    "tsl"
-                    if tsl_price is not None and exit_price == tsl_price
-                    else "risk"
-                )
                 trades.append(
                     {
                         "side": "buy",
@@ -988,6 +1042,7 @@ def run_backtest(strategy: dict) -> dict:
                         "entryPrice": round(position["entry_price"], 4),
                         "allocated": round(position["allocated"], 2),
                         "reason": reason,
+                        "resolution": resolution,
                         "mae": mae_pct,
                         "maeAtr": mae_atr,
                         "mfe": mfe_pct,
