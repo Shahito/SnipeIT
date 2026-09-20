@@ -155,7 +155,7 @@ class LtfResolver:
                         exit_price = oi if oi <= sl_price else sl_price
                         return exit_price, "risk", th, tf, mfe_high, mae_low
                     exit_price = oi if oi >= tp_price else tp_price
-                    return exit_price, "tp", th, tf, mfe_high, mae_low
+                    return exit_price, "risk", th, tf, mfe_high, mae_low
 
             return None, None, th, tf, mfe_high, mae_low  # full coverage, nothing hit
 

@@ -345,79 +345,6 @@ document.addEventListener('header:ready', async () => {
   candleSeries.setData(candles.map(c => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close })))
   candleSeries.setMarkers(markers)
 
-  // Bollinger Bands fill: lightweight-charts has no built-in "fill between two
-  // series" primitive, so this is a plain canvas painted underneath the chart's
-  // own canvas (inserted first in the DOM = lowest paint layer), redrawn from
-  // priceToCoordinate()/timeToCoordinate() on every pan/zoom/resize.
-  const bbCanvas = document.createElement('canvas')
-  bbCanvas.className = 'chart-bb-fill'
-  chartMainPaneEl.insertBefore(bbCanvas, chartMainPaneEl.firstChild)
-  const bbCtx = bbCanvas.getContext('2d')
-
-  function bbFamilyKey(label) {
-    if (label.startsWith('BB_UPPER_')) return label.slice('BB_UPPER_'.length)
-    if (label.startsWith('BB_MID_'))   return label.slice('BB_MID_'.length)
-    if (label.startsWith('BB_LOWER_')) return label.slice('BB_LOWER_'.length)
-    return null
-  }
-  const bbFamilies = new Map() // key -> { upper, mid, lower }
-  for (const label of overlayLabels) {
-    const key = bbFamilyKey(label)
-    if (key === null) continue
-    if (!bbFamilies.has(key)) bbFamilies.set(key, {})
-    const fam = bbFamilies.get(key)
-    if (label.startsWith('BB_UPPER_')) fam.upper = label
-    else if (label.startsWith('BB_MID_')) fam.mid = label
-    else fam.lower = label
-  }
-  const bbFillVisible = {} // key -> boolean, defaults to true once the family is confirmed complete
-
-  function resizeBBCanvas() {
-    const rect = chartMainPaneEl.getBoundingClientRect()
-    const dpr = window.devicePixelRatio || 1
-    bbCanvas.width = Math.max(1, Math.round(rect.width * dpr))
-    bbCanvas.height = Math.max(1, Math.round(rect.height * dpr))
-    bbCanvas.style.width = `${rect.width}px`
-    bbCanvas.style.height = `${rect.height}px`
-    bbCtx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  }
-
-  function renderBBFills() {
-    if (!bbFamilies.size) return
-    const rect = chartMainPaneEl.getBoundingClientRect()
-    resizeBBCanvas()
-    bbCtx.clearRect(0, 0, rect.width, rect.height)
-    for (const [key, fam] of bbFamilies.entries()) {
-      if (!fam.upper || !fam.lower || bbFillVisible[key] === false) continue
-      const upperSeries = overlaySeriesByLabel[fam.upper]
-      const lowerSeries = overlaySeriesByLabel[fam.lower]
-      const upperVals = rawSeries[fam.upper]
-      const lowerVals = rawSeries[fam.lower]
-      const upperPts = []
-      const lowerPts = []
-      for (let i = 0; i < times.length; i++) {
-        const uv = upperVals[i]
-        const lv = lowerVals[i]
-        if (uv == null || lv == null) continue
-        const x = mainChart.timeScale().timeToCoordinate(times[i])
-        if (x === null) continue
-        const uy = upperSeries.priceToCoordinate(uv)
-        const ly = lowerSeries.priceToCoordinate(lv)
-        if (uy === null || ly === null) continue
-        upperPts.push([x, uy])
-        lowerPts.push([x, ly])
-      }
-      if (upperPts.length < 2) continue
-      bbCtx.beginPath()
-      bbCtx.moveTo(upperPts[0][0], upperPts[0][1])
-      for (const [x, y] of upperPts) bbCtx.lineTo(x, y)
-      for (let i = lowerPts.length - 1; i >= 0; i--) bbCtx.lineTo(lowerPts[i][0], lowerPts[i][1])
-      bbCtx.closePath()
-      bbCtx.fillStyle = colorOf[fam.upper] + '1a' // ~10% opacity, matches the upper band's line color
-      bbCtx.fill()
-    }
-  }
-
   // "In position" shaded zones (semi-transparent band from entry to exit)
   const zonesLayer = document.createElement('div')
   zonesLayer.style.position = 'absolute'
@@ -450,7 +377,7 @@ document.addEventListener('header:ready', async () => {
       zonesLayer.appendChild(zone)
     }
   }
-  mainChart.timeScale().subscribeVisibleLogicalRangeChange(() => { renderPositionZones(); renderBBFills() })
+  mainChart.timeScale().subscribeVisibleLogicalRangeChange(() => renderPositionZones())
 
   // Fixed palette for multi-series overlays/indicators (distinct from the
   // theme's success/danger/primary tokens, which are reserved for win/loss
@@ -631,10 +558,9 @@ document.addEventListener('header:ready', async () => {
   }
   requestAnimationFrame(() => {
     alignPriceScaleWidths()
-    renderBBFills()
-    setTimeout(() => { alignPriceScaleWidths(); renderBBFills() }, 50) // safety re-check once layout has fully settled
+    setTimeout(alignPriceScaleWidths, 50) // safety re-check once layout has fully settled
   })
-  window.addEventListener('resize', () => setTimeout(() => { alignPriceScaleWidths(); renderPositionZones(); renderBBFills() }, 50))
+  window.addEventListener('resize', () => setTimeout(() => { alignPriceScaleWidths(); renderPositionZones() }, 50))
 
   function bindPaneScreenshot(chart, el) {
     el.addEventListener('contextmenu', e => {
@@ -737,11 +663,6 @@ document.addEventListener('header:ready', async () => {
     for (const tg of toggleables) {
       addToggleRow(tg.color, shortLabel(tg.label), checked => tg.series.applyOptions({ visible: checked }))
     }
-    for (const [key, fam] of bbFamilies.entries()) {
-      if (!fam.upper || !fam.lower) continue
-      bbFillVisible[key] = true
-      addToggleRow(colorOf[fam.upper], t('chart.bb_fill'), checked => { bbFillVisible[key] = checked; renderBBFills() })
-    }
   }
 
   if (paneToggles.length) {
@@ -766,5 +687,4 @@ document.addEventListener('header:ready', async () => {
   const initialRange = { from: Math.max(0, total - INITIAL_VISIBLE_CANDLES), to: total - 1 }
   allCharts.forEach(c => c.timeScale().setVisibleLogicalRange(initialRange))
   renderPositionZones()
-  renderBBFills()
 })

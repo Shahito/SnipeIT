@@ -442,7 +442,6 @@
   "chart.back_to_results": "Back to results",
   "chart.loading": "Loading chart...",
   "chart.loading_slow": "First load can take a few seconds.",
-  "chart.bb_fill": "Bollinger fill",
   "chart.indicators_btn": "Indicators",
   "chart.indicators_empty": "No indicators for this run",
   "chart.group.position": "Position",
