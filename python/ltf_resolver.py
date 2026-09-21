@@ -1,162 +1,152 @@
 """
-ltf_resolver.py - Intra-candle TP/SL/TSL resolution using lower-timeframe data.
+ltf_resolver.py - Resolves the true order of SL/TP/TSL triggers inside a
+single base candle, using lower-timeframe (LTF) OHLC data.
 
-TP/SL/TSL are exchange-side orders, independent of the strategy's own
-candle timeframe. Above 1m, resolving them from the base candle's
-high/low alone can misorder simultaneous SL/TP hits and, for a trailing
-stop, can let the trailing high advance past a pullback that would
-already have triggered it. This module walks the real sub-timeframe
-price path (1m, falling back to 5m/15m when 1m is unavailable) to
-resolve the exact trigger and fill price.
+Why this exists: a base candle only tells us its low and high, never the
+order in which price actually moved. Two situations make that ambiguous:
+  - SL and TP both sit inside [low, high] - which one was hit first?
+  - TSL: the candle makes a new high (raising the trailing stop) AND its
+    low breaches the raised stop - did the pullback happen before or
+    after the new high?
+Walking the same time window at a finer timeframe (1m, falling back to
+5m then 15m when finer data isn't available) resolves this by replaying
+price action in its real chronological order instead of guessing.
 
-Fetching is lazy and per-day: resolve() is only ever called by the
-caller for candles it has already flagged as ambiguous, so only the
-calendar day(s) touching those specific candles get fetched - never the
-full backtest range up front. Each day is fetched once (via ohlcv_cache,
-so it's also disk-cached across runs) and kept in memory for the rest
-of this resolver's lifetime in case another candle the same day needs it.
+Two - and only two - assumptions are needed when even the finest data we
+have still can't fully disambiguate something. Both favor the WORSE
+outcome for the trade, and both are applied nowhere else in this module:
+  1. Within one sub-candle, if it still shows both a stop-out and a
+     target hit at once, the stop-out is assumed first.
+  2. Within one sub-candle, a new high is assumed to raise the trailing
+     stop before that same sub-candle's low is checked against it -
+     i.e. a pullback is never given the benefit of an as-yet-unraised
+     stop. This only matters at the single finest sub-candle where the
+     ambiguity was found; every earlier sub-candle's order is exact.
+A sub-candle that opens past its trigger level fills at the open, not the
+level - the level was already gapped through, so the open is the real
+first tradeable price.
+
+If no finer timeframe has any data for the window, resolve() reports
+"none" and the caller falls back to its own base-candle logic for that
+one candle - this module never fetches more than the specific calendar
+day(s) an ambiguous candle actually touches, and only when asked.
 """
 
-import logging
-
-import numpy as np
 import pandas as pd
 
 from ohlcv_cache import get_ohlcv
 
-log = logging.getLogger("snipeit.ltf")
-
-_FALLBACK_CHAIN = [("1m", 1), ("5m", 5), ("15m", 15)]
+# Ordered finest to coarsest; only entries strictly finer than the base
+# timeframe are ever used (see LtfResolver.__init__).
+_FALLBACK_TIMEFRAMES = [("1m", 1), ("5m", 5), ("15m", 15)]
 
 
 class LtfResolver:
-    """
-    Resolves TP/SL/TSL for one base candle at a time via resolve(),
-    lazily fetching+caching whatever LTF day(s) that candle touches.
-    Built once per run_backtest() call, reused across the whole loop.
-    """
+    """Resolves SL/TP/TSL for one base candle at a time via resolve().
+    Built once per run_backtest() call and reused across the whole
+    simulation loop; fetches+caches whatever LTF day(s) a candle touches,
+    lazily, only for candles the caller has flagged as ambiguous."""
 
     def __init__(self, pair: str, exchange: str, base_minutes: int):
-        self.pair = pair
-        self.exchange = exchange
-        self.base_minutes = base_minutes
-        self._chain = [tf for tf, m in _FALLBACK_CHAIN if m < base_minutes]
-        self._day_cache = {}  # (tf, "YYYY-MM-DD") -> (ts_arr, open, high, low)
-        self._empty_days = set()  # (tf, "YYYY-MM-DD") confirmed to have no data
+        self._pair = pair
+        self._exchange = exchange
+        self._base_minutes = base_minutes
+        self._timeframes = [tf for tf, minutes in _FALLBACK_TIMEFRAMES if minutes < base_minutes]
+        self._days = {}  # (timeframe, "YYYY-MM-DD") -> DataFrame, or None if confirmed empty
 
-    def _day_frame(self, tf: str, day: pd.Timestamp):
-        day_str = day.strftime("%Y-%m-%d")
-        key = (tf, day_str)
-        if key in self._day_cache:
-            return self._day_cache[key]
-        if key in self._empty_days:
-            return None
+    def _day(self, timeframe: str, day: pd.Timestamp):
+        key = (timeframe, day.strftime("%Y-%m-%d"))
+        if key not in self._days:
+            next_day = (day + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+            fetched = get_ohlcv(self._pair, timeframe, key[1], next_day, self._exchange)
+            self._days[key] = fetched if not fetched.empty else None
+        return self._days[key]
 
-        # end_date = next day so the fetch covers the full day's candles
-        # (ohlcv_cache's day-granularity range is inclusive on both ends).
-        next_day = (day + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-        df = get_ohlcv(self.pair, tf, day_str, next_day, self.exchange)
-        if df.empty:
-            self._empty_days.add(key)
-            return None
-
-        frame = (
-            pd.DatetimeIndex(df["timestamp"]).astype("datetime64[ns]").to_numpy(),
-            df["open"].to_numpy(dtype=float),
-            df["high"].to_numpy(dtype=float),
-            df["low"].to_numpy(dtype=float),
-        )
-        self._day_cache[key] = frame
-        return frame
-
-    def _slice(self, tf: str, start: np.datetime64, end: np.datetime64):
-        """Gathers every day spanned by [start, end) for this tf, lazily
-        fetching+caching each one, then slices to the exact window."""
-        first_day = pd.Timestamp(start).normalize()
-        last_day = pd.Timestamp(end - np.timedelta64(1, "s")).normalize()
-
-        ts_chunks, o_chunks, h_chunks, l_chunks = [], [], [], []
-        day = first_day
-        while day <= last_day:
-            frame = self._day_frame(tf, day)
+    def _window(self, timeframe: str, start: pd.Timestamp, end: pd.Timestamp):
+        """Every sub-candle of `timeframe` inside [start, end), gathered
+        across as many calendar days as the window spans, in time order.
+        None if not a single day in the window has data at this resolution."""
+        frames = []
+        day = start.normalize()
+        while day < end:
+            frame = self._day(timeframe, day)
             if frame is not None:
-                ts_chunks.append(frame[0])
-                o_chunks.append(frame[1])
-                h_chunks.append(frame[2])
-                l_chunks.append(frame[3])
+                frames.append(frame)
             day += pd.Timedelta(days=1)
-
-        if not ts_chunks:
+        if not frames:
             return None
+        window = pd.concat(frames, ignore_index=True).sort_values("timestamp")
+        window = window[(window["timestamp"] >= start) & (window["timestamp"] < end)]
+        return window if not window.empty else None
 
-        ts_arr = np.concatenate(ts_chunks)
-        order = np.argsort(ts_arr)
-        ts_arr = ts_arr[order]
-        o = np.concatenate(o_chunks)[order]
-        h = np.concatenate(h_chunks)[order]
-        l = np.concatenate(l_chunks)[order]
-
-        start_i = ts_arr.searchsorted(start, side="left")
-        end_i = ts_arr.searchsorted(end, side="left")
-        return o[start_i:end_i], h[start_i:end_i], l[start_i:end_i]
-
-    def resolve(self, candle_start, sl_price, tp_price, tsl_pct, trailing_high):
+    def resolve(self, candle_open, sl_price, tp_price, trailing_stop_loss_pct, trailing_high) -> dict:
         """
-        Walks the finest available LTF inside [candle_start, candle_start +
-        base_minutes) in chronological order, updating the trailing high as
-        it goes, and returns the first of TSL/SL/TP that triggers.
+        Replays one base candle at the finest available timeframe and
+        returns the first of TSL/SL/TP that actually triggers, in the
+        real chronological order found in the data.
 
-        Returns (exit_price, reason, new_trailing_high, resolution, mfe_high, mae_low):
-          - exit_price/reason are None if nothing triggered this candle
-          - resolution is the LTF timeframe actually used ("1m"/"5m"/"15m"),
-            or "base" if this window falls in a gap on every LTF in the
-            fallback chain - the caller then falls back to its own
-            base-timeframe high/low logic for this candle only (mfe_high/
-            mae_low are also None in that case)
-          - mfe_high/mae_low are the highest high / lowest low actually
-            reached up to and including the trigger point (or across the
-            whole window if nothing triggered) - NOT the full base candle,
-            which could include price action after the real exit moment
+        Returns:
+          exit_price, reason  - None, None if nothing triggered this candle.
+                                 reason is "tsl" or "risk" (SL and TP share
+                                 "risk" - same convention as the base-candle
+                                 fallback and as compute_results.REASON_CODES).
+          trailing_high        - updated trailing high (unchanged if no TSL).
+          resolved_at           - the timeframe actually used ("1m"/"5m"/"15m"),
+                                 or "none" if no finer data existed for this
+                                 window at all - the caller must then fall
+                                 back to its own base-candle logic.
+          seen_high, seen_low   - the highest/lowest price actually observed
+                                 up to and including the trigger (or across
+                                 the whole window if nothing triggered) -
+                                 narrower than the base candle's own
+                                 high/low whenever the trigger happened
+                                 before the window's end. None/None if
+                                 resolved_at is "none".
         """
-        start = pd.Timestamp(candle_start).to_datetime64().astype("datetime64[ns]")
-        end = (start + pd.Timedelta(minutes=self.base_minutes)).to_datetime64().astype(
-            "datetime64[ns]"
-        )
+        start = pd.Timestamp(candle_open)
+        end = start + pd.Timedelta(minutes=self._base_minutes)
 
-        for tf in self._chain:
-            sliced = self._slice(tf, start, end)
-            if sliced is None or len(sliced[0]) == 0:
-                continue  # gap in this tf for this window - try coarser
-            o, h, l = sliced
+        for timeframe in self._timeframes:
+            window = self._window(timeframe, start, end)
+            if window is None:
+                continue  # no data at this resolution for this window - try coarser
 
             th = trailing_high
-            mfe_high = float("-inf")
-            mae_low = float("inf")
-            for i in range(len(o)):
-                oi, hi, li = float(o[i]), float(h[i]), float(l[i])
-                mfe_high = max(mfe_high, hi)
-                mae_low = min(mae_low, li)
+            seen_high, seen_low = float("-inf"), float("inf")
+            for _, bar in window.iterrows():
+                o, h, l = float(bar["open"]), float(bar["high"]), float(bar["low"])
+                seen_high = max(seen_high, h)
+                seen_low = min(seen_low, l)
 
-                if tsl_pct is not None and hi > th:
-                    th = hi
-                tsl_price = th * (1 - tsl_pct / 100) if tsl_pct is not None else None
+                if trailing_stop_loss_pct is not None and h > th:
+                    th = h  # see module docstring, assumption 2
+                tsl_price = th * (1 - trailing_stop_loss_pct / 100) if trailing_stop_loss_pct is not None else None
 
-                tsl_hit = tsl_price is not None and li <= tsl_price
-                sl_hit = sl_price is not None and li <= sl_price
-                tp_hit = tp_price is not None and hi >= tp_price
+                tsl_hit = tsl_price is not None and l <= tsl_price
+                sl_hit = sl_price is not None and l <= sl_price
+                tp_hit = tp_price is not None and h >= tp_price
 
                 if tsl_hit or sl_hit or tp_hit:
-                    # Gap slippage: if the sub-candle opened past the
-                    # trigger, the real fill is the open, not the level.
                     if tsl_hit:
-                        exit_price = oi if oi <= tsl_price else tsl_price
-                        return exit_price, "tsl", th, tf, mfe_high, mae_low
-                    if sl_hit:
-                        exit_price = oi if oi <= sl_price else sl_price
-                        return exit_price, "risk", th, tf, mfe_high, mae_low
-                    exit_price = oi if oi >= tp_price else tp_price
-                    return exit_price, "risk", th, tf, mfe_high, mae_low
+                        price = o if o <= tsl_price else tsl_price
+                        return self._outcome(price, "tsl", th, timeframe, seen_high, seen_low)
+                    if sl_hit:  # see module docstring, assumption 1
+                        price = o if o <= sl_price else sl_price
+                        return self._outcome(price, "risk", th, timeframe, seen_high, seen_low)
+                    price = o if o >= tp_price else tp_price
+                    return self._outcome(price, "risk", th, timeframe, seen_high, seen_low)
 
-            return None, None, th, tf, mfe_high, mae_low  # full coverage, nothing hit
+            return self._outcome(None, None, th, timeframe, seen_high, seen_low)  # full coverage, nothing hit
 
-        return None, None, trailing_high, "base", None, None
+        return self._outcome(None, None, trailing_high, "none", None, None)
+
+    @staticmethod
+    def _outcome(exit_price, reason, trailing_high, resolved_at, seen_high, seen_low) -> dict:
+        return {
+            "exit_price": exit_price,
+            "reason": reason,
+            "trailing_high": trailing_high,
+            "resolved_at": resolved_at,
+            "seen_high": seen_high,
+            "seen_low": seen_low,
+        }

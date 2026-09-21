@@ -44,9 +44,20 @@ from compute_results import build_result
 log = logging.getLogger("snipeit.backtest")
 
 _TF_MINUTES = {
-    "1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30,
-    "1h": 60, "2h": 120, "4h": 240, "6h": 360, "8h": 480, "12h": 720,
-    "1d": 1440, "3d": 4320, "1w": 10080,
+    "1m": 1,
+    "3m": 3,
+    "5m": 5,
+    "15m": 15,
+    "30m": 30,
+    "1h": 60,
+    "2h": 120,
+    "4h": 240,
+    "6h": 360,
+    "8h": 480,
+    "12h": 720,
+    "1d": 1440,
+    "3d": 4320,
+    "1w": 10080,
 }
 
 
@@ -107,8 +118,9 @@ def _prefixed_keys(prefix: str) -> dict:
     }
 
 
-def _ref_series(df: pd.DataFrame, indicator: str, period, source, offset: int,
-                 timeframe, settings) -> pd.Series:
+def _ref_series(
+    df: pd.DataFrame, indicator: str, period, source, offset: int, timeframe, settings
+) -> pd.Series:
     """One indicator column as a full series, shifted back by `offset`
     candles (0 = current candle, 1 = previous, ...). An unknown indicator,
     a missing HTF-aligned column, or not-enough-history-yet all resolve to
@@ -141,10 +153,24 @@ def _expr_series(df: pd.DataFrame, cond: dict, prefix: str = ""):
     timeframe = cond.get(k["timeframe"])
     settings = cond.get(k["settings"])
 
-    val = _ref_series(df, cond[k["indicator"]], cond.get(k["period"]), cond.get(k["source"]),
-                       offset, timeframe, settings)
-    prev = _ref_series(df, cond[k["indicator"]], cond.get(k["period"]), cond.get(k["source"]),
-                        offset + 1, timeframe, settings)
+    val = _ref_series(
+        df,
+        cond[k["indicator"]],
+        cond.get(k["period"]),
+        cond.get(k["source"]),
+        offset,
+        timeframe,
+        settings,
+    )
+    prev = _ref_series(
+        df,
+        cond[k["indicator"]],
+        cond.get(k["period"]),
+        cond.get(k["source"]),
+        offset + 1,
+        timeframe,
+        settings,
+    )
 
     combine_op = cond.get(k["combine_op"])
     if combine_op:
@@ -154,10 +180,24 @@ def _expr_series(df: pd.DataFrame, cond: dict, prefix: str = ""):
             return nan, nan
         c_offset = cond.get(k["combine_offset"]) or 0
         c_settings = cond.get(k["combine_settings"])
-        c_val = _ref_series(df, cond[k["combine_indicator"]], cond.get(k["combine_period"]),
-                             cond.get(k["combine_source"]), c_offset, timeframe, c_settings)
-        c_prev = _ref_series(df, cond[k["combine_indicator"]], cond.get(k["combine_period"]),
-                              cond.get(k["combine_source"]), c_offset + 1, timeframe, c_settings)
+        c_val = _ref_series(
+            df,
+            cond[k["combine_indicator"]],
+            cond.get(k["combine_period"]),
+            cond.get(k["combine_source"]),
+            c_offset,
+            timeframe,
+            c_settings,
+        )
+        c_prev = _ref_series(
+            df,
+            cond[k["combine_indicator"]],
+            cond.get(k["combine_period"]),
+            cond.get(k["combine_source"]),
+            c_offset + 1,
+            timeframe,
+            c_settings,
+        )
         val = fn(val, c_val)
         prev = fn(prev, c_prev)
 
@@ -201,8 +241,8 @@ def _eval_rule_series(df: pd.DataFrame, cond: dict) -> pd.Series:
 
 def _eval_conditions_series(df: pd.DataFrame, conditions: list) -> pd.Series:
     """Boolean series for a full entry/exit rule set, over every candle:
-      - flat format    [rule, rule, ...]            -> AND of all rules
-      - grouped format [[rule, rule], [rule], ...]   -> OR of ANDed groups
+    - flat format    [rule, rule, ...]            -> AND of all rules
+    - grouped format [[rule, rule], [rule], ...]   -> OR of ANDed groups
     """
     if not conditions:
         return pd.Series(False, index=df.index)
@@ -223,6 +263,7 @@ def _eval_conditions_series(df: pd.DataFrame, conditions: list) -> pd.Series:
 # Warm-up sizing & higher-timeframe (HTF) indicators.
 # ---------------------------------------------------------------------------
 
+
 def _warmup_candles(needed_indicators: list) -> int:
     """Number of extra candles to fetch before the requested start date so
     every needed indicator has fully converged by the time the real
@@ -232,8 +273,14 @@ def _warmup_candles(needed_indicators: list) -> int:
     group's own candle size)."""
     from indicators import REGISTRY
 
-    fixed_minimums = {"MACD": 34, "MACD_SIGNAL": 34, "MACD_HIST": 34,
-                       "VWAP": 1, "CLOSE": 1, "VOLUME": 1}
+    fixed_minimums = {
+        "MACD": 34,
+        "MACD_SIGNAL": 34,
+        "MACD_HIST": 34,
+        "VWAP": 1,
+        "CLOSE": 1,
+        "VOLUME": 1,
+    }
     max_period = 1
     for indicator, period, *_ in needed_indicators:
         if indicator in fixed_minimums:
@@ -254,7 +301,9 @@ def _group_needed_by_timeframe(needed_htf: list) -> dict:
     return groups
 
 
-def _merge_htf_column(base_ts_arr, htf_timestamps, htf_values, htf_tf_minutes: int) -> np.ndarray:
+def _merge_htf_column(
+    base_ts_arr, htf_timestamps, htf_values, htf_tf_minutes: int
+) -> np.ndarray:
     """
     Aligns an HTF-computed column onto the base timeframe's index, without
     look-ahead: for each base candle (open time T), the value used is the
@@ -262,18 +311,25 @@ def _merge_htf_column(base_ts_arr, htf_timestamps, htf_values, htf_tf_minutes: i
     (close_time <= T). A base candle earlier than every closed HTF candle
     gets NaN (resolve_value() then reports it as "no value yet").
     """
-    right = pd.DataFrame({
-        "close_time": pd.DatetimeIndex(htf_timestamps).astype("datetime64[ns]")
-        + pd.Timedelta(minutes=htf_tf_minutes),
-        "val": htf_values,
-    })
-    left = pd.DataFrame({"timestamp": pd.DatetimeIndex(base_ts_arr).astype("datetime64[ns]")})
-    merged = pd.merge_asof(left, right, left_on="timestamp", right_on="close_time", direction="backward")
+    right = pd.DataFrame(
+        {
+            "close_time": pd.DatetimeIndex(htf_timestamps).astype("datetime64[ns]")
+            + pd.Timedelta(minutes=htf_tf_minutes),
+            "val": htf_values,
+        }
+    )
+    left = pd.DataFrame(
+        {"timestamp": pd.DatetimeIndex(base_ts_arr).astype("datetime64[ns]")}
+    )
+    merged = pd.merge_asof(
+        left, right, left_on="timestamp", right_on="close_time", direction="backward"
+    )
     return merged["val"].to_numpy()
 
 
-def _compute_htf_columns(df_base: pd.DataFrame, needed_htf: list, pair: str,
-                          exchange: str, start_date: str) -> pd.DataFrame:
+def _compute_htf_columns(
+    df_base: pd.DataFrame, needed_htf: list, pair: str, exchange: str, start_date: str
+) -> pd.DataFrame:
     """
     For every (indicator, period, source, timeframe) tuple whose timeframe
     differs from the strategy's own, fetches that timeframe's own OHLCV
@@ -296,25 +352,37 @@ def _compute_htf_columns(df_base: pd.DataFrame, needed_htf: list, pair: str,
         warmup_n = _warmup_candles(items)
         warmup_start = real_start - pd.Timedelta(minutes=tf_minutes * warmup_n)
 
-        htf_df = get_ohlcv(pair, tf, warmup_start.strftime("%Y-%m-%d"),
-                            df_base["timestamp"].iloc[-1].strftime("%Y-%m-%d"), exchange)
+        htf_df = get_ohlcv(
+            pair,
+            tf,
+            warmup_start.strftime("%Y-%m-%d"),
+            df_base["timestamp"].iloc[-1].strftime("%Y-%m-%d"),
+            exchange,
+        )
         if htf_df.empty:
-            log.warning(f"HTF fetch returned no data for {pair} {tf} - "
-                        f"conditions using this timeframe will stay inert")
+            log.warning(
+                f"HTF fetch returned no data for {pair} {tf} - "
+                f"conditions using this timeframe will stay inert"
+            )
             continue
 
         htf_df = compute_all(htf_df, items)
         htf_df = htf_df.dropna(subset=["close"]).reset_index(drop=True)
 
         for indicator, period, source, _tf, settings in items:
-            col = column_name(indicator, period, source, dict(settings) if settings else None)
+            col = column_name(
+                indicator, period, source, dict(settings) if settings else None
+            )
             if col is None or col not in htf_df.columns:
                 continue
             aligned_col = f"{col}@{tf}"
             if aligned_col in df_base.columns:
                 continue
             df_base[aligned_col] = _merge_htf_column(
-                base_ts, htf_df["timestamp"].to_numpy(), htf_df[col].to_numpy(), tf_minutes,
+                base_ts,
+                htf_df["timestamp"].to_numpy(),
+                htf_df[col].to_numpy(),
+                tf_minutes,
             )
 
     return df_base
@@ -324,14 +392,20 @@ def _compute_htf_columns(df_base: pd.DataFrame, needed_htf: list, pair: str,
 # Trading hours - gates order EXECUTION, not signal detection.
 # ---------------------------------------------------------------------------
 
+
 def _parse_trading_hours(slots: list) -> list:
     """Pre-parses 'HH:MM' strings into integer minutes once."""
     parsed = []
     for slot in slots:
         sh, sm = map(int, slot["start"].split(":"))
         eh, em = map(int, slot["end"].split(":"))
-        parsed.append({"s_min": sh * 60 + sm, "e_min": eh * 60 + em,
-                        "blockSell": slot.get("blockSell", False)})
+        parsed.append(
+            {
+                "s_min": sh * 60 + sm,
+                "e_min": eh * 60 + em,
+                "blockSell": slot.get("blockSell", False),
+            }
+        )
     return parsed
 
 
@@ -360,8 +434,10 @@ def _precompute_trading_hours(ts_arr, parsed_slots: list):
 # Position lifecycle - the single-position state machine.
 # ---------------------------------------------------------------------------
 
-def _stop_target_prices(position: dict, sl_type: str, tp_type: str,
-                         stop_loss_val, take_profit_val, atr_val):
+
+def _stop_target_prices(
+    position: dict, sl_type: str, tp_type: str, stop_loss_val, take_profit_val, atr_val
+):
     """SL/TP price levels for the current candle (percent or ATR terms).
     `atr_val` must be the ATR known as of the PREVIOUS candle's close (see
     run_backtest's `atr_prev_arr`) - never the current candle's own ATR,
@@ -383,8 +459,9 @@ def _stop_target_prices(position: dict, sl_type: str, tp_type: str,
     return sl_price, tp_price
 
 
-def _detect_ambiguous_candle(low, high, sl_price, tp_price,
-                              trailing_stop_loss_val, trailing_high):
+def _detect_ambiguous_candle(
+    low, high, sl_price, tp_price, trailing_stop_loss_val, trailing_high
+):
     """
     A base candle's high/low alone can't always tell which of two
     same-candle triggers happened first. Only these two situations are
@@ -394,34 +471,78 @@ def _detect_ambiguous_candle(low, high, sl_price, tp_price,
         pullback happened before or after the new high is unknown.
       - SL+TP: both levels sit inside this candle's [low, high] range.
     """
+    # ! NOTE: no SL-vs-TSL conflict check here. Today the two are never
+    # both "live" at once in a way that matters (see _stop_target_prices /
+    # the main loop, which only picks one), so a candle that breaches both
+    # a fixed SL and an unrelated TSL level can't actually occur under the
+    # current strategy schema. If that ever changes (fixed SL and TSL
+    # active simultaneously), this needs a third ambiguous case: TSL active
+    # + sl_price is not None + both breached in [low, high].
     if trailing_stop_loss_val is not None and high > trailing_high:
         prospective_tsl = high * (1 - trailing_stop_loss_val / 100)
         if low <= prospective_tsl:
             return True, "tsl_pullback"
-    if sl_price is not None and tp_price is not None and low <= sl_price and high >= tp_price:
+    if (
+        sl_price is not None
+        and tp_price is not None
+        and low <= sl_price
+        and high >= tp_price
+    ):
         return True, "sl_tp_conflict"
     return False, None
 
 
 def _mae(position: dict):
     """Max adverse excursion since entry, in % and in ATR units (fixed at entry)."""
-    mae_pct = round((position["lowest_low"] - position["entry_price"]) / position["entry_price"] * 100, 2)
-    mae_atr = (round((position["lowest_low"] - position["entry_price"]) / position["entry_atr"], 2)
-               if position.get("entry_atr") else None)
+    mae_pct = round(
+        (position["lowest_low"] - position["entry_price"])
+        / position["entry_price"]
+        * 100,
+        2,
+    )
+    mae_atr = (
+        round(
+            (position["lowest_low"] - position["entry_price"]) / position["entry_atr"],
+            2,
+        )
+        if position.get("entry_atr")
+        else None
+    )
     return mae_pct, mae_atr
 
 
 def _mfe(position: dict):
     """Max favorable excursion since entry - the inverse of MAE: how much
     unrealized profit was on the table before the trade turned around."""
-    mfe_pct = round((position["highest_high"] - position["entry_price"]) / position["entry_price"] * 100, 2)
-    mfe_atr = (round((position["highest_high"] - position["entry_price"]) / position["entry_atr"], 2)
-               if position.get("entry_atr") else None)
+    mfe_pct = round(
+        (position["highest_high"] - position["entry_price"])
+        / position["entry_price"]
+        * 100,
+        2,
+    )
+    mfe_atr = (
+        round(
+            (position["highest_high"] - position["entry_price"])
+            / position["entry_atr"],
+            2,
+        )
+        if position.get("entry_atr")
+        else None
+    )
     return mfe_pct, mfe_atr
 
 
-def _open_position(idx, fill_price, date, capital, position_size, fee_taker,
-                    entry_atr, low_arr, high_arr):
+def _open_position(
+    idx,
+    fill_price,
+    date,
+    capital,
+    position_size,
+    fee_taker,
+    entry_atr,
+    low_arr,
+    high_arr,
+):
     """Opens a position sized as a fraction of current capital, filled at
     `fill_price` (the OPEN of this candle - see module docstring, 4a).
     Returns (position, capital); position is None if the allocation is too
@@ -448,8 +569,16 @@ def _open_position(idx, fill_price, date, capital, position_size, fee_taker,
     return position, capital
 
 
-def _close_position(trades: list, position: dict, exit_price: float, exit_date,
-                     reason: str, capital: float, fee_taker: float, resolution: str = None) -> float:
+def _close_position(
+    trades: list,
+    position: dict,
+    exit_price: float,
+    exit_date,
+    reason: str,
+    capital: float,
+    fee_taker: float,
+    resolution: str = None,
+) -> float:
     """
     Appends the buy+sell trade pair for `position` and returns the updated
     capital. This is the single place a position becomes trade dicts - used
@@ -462,14 +591,16 @@ def _close_position(trades: list, position: dict, exit_price: float, exit_date,
     net_entry = position["allocated"] + buy_fee
     pnl_pct = round((proceeds - net_entry) / net_entry * 100, 2)
 
-    trades.append({
-        "side": "buy",
-        "date": position["entry_date"],
-        "price": round(position["entry_price"], 4),
-        "quantity": round(position["qty"], 6),
-        "value": round(position["allocated"], 2),
-        "pnl": None,
-    })
+    trades.append(
+        {
+            "side": "buy",
+            "date": position["entry_date"],
+            "price": round(position["entry_price"], 4),
+            "quantity": round(position["qty"], 6),
+            "value": round(position["allocated"], 2),
+            "pnl": None,
+        }
+    )
 
     mae_pct, mae_atr = _mae(position)
     mfe_pct, mfe_atr = _mfe(position)
@@ -500,6 +631,7 @@ def _close_position(trades: list, position: dict, exit_price: float, exit_date,
 # Main entry point.
 # ---------------------------------------------------------------------------
 
+
 def run_backtest(strategy: dict) -> dict:
     """Runs the backtest and returns the results dict. Raises on error."""
     from ohlcv_cache import get_ohlcv
@@ -512,9 +644,13 @@ def run_backtest(strategy: dict) -> dict:
     initial_capital = float(strategy["initialCapital"])
     position_size = float(strategy["positionSize"]) / 100
     stop_loss_val = float(strategy["stopLoss"]) if strategy.get("stopLoss") else None
-    take_profit_val = float(strategy["takeProfit"]) if strategy.get("takeProfit") else None
+    take_profit_val = (
+        float(strategy["takeProfit"]) if strategy.get("takeProfit") else None
+    )
     trailing_stop_loss_val = (
-        float(strategy["trailingStopLoss"]) if strategy.get("trailingStopLoss") else None
+        float(strategy["trailingStopLoss"])
+        if strategy.get("trailingStopLoss")
+        else None
     )
     sl_type = strategy.get("slType", "percent")
     tp_type = strategy.get("tpType", "percent")
@@ -536,8 +672,10 @@ def run_backtest(strategy: dict) -> dict:
     needed = extract_needed(conditions)
     # A ref explicitly set to the strategy's own timeframe behaves exactly
     # like "no timeframe specified" - normalize both to None.
-    needed = [(i, p, s, None if (not tf or tf == timeframe) else tf, se)
-              for (i, p, s, tf, se) in needed]
+    needed = [
+        (i, p, s, None if (not tf or tf == timeframe) else tf, se)
+        for (i, p, s, tf, se) in needed
+    ]
 
     # Only HTF (slower) refs make sense: the simulation advances once per
     # base candle, so a sub-candle ref would just be a misleading single
@@ -570,9 +708,13 @@ def run_backtest(strategy: dict) -> dict:
     real_start = pd.Timestamp(start_date[:10])
     warmup_start = real_start - pd.Timedelta(minutes=tf_minutes * warmup_n)
 
-    df_full = get_ohlcv(pair, timeframe, warmup_start.strftime("%Y-%m-%d"), end_date, exchange)
-    log.info(f"{len(df_full)} candles (including up to {warmup_n} warmup candles "
-             f"before {start_date[:10]})")
+    df_full = get_ohlcv(
+        pair, timeframe, warmup_start.strftime("%Y-%m-%d"), end_date, exchange
+    )
+    log.info(
+        f"{len(df_full)} candles (including up to {warmup_n} warmup candles "
+        f"before {start_date[:10]})"
+    )
     if df_full.empty or len(df_full) < 2:
         raise ValueError("Not enough data for backtest (< 2 candles)")
 
@@ -593,12 +735,16 @@ def run_backtest(strategy: dict) -> dict:
     actual_data_start = df_full["timestamp"].iloc[0]
     if actual_data_start < real_start:
         df = df_full[df_full["timestamp"] >= real_start].reset_index(drop=True)
-        log.info(f"Warmup trimmed: {len(df_full) - len(df)} candles discarded, "
-                 f"{len(df)} remain for simulation")
+        log.info(
+            f"Warmup trimmed: {len(df_full) - len(df)} candles discarded, "
+            f"{len(df)} remain for simulation"
+        )
     else:
         df = df_full
-        log.info(f"Data starts at {actual_data_start.date()} (>= requested "
-                 f"{real_start.date()}), no warmup trim applied")
+        log.info(
+            f"Data starts at {actual_data_start.date()} (>= requested "
+            f"{real_start.date()}), no warmup trim applied"
+        )
 
     if df.empty or len(df) < 2:
         raise ValueError("Not enough data after warmup trim (< 2 candles)")
@@ -610,8 +756,12 @@ def run_backtest(strategy: dict) -> dict:
         df = _compute_htf_columns(df, htf_needed, pair, exchange, start_date)
 
     # --- 3. Entry/exit signals, vectorized over the whole timeline -----
-    entry_signal_arr = _eval_conditions_series(df, entry_conds).to_numpy() if entry_conds else None
-    exit_signal_arr = _eval_conditions_series(df, exit_conds).to_numpy() if exit_conds else None
+    entry_signal_arr = (
+        _eval_conditions_series(df, entry_conds).to_numpy() if entry_conds else None
+    )
+    exit_signal_arr = (
+        _eval_conditions_series(df, exit_conds).to_numpy() if exit_conds else None
+    )
 
     ts_arr = df["timestamp"].to_numpy()
     open_arr = df["open"].to_numpy(dtype=float)
@@ -622,7 +772,9 @@ def run_backtest(strategy: dict) -> dict:
     date_arr = [str(pd.Timestamp(t)) for t in ts_arr]
 
     if trading_hours:
-        can_buy_arr, can_sell_arr = _precompute_trading_hours(ts_arr, _parse_trading_hours(trading_hours))
+        can_buy_arr, can_sell_arr = _precompute_trading_hours(
+            ts_arr, _parse_trading_hours(trading_hours)
+        )
     else:
         can_buy_arr = np.ones(len(df), dtype=bool)
         can_sell_arr = np.ones(len(df), dtype=bool)
@@ -638,6 +790,7 @@ def run_backtest(strategy: dict) -> dict:
     ltf_resolver = None
     if needs_ltf and tf_minutes > 1:
         from ltf_resolver import LtfResolver
+
         ltf_resolver = LtfResolver(pair, exchange, tf_minutes)
 
     # --- 4. Single-position simulation ----------------------------------
@@ -656,7 +809,7 @@ def run_backtest(strategy: dict) -> dict:
 
     for idx in range(len(df)):
         mark_price = float(close_arr[idx])  # for mark-to-market equity only
-        fill_price = float(open_arr[idx])   # for order execution
+        fill_price = float(open_arr[idx])  # for order execution
         date = date_arr[idx]
         can_buy, can_sell = bool(can_buy_arr[idx]), bool(can_sell_arr[idx])
         atr_prev = _nan_to_none(atr_prev_arr[idx])
@@ -675,14 +828,23 @@ def run_backtest(strategy: dict) -> dict:
         prev_lowest_low = position["lowest_low"] if position else None
         if position:
             position["lowest_low"] = min(position["lowest_low"], float(low_arr[idx]))
-            position["highest_high"] = max(position["highest_high"], float(high_arr[idx]))
+            position["highest_high"] = max(
+                position["highest_high"], float(high_arr[idx])
+            )
 
         # --- Execute orders decided on the previous candle, at this candle's open ---
         if pending_entry and position is None:
             if can_buy:
                 position, capital = _open_position(
-                    idx, fill_price, date, capital, position_size, fee_taker,
-                    atr_prev, low_arr, high_arr,
+                    idx,
+                    fill_price,
+                    date,
+                    capital,
+                    position_size,
+                    fee_taker,
+                    atr_prev,
+                    low_arr,
+                    high_arr,
                 )
             pending_entry = False  # a blocked buy signal is dropped, not retried
 
@@ -691,10 +853,14 @@ def run_backtest(strategy: dict) -> dict:
             # candle - re-checked here since the signal was queued a
             # candle ago. Each is checked independently (not if/elif):
             # a strategy can have TSL and a fixed SL configured together.
-            sl_price, tp_price = _stop_target_prices(position, sl_type, tp_type,
-                                                       stop_loss_val, take_profit_val, atr_prev)
-            tsl_price = (position["trailing_high"] * (1 - trailing_stop_loss_val / 100)
-                         if trailing_stop_loss_val is not None else None)
+            sl_price, tp_price = _stop_target_prices(
+                position, sl_type, tp_type, stop_loss_val, take_profit_val, atr_prev
+            )
+            tsl_price = (
+                position["trailing_high"] * (1 - trailing_stop_loss_val / 100)
+                if trailing_stop_loss_val is not None
+                else None
+            )
             low_now, high_now = float(low_arr[idx]), float(high_arr[idx])
             tsl_hit = tsl_price is not None and low_now <= tsl_price
             sl_hit = sl_price is not None and low_now <= sl_price
@@ -702,10 +868,14 @@ def run_backtest(strategy: dict) -> dict:
             if tsl_hit or sl_hit or tp_hit:
                 pending_exit = False
 
-        if pending_exit and position is not None and can_sell:
-            capital = _close_position(trades, position, fill_price, date, "signal", capital, fee_taker)
-            position = None
-            pending_exit = False  # a blocked sell signal persists (retried next candle)
+        if pending_exit and position is not None:
+            if can_sell:
+                capital = _close_position(
+                    trades, position, fill_price, date, "signal", capital, fee_taker
+                )
+                position = None
+            pending_exit = False  # a blocked sell signal is dropped, not retried -
+            # symmetric with the buy side: trading only happens inside trading hours
 
         # --- Detect this candle's signals, for execution next candle ---
         if position is None:
@@ -717,20 +887,36 @@ def run_backtest(strategy: dict) -> dict:
 
         # --- Position open: SL/TP/TSL, resolved without look-ahead ---
         low, high = float(low_arr[idx]), float(high_arr[idx])
-        sl_price, tp_price = _stop_target_prices(position, sl_type, tp_type,
-                                                   stop_loss_val, take_profit_val, atr_prev)
+        sl_price, tp_price = _stop_target_prices(
+            position, sl_type, tp_type, stop_loss_val, take_profit_val, atr_prev
+        )
 
         ambiguous, trigger = _detect_ambiguous_candle(
-            low, high, sl_price, tp_price, trailing_stop_loss_val, position["trailing_high"],
+            low,
+            high,
+            sl_price,
+            tp_price,
+            trailing_stop_loss_val,
+            position["trailing_high"],
         )
 
         exit_price, reason, resolution = None, None, "base"
         if ambiguous and ltf_resolver is not None:
             log.debug(f"LTF lookup {date} - ambiguous candle ({trigger})")
-            exit_price, reason, position["trailing_high"], resolution, ltf_mfe_high, ltf_mae_low = (
-                ltf_resolver.resolve(ts_arr[idx], sl_price, tp_price,
-                                      trailing_stop_loss_val, position["trailing_high"])
+            outcome = ltf_resolver.resolve(
+                ts_arr[idx],
+                sl_price,
+                tp_price,
+                trailing_stop_loss_val,
+                position["trailing_high"],
             )
+            exit_price = outcome["exit_price"]
+            reason = outcome["reason"]
+            position["trailing_high"] = outcome["trailing_high"]
+            resolution = (
+                outcome["resolved_at"] if outcome["resolved_at"] != "none" else "base"
+            )
+
             if resolution != "base":
                 # The top-of-loop update above used the FULL base candle's
                 # high/low, which can include price action after the real
@@ -739,10 +925,14 @@ def run_backtest(strategy: dict) -> dict:
                 # and exited this same candle) capped by what the LTF walk
                 # actually saw up to the trigger.
                 entry_price = position["entry_price"]
-                prev_hh = prev_highest_high if prev_highest_high is not None else entry_price
-                prev_ll = prev_lowest_low if prev_lowest_low is not None else entry_price
-                position["highest_high"] = max(prev_hh, ltf_mfe_high)
-                position["lowest_low"] = min(prev_ll, ltf_mae_low)
+                prev_hh = (
+                    prev_highest_high if prev_highest_high is not None else entry_price
+                )
+                prev_ll = (
+                    prev_lowest_low if prev_lowest_low is not None else entry_price
+                )
+                position["highest_high"] = max(prev_hh, outcome["seen_high"])
+                position["lowest_low"] = min(prev_ll, outcome["seen_low"])
 
         if resolution == "base":
             # Either not ambiguous, or ambiguous with no LTF data available
@@ -750,7 +940,9 @@ def run_backtest(strategy: dict) -> dict:
             if trailing_stop_loss_val is not None:
                 if high > position["trailing_high"]:
                     position["trailing_high"] = high
-                tsl_price = position["trailing_high"] * (1 - trailing_stop_loss_val / 100)
+                tsl_price = position["trailing_high"] * (
+                    1 - trailing_stop_loss_val / 100
+                )
             else:
                 tsl_price = None
 
@@ -765,8 +957,16 @@ def run_backtest(strategy: dict) -> dict:
                 exit_price, reason = tp_price, "risk"
 
         if exit_price is not None:
-            capital = _close_position(trades, position, exit_price, date, reason,
-                                       capital, fee_taker, resolution=resolution)
+            capital = _close_position(
+                trades,
+                position,
+                exit_price,
+                date,
+                reason,
+                capital,
+                fee_taker,
+                resolution=resolution,
+            )
             log.debug(f"SL/TP {date} @ {exit_price:.4f}")
             position = None
         elif exit_conds:
@@ -778,7 +978,9 @@ def run_backtest(strategy: dict) -> dict:
     # close - there is no "next candle" left to open a fill on).
     if position:
         last_price, last_date = float(close_arr[-1]), str(date_arr[-1])
-        capital = _close_position(trades, position, last_price, last_date, "end", capital, fee_taker)
+        capital = _close_position(
+            trades, position, last_price, last_date, "end", capital, fee_taker
+        )
 
     equity_rounded = np.round(np.array(equity_raw, dtype=np.float64), 2)
 

@@ -16,6 +16,30 @@ const jobId = new URLSearchParams(location.search).get('jobId')
 // the initial view so the chart doesn't open zoomed out to the whole range.
 const INITIAL_VISIBLE_CANDLES = 200
 
+// Centralized color palette for chart series - distinct from the theme's
+// success/danger/primary tokens (reserved for win/loss and interactive
+// accents, see themeColors() below). One source of truth so overlay/
+// oscillator/MACD/ATR colors are never redefined or drift between panes -
+// mirrors the same approach as js/pages/results-charts.js REASON_COLORS.
+const INDICATOR_COLORS = {
+  overlay: [
+    '#f4b400',
+    '#ab47bc',
+    '#26c6da',
+    '#ff7043',
+    '#66bb6a',
+    '#42a5f5',
+    '#ec407a'
+  ],
+  oscillator: [
+    '#ffd54f',
+    '#ba68c8',
+    '#4fc3f7',
+    '#81c784'
+  ],
+  macd: { line: '#42a5f5', signal: '#ff7043', hist: '#66bb6a' },
+  atr: '#4dd0e1',
+}
 // Exit reason -> display label. Mirrors the map used on the results page
 // (see js/pages/results-charts.js REASON_LABELS) so a trade's reason reads
 // the same way everywhere in the app.
@@ -42,6 +66,17 @@ function shortLabel(rawLabel) {
   if (base.startsWith('RSI_'))            return `RSI ${base.slice(4)}` + suffix
   if (base.startsWith('ATR_'))            return `ATR ${base.slice(4)}` + suffix
   return base + suffix
+}
+
+// HTF-aligned columns (label contains @timeframe) are a step function server-side
+// (_merge_htf_column holds the value flat until the HTF candle actually closes -
+// see backtest.py). Rendering them with the default interpolated line draws a
+// diagonal ramp between the old and new value across the candle where it changes,
+// which visually implies the indicator was gradually transitioning before the HTF
+// candle closed - it wasn't. WithSteps draws the same data as an honest right-angle
+// jump instead. Base-timeframe series keep the default (undefined -> Simple).
+function htfLineType(label) {
+  return label.includes('@') ? LightweightCharts.LineType.WithSteps : undefined
 }
 
 // Resolve the platform's current CSS custom properties once. Reading these
@@ -323,6 +358,8 @@ document.addEventListener('header:ready', async () => {
   const macdLabels       = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'macd')
   const atrLabels        = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'atr')
 
+  const IS_MOBILE = window.matchMedia('(max-width: 640px)').matches
+
   const CHART_OPTS = () => ({
     layout: { background: { color: colors.bg2 }, textColor: colors.text },
     grid: { vertLines: { color: colors.border }, horzLines: { color: colors.border } },
@@ -379,21 +416,14 @@ document.addEventListener('header:ready', async () => {
   }
   mainChart.timeScale().subscribeVisibleLogicalRangeChange(() => renderPositionZones())
 
-  // Fixed palette for multi-series overlays/indicators (distinct from the
-  // theme's success/danger/primary tokens, which are reserved for win/loss
-  // and interactive accents - see js/pages/results-charts.js REASON_COLORS
-  // for the same approach on the results page).
-  const OVERLAY_COLORS = ['#f4b400', '#ab47bc', '#26c6da', '#ff7043', '#66bb6a', '#42a5f5', '#ec407a']
-  const OSC_COLORS      = ['#ffd54f', '#ba68c8', '#4fc3f7', '#81c784']
-
   const toggleables = [] // individual line toggles - overlay indicators only (they share the main pane, no dedicated graph to remove)
   const colorOf = {}
   const overlaySeriesByLabel = {}
 
   overlayLabels.forEach((label, i) => {
-    const color = OVERLAY_COLORS[i % OVERLAY_COLORS.length]
+    const color = INDICATOR_COLORS.overlay[i % INDICATOR_COLORS.overlay.length]
     colorOf[label] = color
-    const s = mainChart.addLineSeries({ color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, title: label })
+    const s = mainChart.addLineSeries({ color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, title: IS_MOBILE ? '' : label, lineType: htfLineType(label) })
     s.setData(pointSeries[label])
     toggleables.push({ label, series: s, color })
     overlaySeriesByLabel[label] = s
@@ -415,6 +445,7 @@ document.addEventListener('header:ready', async () => {
     panelsEl.appendChild(panel)
     addResizeHandle(panel)
     const chart = LightweightCharts.createChart(chartDiv, CHART_OPTS())
+    if (IS_MOBILE) chart.applyOptions({ rightPriceScale: { visible: false } })
     return { chart, legendEl: legend, panelEl: panel }
   }
 
@@ -429,15 +460,15 @@ document.addEventListener('header:ready', async () => {
     }
     let refSeries = null
     oscillatorLabels.forEach((label, i) => {
-      const color = OSC_COLORS[i % OSC_COLORS.length]
+      const color = INDICATOR_COLORS.oscillator[i % INDICATOR_COLORS.oscillator.length]
       colorOf[label] = color
-      const s = chart.addLineSeries({ color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, title: label })
+      const s = chart.addLineSeries({ color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, title: IS_MOBILE ? '' : label, lineType: htfLineType(label) })
       s.setData(pointSeries[label])
       if (!refSeries) refSeries = s
     })
     paneEntries.push({ chart, legendEl, refSeries, priceLabel: oscillatorLabels[0], kind: 'oscillator', labels: oscillatorLabels, panelEl })
-    paneToggles.push({ label: t('chart.pane.momentum'), panelEl, chart, color: OSC_COLORS[0] })
-  }
+    paneToggles.push({ label: t('chart.pane.momentum'), panelEl, chart, color: INDICATOR_COLORS.oscillator[0] })
+    }
 
   if (macdLabels.length) {
     // Group by "family" (params + optional @timeframe suffix): a strategy
@@ -475,28 +506,28 @@ document.addEventListener('header:ready', async () => {
       const paneLabels = []
 
       if (f.hist) {
-        colorOf[f.hist] = '#66bb6a'
-        const hist = chart.addHistogramSeries({ title: f.hist })
+        colorOf[f.hist] = INDICATOR_COLORS.macd.hist
+        const hist = chart.addHistogramSeries({ title: IS_MOBILE ? '' : f.hist, lastValueVisible: !IS_MOBILE })
         hist.setData(pointSeries[f.hist].map(p => ({ time: p.time, value: p.value, color: p.value >= 0 ? `${colors.success}99` : `${colors.danger}99` })))
         paneLabels.push(f.hist)
       }
       if (f.line) {
-        colorOf[f.line] = '#42a5f5'
-        const s = chart.addLineSeries({ color: '#42a5f5', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, title: f.line })
+        colorOf[f.line] = INDICATOR_COLORS.macd.line
+        const s = chart.addLineSeries({ color: INDICATOR_COLORS.macd.line, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, title: IS_MOBILE ? '' : f.line, lineType: htfLineType(f.line) })
         s.setData(pointSeries[f.line])
         refSeries = s
         paneLabels.push(f.line)
       }
       if (f.signal) {
-        colorOf[f.signal] = '#ff7043'
-        const s = chart.addLineSeries({ color: '#ff7043', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, title: f.signal })
+        colorOf[f.signal] = INDICATOR_COLORS.macd.signal
+        const s = chart.addLineSeries({ color: INDICATOR_COLORS.macd.signal, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, title: IS_MOBILE ? '' : f.signal, lineType: htfLineType(f.signal) })
         s.setData(pointSeries[f.signal])
         if (!refSeries) refSeries = s
         paneLabels.push(f.signal)
       }
 
       paneEntries.push({ chart, legendEl, refSeries, priceLabel: f.line || f.hist || f.signal, kind: 'macd', labels: paneLabels, panelEl })
-      paneToggles.push({ label: macdFamilyDisplayName(key), panelEl, chart, color: '#42a5f5' })
+      paneToggles.push({ label: macdFamilyDisplayName(key), panelEl, chart, color: INDICATOR_COLORS.macd.line })
     }
   }
 
@@ -504,13 +535,13 @@ document.addEventListener('header:ready', async () => {
     const { chart, legendEl, panelEl } = createPane()
     let refSeries = null
     atrLabels.forEach(label => {
-      colorOf[label] = '#4dd0e1'
-      const s = chart.addLineSeries({ color: '#4dd0e1', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, title: label })
+      colorOf[label] = INDICATOR_COLORS.atr
+      const s = chart.addLineSeries({ color: INDICATOR_COLORS.atr, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, title: IS_MOBILE ? '' : label, lineType: htfLineType(label) })
       s.setData(pointSeries[label])
       if (!refSeries) refSeries = s
     })
     paneEntries.push({ chart, legendEl, refSeries, priceLabel: atrLabels[0], kind: 'atr', labels: atrLabels, panelEl })
-    paneToggles.push({ label: t('chart.unit.atr'), panelEl, chart, color: '#4dd0e1' })
+    paneToggles.push({ label: t('chart.unit.atr'), panelEl, chart, color: INDICATOR_COLORS.atr })
   }
 
   // Sync pan/zoom across all panes
