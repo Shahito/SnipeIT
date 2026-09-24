@@ -1,6 +1,12 @@
-// Verifies that src/utils/indicatorMath.js (JS, preview/chart) and
-// python/indicators.py (actual backtest) produce the same values on the
-// same fixed candle set (test/fixtures/candles.json).
+// Verifies that src/utils/indicatorEngine.js (JS - used by candleController.js
+// for the /candles API and by public/js/trade-chart.js to render the chart)
+// and python/indicators.py (the actual backtest engine) produce the same
+// values on the same fixed candle set (test/fixtures/candles.json).
+//
+// indicatorEngine.js is the ONLY JS indicator implementation in this project
+// (a second, unused one - src/utils/indicatorMath.js - existed until it was
+// removed for being dead code, wired to no route). This test exists so that
+// what the chart shows the user is provably the same thing the backtest saw.
 //
 // Usage: node test/indicatorParity.test.js
 'use strict'
@@ -8,7 +14,7 @@
 const fs = require('fs')
 const path = require('path')
 const { execFileSync } = require('child_process')
-const indicatorMath = require('../src/utils/indicatorMath')
+const engine = require('../src/utils/indicatorEngine')
 
 const ABS_TOL = 1e-6
 const REL_TOL = 1e-9
@@ -41,6 +47,8 @@ function compareColumn(name, jsArr, pyArr) {
 
 function main() {
   const candles = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/candles.json'), 'utf8'))
+  // epoch seconds, as produced by candleController.js's toOhlcvArrays()
+  const time = candles.map(c => Math.floor(new Date(c.timestamp).getTime() / 1000))
   const close_ = candles.map(c => c.close)
   const high = candles.map(c => c.high)
   const low = candles.map(c => c.low)
@@ -51,29 +59,29 @@ function main() {
 
   const results = {}
 
-  results['RSI_14'] = toNullArr(indicatorMath.computeRSI(close_, 14))
-  results['EMA_20'] = toNullArr(indicatorMath.computeEMA(close_, 20))
-  results['EMA_VOLUME_20'] = toNullArr(indicatorMath.computeEMA(volume, 20))
-  results['SMA_20'] = toNullArr(indicatorMath.computeSMA(close_, 20))
-  results['SMA_VOLUME_20'] = toNullArr(indicatorMath.computeSMA(volume, 20))
+  results['RSI_14'] = toNullArr(engine.computeRSI(close_, 14))
+  results['EMA_20'] = toNullArr(engine.computeEMA(close_, 20))
+  results['EMA_VOLUME_20'] = toNullArr(engine.computeEMA(volume, 20))
+  results['SMA_20'] = toNullArr(engine.computeSMA(close_, 20))
+  results['SMA_VOLUME_20'] = toNullArr(engine.computeSMA(volume, 20))
 
-  const macd = indicatorMath.computeMACD(close_, 12, 26, 9)
-  results['MACD_12_26_9'] = toNullArr(macd.macdLine)
-  results['MACD_signal_12_26_9'] = toNullArr(macd.signalLine)
+  const macd = engine.computeMACD(close_, 12, 26, 9)
+  results['MACD_12_26_9'] = toNullArr(macd.macd)
+  results['MACD_signal_12_26_9'] = toNullArr(macd.signal)
   results['MACD_histogram_12_26_9'] = toNullArr(macd.hist)
 
-  const bb = indicatorMath.computeBB(close_, 20, 2.0)
+  const bb = engine.computeBollinger(close_, 20, 2.0)
   results['BB_MID_20'] = toNullArr(bb.mid)
   results['BB_UPPER_20'] = toNullArr(bb.upper)
   results['BB_LOWER_20'] = toNullArr(bb.lower)
 
-  results['ATR_14'] = toNullArr(indicatorMath.computeATR(high, low, close_, 14))
+  results['ATR_14'] = toNullArr(engine.computeATR(high, low, close_, 14))
 
-  const stoch = indicatorMath.computeStochRSI(close_, 14, 3, 3)
+  const stoch = engine.computeStochRSI(close_, 14, 3, 3)
   results['STOCH_RSI_K_14'] = toNullArr(stoch.k)
   results['STOCH_RSI_D_14'] = toNullArr(stoch.d)
 
-  results['VWAP'] = toNullArr(indicatorMath.computeVWAP(high, low, close_, volume))
+  results['VWAP'] = toNullArr(engine.computeVWAP(time, high, low, close_, volume))
 
   let allErrors = []
   for (const [name, jsArr] of Object.entries(results)) {

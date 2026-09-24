@@ -19,7 +19,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURE = os.path.join(ROOT, "test", "fixtures", "candles.json")
 
 # Same defaults as used in prod on the JS side
-# (see src/utils/indicatorMath.js callers in indicatorController.js)
+# (see src/utils/indicatorEngine.js, called from candleController.js)
 CASES = [
     ("RSI",         {"period": 14}),
     ("EMA",         {"period": 20}),
@@ -53,6 +53,7 @@ def main():
     with open(FIXTURE) as f:
         candles = json.load(f)
     df = pd.DataFrame(candles)
+    df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.tz_localize(None)
 
     out = {}
     for name, kwargs in CASES:

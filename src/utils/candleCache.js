@@ -150,7 +150,7 @@ function loadRange(dir, startMs, endMs) {
 
     const rows = []
     for (let y = startYear; y <= endYear; y++) {
-        rows.push(...loadYear(dir, y))
+        for (const r of loadYear(dir, y)) rows.push(r)
     }
     rows.sort((a, b) => a[0] - b[0])
 

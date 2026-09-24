@@ -467,7 +467,7 @@ class CanvasLineChart {
           const btn = document.querySelector(`#${this.config.togglesContainerId} [data-curve="${c.key}"]`)
           classes.push(btn?.classList.contains('positive') ? 'tt-positive' : 'tt-negative')
         }
-        return `<span class="${classes.join(' ')}">● ${label} <strong>${valStr}</strong></span>`
+        return `<span class="tt-${c.key}">${label}: <strong>${valStr}</strong></span>`
       })
       .filter(Boolean)
 

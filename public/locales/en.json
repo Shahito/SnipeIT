@@ -450,6 +450,7 @@
   "chart.position_zones": "In-position zones",
   "chart.marker.buy": "Buy",
   "chart.pane.momentum": "RSI / StochRSI",
+  "chart.pane.volume": "Volume",
   "chart.unit.atr": "ATR",
   "chart.meta.candles": "{count} candles",
   "chart.meta.trades": "{count} trades",

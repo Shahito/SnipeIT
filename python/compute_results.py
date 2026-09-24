@@ -336,7 +336,7 @@ def _exposure_pct(trades: list, equity_dates: list) -> float:
     idx_arr = np.searchsorted(buy_arr, ec_ts, side="right") - 1
     valid = idx_arr >= 0
     clipped = np.clip(idx_arr, 0, len(sell_arr) - 1)
-    in_pos = valid & (ec_ts <= sell_arr[clipped])
+    in_pos = valid & (ec_ts < sell_arr[clipped])
     return round(int(in_pos.sum()) / n_ec * 100, 1)
 
 

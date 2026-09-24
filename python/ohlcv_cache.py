@@ -168,12 +168,17 @@ def _save_to_disk(cache_dir: Path, df: pd.DataFrame) -> None:
     cache_dir.mkdir(parents=True, exist_ok=True)
     for year, group in df.groupby(df["timestamp"].dt.year):
         path = cache_dir / f"{year}.parquet"
-        # If the file exists, merge to avoid losing already-present data
+        # If the file exists, merge to avoid losing already-present data.
+        # `group` (the data just fetched) goes FIRST: drop_duplicates()
+        # keeps the first occurrence of a timestamp, so a freshly-fetched
+        # candle always overwrites whatever was cached for that same
+        # timestamp - important for a candle that was cached while still
+        # in progress and has since closed with different final values.
         if path.exists():
             try:
                 existing = pd.read_parquet(path)
                 existing["timestamp"] = pd.to_datetime(existing["timestamp"]).dt.tz_localize(None)
-                group = pd.concat([existing, group]).drop_duplicates(subset=["timestamp"]).sort_values("timestamp")
+                group = pd.concat([group, existing]).drop_duplicates(subset=["timestamp"]).sort_values("timestamp")
             except Exception:
                 pass
         group.to_parquet(path, index=False)

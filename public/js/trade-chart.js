@@ -11,10 +11,12 @@ initI18n()
 
 const jobId = new URLSearchParams(location.search).get('jobId')
 
+const IS_MOBILE = window.matchMedia('(max-width: 640px)').matches
+
 // How many of the most recent candles to show by default. The full dataset
 // is still loaded and reachable by scrolling/zooming out - this only sets
 // the initial view so the chart doesn't open zoomed out to the whole range.
-const INITIAL_VISIBLE_CANDLES = 200
+const INITIAL_VISIBLE_CANDLES = IS_MOBILE ? 50 : 200
 
 // Centralized color palette for chart series - distinct from the theme's
 // success/danger/primary tokens (reserved for win/loss and interactive
@@ -39,6 +41,7 @@ const INDICATOR_COLORS = {
   ],
   macd: { line: '#42a5f5', signal: '#ff7043', hist: '#66bb6a' },
   atr: '#4dd0e1',
+  volume: '#7986cb',
 }
 // Exit reason -> display label. Mirrors the map used on the results page
 // (see js/pages/results-charts.js REASON_LABELS) so a trade's reason reads
@@ -145,7 +148,7 @@ document.addEventListener('header:ready', async () => {
     indicatorsBtn.classList.toggle('active', open)
     indicatorsBtn.setAttribute('aria-expanded', String(open))
   })
-  document.addEventListener('click', e => {
+  document.addEventListener('pointerdown', e => {
     if (indicatorsMenu.classList.contains('hidden')) return
     if (indicatorsMenu.contains(e.target) || indicatorsBtn.contains(e.target)) return
     indicatorsMenu.classList.add('hidden')
@@ -195,15 +198,22 @@ document.addEventListener('header:ready', async () => {
     if (label.startsWith('MACD_')) return 'macd'
     if (label.startsWith('ATR_')) return 'atr'
     if (label === 'PRICE' || label === 'VOLUME' || label === 'HIGH' || label === 'LOW' || label === 'OPEN') return 'skip'
-    return 'overlay' // EMA_, SMA_, BB_*, VWAP
+    // EMA/SMA on VOLUME are in contract units, not price - can't share the main
+    // pane's price axis with the candles (see indicators.py col_tpl_src sources:
+    // VOLUME/HIGH/LOW/OPEN - only VOLUME is off the price scale).
+    if (/^(?:EMA|SMA)_VOLUME_/.test(label)) return 'volume'
+    return 'overlay' // EMA_/SMA_ on CLOSE/HIGH/LOW/OPEN, BB_*, VWAP - all price-unit
   }
 
   function fmt(v) {
-    if (v === null || v === undefined || Number.isNaN(v)) return '–'
+    if (v === null || v === undefined || Number.isNaN(v)) return '-'
     const av = Math.abs(v)
     if (av >= 1000) return v.toFixed(1)
-    if (av >= 1) return v.toFixed(2)
-    return v.toFixed(4)
+    if (av >= 10) return v.toFixed(2)
+    if (av >= 1) return v.toFixed(3)
+    if (av >= 0.01) return v.toFixed(4)
+    if (av >= 0.0001) return v.toFixed(6)
+    return v.toFixed(8)
   }
 
   // Drag-to-resize a pane, like TradingView. Grabbing the handle at the
@@ -250,6 +260,16 @@ document.addEventListener('header:ready', async () => {
     const banner = document.createElement('div')
     banner.className = 'chart-warning-banner'
     banner.innerHTML = `${ICONS.warning}<span>${message}</span>`
+    const dismissBtn = document.createElement('button')
+    dismissBtn.type = 'button'
+    dismissBtn.className = 'chart-warning-dismiss'
+    dismissBtn.setAttribute('aria-label', t('picker.close'))
+    dismissBtn.innerHTML = ICONS.cross
+    dismissBtn.addEventListener('click', () => {
+      banner.remove()
+      if (!warningsEl.children.length) warningsEl.classList.add('hidden')
+    })
+    banner.appendChild(dismissBtn)
     warningsEl.appendChild(banner)
   }
 
@@ -357,8 +377,7 @@ document.addEventListener('header:ready', async () => {
   const oscillatorLabels = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'oscillator')
   const macdLabels       = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'macd')
   const atrLabels        = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'atr')
-
-  const IS_MOBILE = window.matchMedia('(max-width: 640px)').matches
+  const volumeLabels     = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'volume')
 
   const CHART_OPTS = () => ({
     layout: { background: { color: colors.bg2 }, textColor: colors.text },
@@ -419,6 +438,8 @@ document.addEventListener('header:ready', async () => {
   const toggleables = [] // individual line toggles - overlay indicators only (they share the main pane, no dedicated graph to remove)
   const colorOf = {}
   const overlaySeriesByLabel = {}
+  const titledSeries = []
+  const subPaneCharts = []
 
   overlayLabels.forEach((label, i) => {
     const color = INDICATOR_COLORS.overlay[i % INDICATOR_COLORS.overlay.length]
@@ -446,6 +467,7 @@ document.addEventListener('header:ready', async () => {
     addResizeHandle(panel)
     const chart = LightweightCharts.createChart(chartDiv, CHART_OPTS())
     if (IS_MOBILE) chart.applyOptions({ rightPriceScale: { visible: false } })
+    subPaneCharts.push(chart)
     return { chart, legendEl: legend, panelEl: panel }
   }
 
@@ -544,6 +566,24 @@ document.addEventListener('header:ready', async () => {
     paneToggles.push({ label: t('chart.unit.atr'), panelEl, chart, color: INDICATOR_COLORS.atr })
   }
 
+  if (volumeLabels.length) {
+    const { chart, legendEl, panelEl } = createPane()
+    let refSeries = null
+
+    const volHist = chart.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false })
+    volHist.setData(candles.map(c => ({ time: c.time, value: c.volume, color: c.close >= c.open ? `${colors.success}99` : `${colors.danger}99` })))
+
+    volumeLabels.forEach(label => {
+      colorOf[label] = INDICATOR_COLORS.volume
+      const s = chart.addLineSeries({ color: INDICATOR_COLORS.volume, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, title: IS_MOBILE ? '' : label, lineType: htfLineType(label) })
+      s.setData(pointSeries[label])
+      if (!refSeries) refSeries = s
+      titledSeries.push({ series: s, label })
+    })
+    paneEntries.push({ chart, legendEl, refSeries, priceLabel: volumeLabels[0], kind: 'volume', labels: volumeLabels, panelEl })
+    paneToggles.push({ label: t('chart.pane.volume'), panelEl, chart, color: INDICATOR_COLORS.volume })
+  }
+
   // Sync pan/zoom across all panes
   const allCharts = paneEntries.map(p => p.chart)
   let rangeSyncing = false
@@ -612,16 +652,27 @@ document.addEventListener('header:ready', async () => {
     const i = idx === null ? lastIdx : idx
     if (entry.kind === 'main') {
       const c = candles[i]
-      let html = `<div class="legend-row"><b>O</b> ${fmt(c.open)} <b>H</b> ${fmt(c.high)} <b>L</b> ${fmt(c.low)} <b>C</b> ${fmt(c.close)}</div>`
+      const pnl = c.close - c.open
+      const pnlPct = pnl / c.open * 100
+      const pnlColor = pnlPct >= 0 ? colors.success : colors.danger
+      let html = `<div class="legend-row">
+      <b>O</b> ${fmt(c.open)} 
+      <b>H</b> ${fmt(c.high)} 
+      <b>L</b> ${fmt(c.low)} 
+      <b>C</b> ${fmt(c.close)} 
+      <span style="color:${pnlColor}">${pnl >= 0 ? '+':''}${pnl.toFixed(2)} (${pnlPct >= 0 ? '+':''}${pnlPct.toFixed(2)}%)</span>
+      </div>`
       for (const label of entry.labels) {
+        if (overlaySeriesByLabel[label].options().visible === false) continue
         const v = rawSeries[label][i]
-        html += `<div class="legend-row" style="color:${colorOf[label]}">${shortLabel(label)}: ${v == null ? '–' : fmt(v)}</div>`
+        html += `<div class="legend-row" style="color:${colorOf[label]}">${shortLabel(label)}: ${v == null ? '-' : fmt(v)}</div>`
       }
       return html
     }
-    return entry.labels.map(label => {
+    const volRow = entry.kind === 'volume' ? `<div class="legend-row"><b>Vol</b> ${fmt(candles[i].volume)}</div>` : ''
+    return volRow + entry.labels.map(label => {
       const v = rawSeries[label][i]
-      return `<div class="legend-row" style="color:${colorOf[label]}">${shortLabel(label)}: ${v == null ? '–' : fmt(v)}</div>`
+      return `<div class="legend-row" style="color:${colorOf[label]}">${shortLabel(label)}: ${v == null ? '-' : fmt(v)}</div>`
     }).join('')
   }
 
@@ -692,7 +743,10 @@ document.addEventListener('header:ready', async () => {
     title.textContent = t('chart.group.overlays')
     menuBodyEl.appendChild(title)
     for (const tg of toggleables) {
-      addToggleRow(tg.color, shortLabel(tg.label), checked => tg.series.applyOptions({ visible: checked }))
+      addToggleRow(tg.color, shortLabel(tg.label), checked => {
+        tg.series.applyOptions({ visible: checked })
+        updateAllLegends(null)
+      })
     }
   }
 

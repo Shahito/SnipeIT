@@ -64,7 +64,12 @@ def compute_macd(df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: int =
 
 def compute_bollinger(df: pd.DataFrame, period: int = 20, std_dev: float = 2.0) -> pd.DataFrame:
     mid   = df["close"].rolling(period).mean()
-    std   = df["close"].rolling(period).std()
+    # ddof=0 (population std, divide by N): the convention every charting
+    # platform (TradingView included) uses for Bollinger Bands. pandas'
+    # default (ddof=1, divide by N-1) would make these bands systematically
+    # wider than what the person configuring this strategy sees on their
+    # own chart.
+    std   = df["close"].rolling(period).std(ddof=0)
     upper = mid + std_dev * std
     lower = mid - std_dev * std
     return pd.DataFrame({
@@ -91,8 +96,19 @@ def compute_stoch_rsi(df: pd.DataFrame, period: int = 14, smooth_k: int = 3, smo
 
 
 def compute_vwap(df: pd.DataFrame) -> pd.Series:
+    """Session VWAP, reset at the start of each UTC calendar day - the
+    conventional definition (TradingView, every exchange's own VWAP).
+    A cumulative-since-data-start VWAP would depend on wherever the
+    fetched data happens to begin (an implementation detail - how far back
+    warmup reaches - not a meaningful trading level), and would barely
+    move candle to candle once enough history piles up behind it."""
     tp = (df["high"] + df["low"] + df["close"]) / 3
-    return ((tp * df["volume"]).cumsum() / df["volume"].cumsum()).rename("VWAP")
+    day = df["timestamp"].dt.floor("D")
+    cum_pv = (tp * df["volume"]).groupby(day).cumsum()
+    cum_vol = df["volume"].groupby(day).cumsum()
+    return (cum_pv / cum_vol.replace(0, np.nan)).rename("VWAP")
+
+
 
 
 def compute_price(df: pd.DataFrame) -> pd.Series:

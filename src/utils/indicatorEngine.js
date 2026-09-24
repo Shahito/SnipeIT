@@ -155,7 +155,9 @@ function rollingMean(values, period) {
   return out
 }
 
-// pandas .rolling(period).std(): sample std (ddof=1).
+// ddof=0 (population std, divide by N): the convention every charting
+// platform (TradingView included) uses for Bollinger Bands. Mirrors
+// indicators.py's compute_bollinger(..., ddof=0).
 function rollingStd(values, period) {
   const n = values.length
   const out = new Array(n).fill(NaN)
@@ -169,7 +171,7 @@ function rollingStd(values, period) {
     const mean = sum / period
     let sq = 0
     for (let j = i - period + 1; j <= i; j++) sq += (values[j] - mean) ** 2
-    out[i] = Math.sqrt(sq / (period - 1))
+    out[i] = Math.sqrt(sq / period)
   }
   return out
 }
@@ -247,11 +249,24 @@ function computeStochRSI(close, period, smoothK, smoothD) {
   return { k, d }
 }
 
-function computeVWAP(high, low, close, volume) {
+// Session VWAP, reset at the start of each UTC calendar day - mirrors
+// indicators.py's compute_vwap(). `time` is epoch seconds (see toOhlcvArrays
+// in candleController.js). A cumulative-since-data-start VWAP would depend
+// on wherever the loaded candle range happens to begin, not a meaningful
+// trading level.
+function computeVWAP(time, high, low, close, volume) {
   const n = close.length
   const out = new Array(n).fill(NaN)
   let cumPV = 0, cumVol = 0
+  let currentDay = null
+  const SECONDS_PER_DAY = 86400
   for (let i = 0; i < n; i++) {
+    const day = Math.floor(time[i] / SECONDS_PER_DAY)
+    if (day !== currentDay) {
+      currentDay = day
+      cumPV = 0
+      cumVol = 0
+    }
     const tp = (high[i] + low[i] + close[i]) / 3
     cumPV += tp * volume[i]
     cumVol += volume[i]
@@ -323,7 +338,7 @@ function computeColumns(neededList, ohlcv) {
     switch (indicator) {
       case "RSI": columns[col] = computeRSI(ohlcv.close, p); break
       case "ATR": columns[col] = computeATR(ohlcv.high, ohlcv.low, ohlcv.close, p); break
-      case "VWAP": columns[col] = computeVWAP(ohlcv.high, ohlcv.low, ohlcv.close, ohlcv.volume); break
+      case "VWAP": columns[col] = computeVWAP(ohlcv.time, ohlcv.high, ohlcv.low, ohlcv.close, ohlcv.volume); break
       case "EMA":
       case "SMA": {
         const srcArr = (source && SOURCE_SERIES[source]) ? SOURCE_SERIES[source](ohlcv) : ohlcv.close
@@ -363,4 +378,10 @@ module.exports = {
   TF_MINUTES, tfMinutes, REGISTRY,
   columnName, extractNeeded, warmupCandles,
   computeColumns, mergeHtfColumn,
+  // Individual indicator math, exported for direct testing (see
+  // test/indicatorParity.test.js) - computeColumns() above dispatches to
+  // exactly these same functions, so testing them directly is testing the
+  // real code path, not a parallel copy of it.
+  computeRSI, computeEMA, computeSMA, computeMACD, computeBollinger,
+  computeATR, computeStochRSI, computeVWAP,
 }

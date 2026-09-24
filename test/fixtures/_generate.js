@@ -33,7 +33,14 @@ for (let i = 0; i < n; i++) {
   // Deliberate zero-volume zone (VWAP cumV===0 at the very start): i in [0,3)
   const volume = i < 3 ? 0 : rand() * 1000
 
+  // Hourly timestamps starting 2023-01-01T00:00Z - deterministic from `i`
+  // alone (no rand() call), so it doesn't shift the OHLCV sequence below.
+  // 300 hourly candles span ~12.5 days, crossing enough UTC day boundaries
+  // to exercise VWAP's session reset.
+  const timestamp = new Date(Date.UTC(2023, 0, 1, 0, 0, 0) + i * 3600 * 1000).toISOString()
+
   candles.push({
+    timestamp,
     open: +open.toFixed(6),
     high: +high.toFixed(6),
     low: +low.toFixed(6),

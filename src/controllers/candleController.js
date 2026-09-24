@@ -127,11 +127,12 @@ async function getCandlesController(req, res) {
     let trimIdx = 0
     while (trimIdx < ohlcvFull.time.length && ohlcvFull.time[trimIdx] * 1000 < effectiveStartMs) trimIdx++
 
-    const time  = ohlcvFull.time.slice(trimIdx)
-    const open  = ohlcvFull.open.slice(trimIdx)
-    const high  = ohlcvFull.high.slice(trimIdx)
-    const low   = ohlcvFull.low.slice(trimIdx)
-    const close = ohlcvFull.close.slice(trimIdx)
+    const time   = ohlcvFull.time.slice(trimIdx)
+    const open   = ohlcvFull.open.slice(trimIdx)
+    const high   = ohlcvFull.high.slice(trimIdx)
+    const low    = ohlcvFull.low.slice(trimIdx)
+    const close  = ohlcvFull.close.slice(trimIdx)
+    const volume = ohlcvFull.volume.slice(trimIdx)
 
     const indicators = {}
     for (const [col, arr] of Object.entries(columnsFull)) {
@@ -174,7 +175,7 @@ async function getCandlesController(req, res) {
       }
     }
 
-    const candles = time.map((t, i) => ({ time: t, open: open[i], high: high[i], low: low[i], close: close[i] }))
+    const candles = time.map((t, i) => ({ time: t, open: open[i], high: high[i], low: low[i], close: close[i], volume: volume[i] }))
 
     res.json({
       candles, pair: snap.pair, timeframe, exchange, indicators,

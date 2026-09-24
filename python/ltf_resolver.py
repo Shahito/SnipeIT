@@ -3,33 +3,38 @@ ltf_resolver.py - Resolves the true order of SL/TP/TSL triggers inside a
 single base candle, using lower-timeframe (LTF) OHLC data.
 
 Why this exists: a base candle only tells us its low and high, never the
-order in which price actually moved. Two situations make that ambiguous:
-  - SL and TP both sit inside [low, high] - which one was hit first?
-  - TSL: the candle makes a new high (raising the trailing stop) AND its
-    low breaches the raised stop - did the pullback happen before or
-    after the new high?
-Walking the same time window at a finer timeframe (1m, falling back to
-5m then 15m when finer data isn't available) resolves this by replaying
-price action in its real chronological order instead of guessing.
+order in which price actually moved. That makes some situations genuinely
+ambiguous (see backtest.py's _detect_ambiguous_candle for the exact list -
+TSL pullback after a new high, SL+TP both in range, SL+TSL both in range).
+Walking the same time window at a finer timeframe (1m, falling back to 5m
+then 15m when finer data isn't available) resolves this by replaying price
+action in its real chronological order instead of guessing.
 
-Two - and only two - assumptions are needed when even the finest data we
-have still can't fully disambiguate something. Both favor the WORSE
-outcome for the trade, and both are applied nowhere else in this module:
-  1. Within one sub-candle, if it still shows both a stop-out and a
-     target hit at once, the stop-out is assumed first.
-  2. Within one sub-candle, a new high is assumed to raise the trailing
-     stop before that same sub-candle's low is checked against it -
-     i.e. a pullback is never given the benefit of an as-yet-unraised
-     stop. This only matters at the single finest sub-candle where the
-     ambiguity was found; every earlier sub-candle's order is exact.
-A sub-candle that opens past its trigger level fills at the open, not the
-level - the level was already gapped through, so the open is the real
-first tradeable price.
+Two rules handle whatever even the finest data we have still can't show
+directly - both are applied nowhere else in this module and both favor
+the reading that is fully supported by what we DID observe:
+  1. Within one sub-candle, if BOTH a TSL/SL-type stop-out and a TP-type
+     target are hit at once, the stop-out is assumed first (worse outcome).
+  2. Within one sub-candle, if BOTH the trailing stop and the fixed stop
+     are hit at once, whichever level is numerically HIGHER is assumed
+     first - the only fact a falling price guarantees: it crosses the
+     higher of two sell-side levels before the lower one, however fast it
+     moves within that one sub-candle.
+A level that was already in effect BEFORE a sub-candle opened (a fixed SL,
+or a TSL whose raise happened in an earlier sub-candle) and that the
+sub-candle's OPEN has already gapped past fills at that open price - the
+level was skipped over, so the open is the real first tradeable price.
+A level that a sub-candle's OWN high raises for the first time this same
+sub-candle cannot have been gapped through at that same sub-candle's open
+(the level didn't exist yet at that instant) - it fills exactly at the
+newly-raised level instead. TP never fills better than its own level: a
+resting limit order does not benefit from a favorable gap the way a
+stop-turned-market order suffers from an unfavorable one.
 
-If no finer timeframe has any data for the window, resolve() reports
-"none" and the caller falls back to its own base-candle logic for that
-one candle - this module never fetches more than the specific calendar
-day(s) an ambiguous candle actually touches, and only when asked.
+If no finer timeframe has enough data to fully cover the window, resolve()
+reports "none" and the caller falls back to its own base-candle logic for
+that one candle - this module never fetches more than the specific
+calendar day(s) an ambiguous candle actually touches, and only when asked.
 """
 
 import pandas as pd
@@ -51,7 +56,7 @@ class LtfResolver:
         self._pair = pair
         self._exchange = exchange
         self._base_minutes = base_minutes
-        self._timeframes = [tf for tf, minutes in _FALLBACK_TIMEFRAMES if minutes < base_minutes]
+        self._timeframes = [(tf, minutes) for tf, minutes in _FALLBACK_TIMEFRAMES if minutes < base_minutes]
         self._days = {}  # (timeframe, "YYYY-MM-DD") -> DataFrame, or None if confirmed empty
 
     def _day(self, timeframe: str, day: pd.Timestamp):
@@ -81,9 +86,9 @@ class LtfResolver:
 
     def resolve(self, candle_open, sl_price, tp_price, trailing_stop_loss_pct, trailing_high) -> dict:
         """
-        Replays one base candle at the finest available timeframe and
-        returns the first of TSL/SL/TP that actually triggers, in the
-        real chronological order found in the data.
+        Replays one base candle at the finest available FULLY-COVERING
+        timeframe and returns the first of TSL/SL/TP that actually
+        triggers, in the real chronological order found in the data.
 
         Returns:
           exit_price, reason  - None, None if nothing triggered this candle.
@@ -92,9 +97,13 @@ class LtfResolver:
                                  fallback and as compute_results.REASON_CODES).
           trailing_high        - updated trailing high (unchanged if no TSL).
           resolved_at           - the timeframe actually used ("1m"/"5m"/"15m"),
-                                 or "none" if no finer data existed for this
-                                 window at all - the caller must then fall
-                                 back to its own base-candle logic.
+                                 or "none" if no finer timeframe had enough
+                                 data to fully cover this window - the caller
+                                 must then fall back to its own base-candle
+                                 logic. A PARTIAL window (data gap) is treated
+                                 the same as no data: it is never trusted to
+                                 report "nothing happened" when the missing
+                                 minutes are exactly where it could have.
           seen_high, seen_low   - the highest/lowest price actually observed
                                  up to and including the trigger (or across
                                  the whole window if nothing triggered) -
@@ -106,10 +115,11 @@ class LtfResolver:
         start = pd.Timestamp(candle_open)
         end = start + pd.Timedelta(minutes=self._base_minutes)
 
-        for timeframe in self._timeframes:
+        for timeframe, tf_minutes in self._timeframes:
             window = self._window(timeframe, start, end)
-            if window is None:
-                continue  # no data at this resolution for this window - try coarser
+            expected_bars = self._base_minutes // tf_minutes
+            if window is None or len(window) < expected_bars:
+                continue  # no data, or a gap leaves this window incomplete - try coarser
 
             th = trailing_high
             seen_high, seen_low = float("-inf"), float("inf")
@@ -118,23 +128,39 @@ class LtfResolver:
                 seen_high = max(seen_high, h)
                 seen_low = min(seen_low, l)
 
+                # Levels already in effect BEFORE this sub-candle opened:
+                # a real gap-through fills at the open.
+                old_tsl_price = th * (1 - trailing_stop_loss_pct / 100) if trailing_stop_loss_pct is not None else None
+                gapped = []
+                if old_tsl_price is not None and o <= old_tsl_price:
+                    gapped.append(("tsl", old_tsl_price))
+                if sl_price is not None and o <= sl_price:
+                    gapped.append(("risk", sl_price))
+                if gapped:
+                    reason, _ = max(gapped, key=lambda g: g[1])  # higher level = struck first on the way down
+                    return self._outcome(o, reason, th, timeframe, seen_high, seen_low)
+
+                # No pre-existing gap: this sub-candle's own high may raise
+                # the trailing stop for the first time - it cannot have been
+                # gapped through at an open that predates it.
                 if trailing_stop_loss_pct is not None and h > th:
-                    th = h  # see module docstring, assumption 2
+                    th = h
                 tsl_price = th * (1 - trailing_stop_loss_pct / 100) if trailing_stop_loss_pct is not None else None
 
                 tsl_hit = tsl_price is not None and l <= tsl_price
                 sl_hit = sl_price is not None and l <= sl_price
                 tp_hit = tp_price is not None and h >= tp_price
 
-                if tsl_hit or sl_hit or tp_hit:
-                    if tsl_hit:
-                        price = o if o <= tsl_price else tsl_price
-                        return self._outcome(price, "tsl", th, timeframe, seen_high, seen_low)
-                    if sl_hit:  # see module docstring, assumption 1
-                        price = o if o <= sl_price else sl_price
-                        return self._outcome(price, "risk", th, timeframe, seen_high, seen_low)
-                    price = o if o >= tp_price else tp_price
-                    return self._outcome(price, "risk", th, timeframe, seen_high, seen_low)
+                stop_outs = []
+                if tsl_hit:
+                    stop_outs.append(("tsl", tsl_price))
+                if sl_hit:
+                    stop_outs.append(("risk", sl_price))
+                if stop_outs:
+                    reason, level = max(stop_outs, key=lambda s: s[1])  # see module docstring, rule 2
+                    return self._outcome(level, reason, th, timeframe, seen_high, seen_low)
+                if tp_hit:
+                    return self._outcome(tp_price, "risk", th, timeframe, seen_high, seen_low)  # never better than the level
 
             return self._outcome(None, None, th, timeframe, seen_high, seen_low)  # full coverage, nothing hit
 

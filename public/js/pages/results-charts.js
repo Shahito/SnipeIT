@@ -177,7 +177,7 @@ const mfeScatterChart = new CanvasScatter('mfeScatterCanvas', {
     const breakdown = p.br
       .map((count, idx) => count ? `${REASON_LABELS[SCATTER_REASON_ORDER[idx]]}: ${count}` : null)
       .filter(Boolean).join(' · ')
-    return `<span>MFE: <strong>${p.x.toFixed(_mfeUnit === 'atr' ? 2 : 1)}${_mfeUnit === 'atr' ? 'R' : '%'}</strong></span><span>PnL: <strong>${p.y.toFixed(1)}%</strong></span><span>Trade${p.n > 1 ? 's' : ''} ${p.n} (${breakdown})</span>`
+    return `<span>MFE: <strong>${p.x.toFixed(_mfeUnit === 'atr' ? 2 : 1)}${_mfeUnit === 'atr' ? 'R' : '%'}</strong></span><span>PnL: <strong>${p.y.toFixed(1)}%</strong></span><span>Trade${p.n > 1 ? 's' : ''} <strong>${p.n}</strong> (${breakdown})</span>`
   },
 })
 _renderReasonLegend('mfeScatterLegend')
