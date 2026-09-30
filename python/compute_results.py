@@ -47,6 +47,12 @@ SCATTER_BINS_Y = 14
 
 # Shared exit-reason code mapping
 REASON_CODES = {"risk": 0, "tsl": 1, "signal": 2, "end": 3}
+# "base" means resolved directly from the base candle (no ambiguity, or no
+# finer data available); the others mean an LTF walk actually resolved an
+# ambiguous candle at that timeframe. Absent (signal/end exits, which are
+# never ambiguous) packs as "base" too - distinguishing "not applicable"
+# from "resolved with no finer data" isn't useful to a consumer of this field.
+RESOLUTION_CODES = {"base": 0, "1m": 1, "5m": 2, "15m": 3}
 
 
 # Pnl buckets (histogram)
@@ -344,14 +350,14 @@ def _exposure_pct(trades: list, equity_dates: list) -> float:
 def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
     """
     Columnar encoding of all sell trades.
-    Cols: [entryDateOffset, exitDateOffset, entryPrice, exitPrice, qty, reasonCode]
+    Cols: [entryDateOffset, exitDateOffset, entryPrice, exitPrice, qty, reasonCode, resolutionCode]
     Offsets are integer seconds relative to t0 (first entry date).
     Falls back to stride-sampling only if the full set exceeds max_bytes.
     """
     if not sell_trades:
         return {
             "t0": 0,
-            "cols": ["eOff", "xOff", "ep", "xp", "a", "r"],
+            "cols": ["eOff", "xOff", "ep", "xp", "a", "r", "rs"],
             "rows": [],
             "sampled": False,
             "rate": 1,
@@ -367,6 +373,7 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
             t["price"],
             t["allocated"],
             REASON_CODES.get(t.get("reason", "signal"), 2),
+            RESOLUTION_CODES.get(t.get("resolution", "base"), 0),
         ]
 
     def _encode(stride):
@@ -381,7 +388,7 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
             json.dumps(
                 {
                     "t0": t0,
-                    "cols": ["eOff", "xOff", "ep", "xp", "a", "r"],
+                    "cols": ["eOff", "xOff", "ep", "xp", "a", "r", "rs"],
                     "rows": rows,
                 },
                 separators=(",", ":"),
@@ -404,7 +411,7 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
     rows = _encode(stride)
     return {
         "t0": t0,
-        "cols": ["eOff", "xOff", "ep", "xp", "a", "r"],
+        "cols": ["eOff", "xOff", "ep", "xp", "a", "r", "rs"],
         "rows": rows,
         "sampled": stride > 1,
         "rate": stride,

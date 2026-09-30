@@ -58,16 +58,16 @@ function shortLabel(rawLabel) {
   const [base, tf] = rawLabel.split('@')
   const suffix = tf ? ` @${tf}` : ''
   if (base.startsWith('MACD_histogram_')) return 'Hist' + suffix
-  if (base.startsWith('MACD_signal_'))    return 'Signal' + suffix
-  if (base.startsWith('MACD_'))           return 'MACD' + suffix
-  if (base.startsWith('BB_UPPER_'))       return `BB Upper ${base.slice(9)}` + suffix
-  if (base.startsWith('BB_MID_'))         return `BB Mid ${base.slice(7)}` + suffix
-  if (base.startsWith('BB_LOWER_'))       return `BB Lower ${base.slice(9)}` + suffix
-  if (base.startsWith('SMA_CLOSE_'))      return `SMA ${base.slice(10)}` + suffix
-  if (base.startsWith('EMA_CLOSE_'))      return `EMA ${base.slice(10)}` + suffix
-  if (base.startsWith('STOCH_RSI_'))      return `Stoch RSI ${base.slice(10)}` + suffix
-  if (base.startsWith('RSI_'))            return `RSI ${base.slice(4)}` + suffix
-  if (base.startsWith('ATR_'))            return `ATR ${base.slice(4)}` + suffix
+  if (base.startsWith('MACD_signal_')) return 'Signal' + suffix
+  if (base.startsWith('MACD_')) return 'MACD' + suffix
+  if (base.startsWith('BB_UPPER_')) return `BB Upper ${base.slice(9)}` + suffix
+  if (base.startsWith('BB_MID_')) return `BB Mid ${base.slice(7)}` + suffix
+  if (base.startsWith('BB_LOWER_')) return `BB Lower ${base.slice(9)}` + suffix
+  if (base.startsWith('SMA_CLOSE_')) return `SMA ${base.slice(10)}` + suffix
+  if (base.startsWith('EMA_CLOSE_')) return `EMA ${base.slice(10)}` + suffix
+  if (base.startsWith('STOCH_RSI_')) return `Stoch RSI ${base.slice(10)}` + suffix
+  if (base.startsWith('RSI_')) return `RSI ${base.slice(4)}` + suffix
+  if (base.startsWith('ATR_')) return `ATR ${base.slice(4)}` + suffix
   return base + suffix
 }
 
@@ -90,28 +90,28 @@ function themeColors() {
   const style = getComputedStyle(document.documentElement)
   const v = name => style.getPropertyValue(name).trim()
   return {
-    bg2: v('--bg2'), border: v('--border'), text: v('--text'), textMuted: v('--text-muted'),
+    bg: v('--bg'), bg2: v('--bg2'), border: v('--border'), text: v('--text'), textMuted: v('--text-muted'),
     primary: v('--primary'), success: v('--success'), danger: v('--danger'),
   }
 }
 
 document.addEventListener('header:ready', async () => {
-  const loadingEl      = document.getElementById('loadingState')
+  const loadingEl = document.getElementById('loadingState')
   const loadingSubtextEl = document.getElementById('loadingSubtext')
-  const errorEl        = document.getElementById('errorState')
-  const errorMsgEl     = document.getElementById('errorMsg')
-  const pendingEl      = document.getElementById('pendingState')
-  const contentEl      = document.getElementById('chartContent')
-  const metaEl         = document.getElementById('chartMeta')
-  const backBtn        = document.getElementById('backToResultsBtn')
-  const warningsEl     = document.getElementById('chartWarnings')
+  const errorEl = document.getElementById('errorState')
+  const errorMsgEl = document.getElementById('errorMsg')
+  const pendingEl = document.getElementById('pendingState')
+  const contentEl = document.getElementById('chartContent')
+  const metaEl = document.getElementById('chartMeta')
+  const backBtn = document.getElementById('backToResultsBtn')
+  const warningsEl = document.getElementById('chartWarnings')
   const chartMainPaneEl = document.getElementById('chartMainPane')
-  const panelsEl       = document.getElementById('panels')
-  const indicatorsBtn  = document.getElementById('indicatorsBtn')
+  const panelsEl = document.getElementById('panels')
+  const indicatorsBtn = document.getElementById('indicatorsBtn')
   const indicatorsMenu = document.getElementById('indicatorsMenu')
-  const menuBodyEl     = document.getElementById('indicatorsMenuBody')
-  const menuEmptyEl    = document.getElementById('indicatorsMenuEmpty')
-  const mainLegendEl   = document.getElementById('legend-main')
+  const menuBodyEl = document.getElementById('indicatorsMenuBody')
+  const menuEmptyEl = document.getElementById('indicatorsMenuEmpty')
+  const mainLegendEl = document.getElementById('legend-main')
 
   // First load (cold cache) can take a while server-side - the skeleton
   // loader alone can still read as "stuck" past a few seconds, so a short
@@ -164,10 +164,10 @@ document.addEventListener('header:ready', async () => {
     return packed.rows.map(row => {
       const [eOff, xOff, ep, xp, allocated, r] = row
       return {
-        entryTime:  packed.t0 + eOff,
-        exitTime:   packed.t0 + xOff,
+        entryTime: packed.t0 + eOff,
+        exitTime: packed.t0 + xOff,
         entryPrice: ep,
-        exitPrice:  xp,
+        exitPrice: xp,
         allocated,
         reason: REASONS[r] || 'signal',
         pnlPct: ep ? ((xp - ep) / ep) * 100 : 0, // approximate: fees not re-applied here
@@ -214,6 +214,33 @@ document.addEventListener('header:ready', async () => {
     if (av >= 0.01) return v.toFixed(4)
     if (av >= 0.0001) return v.toFixed(6)
     return v.toFixed(8)
+  }
+
+  const PRICE_ZOOM_STEP = 0.005
+  const PRICE_ZOOM_MIN = 0 // fully zoomed in
+  const PRICE_ZOOM_MAX = 0.45 // fully zoomed out (keeps a visible data band)
+
+  function addPriceScaleZoom(containerEl, chart) {
+    containerEl.addEventListener('wheel', e => {
+      const ps = chart.priceScale('right')
+      const axisWidth = ps.width()
+      if (!axisWidth) return // axis hidden (mobile sub-panes) - nothing to do
+
+      const rect = containerEl.getBoundingClientRect()
+      const overAxis = e.clientX >= rect.right - axisWidth
+      if (!overAxis) return // laisse la lib gérer le zoom/pan horizontal habituel
+
+      e.preventDefault()
+      e.stopPropagation() // bloque le handler wheel natif de la lib
+
+      const { top = 0.1, bottom = 0.1 } = ps.options().scaleMargins || {}
+      const dir = e.deltaY < 0 ? -1 : 1 // molette vers le haut = zoom in = marges réduites
+      const clamp = v => Math.min(PRICE_ZOOM_MAX, Math.max(PRICE_ZOOM_MIN, v))
+      ps.applyOptions({
+        autoScale: true,
+        scaleMargins: { top: clamp(top + dir * PRICE_ZOOM_STEP), bottom: clamp(bottom + dir * PRICE_ZOOM_STEP) },
+      })
+    }, { capture: true, passive: false })
   }
 
   // Drag-to-resize a pane, like TradingView. Grabbing the handle at the
@@ -373,14 +400,14 @@ document.addEventListener('header:ready', async () => {
   }
 
   // Group labels by pane kind
-  const overlayLabels    = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'overlay')
+  const overlayLabels = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'overlay')
   const oscillatorLabels = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'oscillator')
-  const macdLabels       = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'macd')
-  const atrLabels        = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'atr')
-  const volumeLabels     = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'volume')
+  const macdLabels = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'macd')
+  const atrLabels = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'atr')
+  const volumeLabels = Object.keys(pointSeries).filter(l => kindByLabel[l] === 'volume')
 
   const CHART_OPTS = () => ({
-    layout: { background: { color: colors.bg2 }, textColor: colors.text },
+    layout: { background: { color: colors.bg }, textColor: colors.text },
     grid: { vertLines: { color: colors.border }, horzLines: { color: colors.border } },
     timeScale: { timeVisible: true, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true, rightOffset: 5 },
     rightPriceScale: { borderColor: colors.border },
@@ -394,6 +421,7 @@ document.addEventListener('header:ready', async () => {
 
   // Main chart: candles + overlay indicators
   const mainChart = LightweightCharts.createChart(chartMainPaneEl, CHART_OPTS())
+  addPriceScaleZoom(chartMainPaneEl, mainChart)
   const candleSeries = mainChart.addCandlestickSeries({
     upColor: colors.success, downColor: colors.danger, borderVisible: false,
     wickUpColor: colors.success, wickDownColor: colors.danger,
@@ -467,6 +495,7 @@ document.addEventListener('header:ready', async () => {
     addResizeHandle(panel)
     const chart = LightweightCharts.createChart(chartDiv, CHART_OPTS())
     if (IS_MOBILE) chart.applyOptions({ rightPriceScale: { visible: false } })
+    else addPriceScaleZoom(chartDiv, chart)
     subPaneCharts.push(chart)
     return { chart, legendEl: legend, panelEl: panel }
   }
@@ -490,7 +519,7 @@ document.addEventListener('header:ready', async () => {
     })
     paneEntries.push({ chart, legendEl, refSeries, priceLabel: oscillatorLabels[0], kind: 'oscillator', labels: oscillatorLabels, panelEl })
     paneToggles.push({ label: t('chart.pane.momentum'), panelEl, chart, color: INDICATOR_COLORS.oscillator[0] })
-    }
+  }
 
   if (macdLabels.length) {
     // Group by "family" (params + optional @timeframe suffix): a strategy
@@ -499,8 +528,8 @@ document.addEventListener('header:ready', async () => {
     // only the first one found gets displayed and the rest is silently lost.
     function macdFamilyKey(label) {
       if (label.startsWith('MACD_histogram_')) return label.slice('MACD_histogram_'.length)
-      if (label.startsWith('MACD_signal_'))    return label.slice('MACD_signal_'.length)
-      if (label.startsWith('MACD_'))           return label.slice('MACD_'.length)
+      if (label.startsWith('MACD_signal_')) return label.slice('MACD_signal_'.length)
+      if (label.startsWith('MACD_')) return label.slice('MACD_'.length)
       return label
     }
     function macdFamilyDisplayName(key) {
@@ -660,7 +689,7 @@ document.addEventListener('header:ready', async () => {
       <b>H</b> ${fmt(c.high)} 
       <b>L</b> ${fmt(c.low)} 
       <b>C</b> ${fmt(c.close)} 
-      <span style="color:${pnlColor}">${pnl >= 0 ? '+':''}${pnl.toFixed(2)} (${pnlPct >= 0 ? '+':''}${pnlPct.toFixed(2)}%)</span>
+      <span style="color:${pnlColor}">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} (${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</span>
       </div>`
       for (const label of entry.labels) {
         if (overlaySeriesByLabel[label].options().visible === false) continue

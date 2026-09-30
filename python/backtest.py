@@ -77,9 +77,9 @@ def _nan_to_none(x):
     return None if (x is None or np.isnan(x)) else float(x)
 
 
-# ---------------------------------------------------------------------------
+
 # Rule evaluation - vectorized over the whole DataFrame, single code path.
-# ---------------------------------------------------------------------------
+
 
 OPERATORS = {
     ">": lambda a, b, pa, pb: a > b,
@@ -472,9 +472,9 @@ def _validate_conditions(conditions: list, side: str) -> None:
                 )
 
 
-# ---------------------------------------------------------------------------
+
 # Warm-up sizing & higher-timeframe (HTF) indicators.
-# ---------------------------------------------------------------------------
+
 
 # RSI/ATR (and STOCH_RSI, built on RSI) use Wilder smoothing (EWM alpha=1/n),
 # which converges much slower than a standard EMA (alpha=2/(n+1)): after k
@@ -540,14 +540,26 @@ def _group_needed_by_timeframe(needed_htf: list) -> dict:
 
 
 def _merge_htf_column(
-    base_ts_arr, htf_timestamps, htf_values, htf_tf_minutes: int
+    base_ts_arr, base_tf_minutes: int, htf_timestamps, htf_values, htf_tf_minutes: int
 ) -> np.ndarray:
     """
     Aligns an HTF-computed column onto the base timeframe's index, without
-    look-ahead: for each base candle (open time T), the value used is the
-    one from the last HTF candle that had FULLY CLOSED at or before T
-    (close_time <= T). A base candle earlier than every closed HTF candle
-    gets NaN (resolve_value() then reports it as "no value yet").
+    look-ahead: for each base candle, the value used is the one from the
+    last HTF candle that had FULLY CLOSED at or before THIS BASE CANDLE'S
+    OWN CLOSE (close_time <= base_open + base_tf_minutes) - not its open.
+
+    A rule using this value only becomes actionable once the base candle
+    itself closes (see module docstring, 4a) - so an HTF candle that
+    closes partway through the base candle is already genuinely known by
+    the time the base candle's own signal could act on it. Requiring the
+    HTF candle to have closed before the base candle's OPEN instead would
+    throw away up to one whole base-candle-width of real, already-known
+    information for no reason, and would make a strategy behave more
+    cautiously here than a live executor checking conditions on the same
+    once-per-base-candle cadence actually would.
+
+    A base candle earlier than every closed HTF candle gets NaN
+    (resolve_value() then reports it as "no value yet").
     """
     right = pd.DataFrame(
         {
@@ -557,7 +569,10 @@ def _merge_htf_column(
         }
     )
     left = pd.DataFrame(
-        {"timestamp": pd.DatetimeIndex(base_ts_arr).astype("datetime64[ns]")}
+        {
+            "timestamp": pd.DatetimeIndex(base_ts_arr).astype("datetime64[ns]")
+            + pd.Timedelta(minutes=base_tf_minutes),
+        }
     )
     merged = pd.merge_asof(
         left, right, left_on="timestamp", right_on="close_time", direction="backward"
@@ -566,7 +581,12 @@ def _merge_htf_column(
 
 
 def _compute_htf_columns(
-    df_base: pd.DataFrame, needed_htf: list, pair: str, exchange: str, start_date: str
+    df_base: pd.DataFrame,
+    needed_htf: list,
+    pair: str,
+    exchange: str,
+    start_date: str,
+    base_tf_minutes: int,
 ):
     """
     For every (indicator, period, source, timeframe) tuple whose timeframe
@@ -596,11 +616,15 @@ def _compute_htf_columns(
         warmup_n = _warmup_candles(items)
         warmup_start = real_start - pd.Timedelta(minutes=tf_minutes * warmup_n)
 
+        # _inclusive_end: the base fetch's own last day may only be
+        # partially covered by df_base (end-of-data, not end-of-day) - the
+        # HTF fetch must still reach through that same calendar day, or an
+        # HTF candle closing late in it would wrongly look unavailable.
         htf_df = get_ohlcv(
             pair,
             tf,
             warmup_start.strftime("%Y-%m-%d"),
-            df_base["timestamp"].iloc[-1].strftime("%Y-%m-%d"),
+            _inclusive_end(df_base["timestamp"].iloc[-1].strftime("%Y-%m-%d")),
             exchange,
         )
         if htf_df.empty:
@@ -623,6 +647,7 @@ def _compute_htf_columns(
                 continue
             df_base[aligned_col] = _merge_htf_column(
                 base_ts,
+                base_tf_minutes,
                 htf_df["timestamp"].to_numpy(),
                 htf_df[col].to_numpy(),
                 tf_minutes,
@@ -631,9 +656,9 @@ def _compute_htf_columns(
     return df_base, warnings
 
 
-# ---------------------------------------------------------------------------
+
 # Trading hours - gates order EXECUTION, not signal detection.
-# ---------------------------------------------------------------------------
+
 
 
 def _parse_trading_hours(slots: list) -> list:
@@ -673,9 +698,9 @@ def _precompute_trading_hours(ts_arr, parsed_slots: list):
     return in_any_slot, in_any_slot | (not block_sell)
 
 
-# ---------------------------------------------------------------------------
+
 # Position lifecycle - the single-position state machine.
-# ---------------------------------------------------------------------------
+
 
 
 def _stop_target_prices(
@@ -892,16 +917,16 @@ def _close_position(
     return capital + proceeds
 
 
-# ---------------------------------------------------------------------------
+
 # Main entry point.
-# ---------------------------------------------------------------------------
+
 
 
 def run_backtest(strategy: dict) -> dict:
     """Runs the backtest and returns the results dict. Raises on error."""
     from ohlcv_cache import get_ohlcv
 
-    # --- 1. Config -----------------------------------------------------
+    # 1. Config
     pair = strategy["pair"]
     timeframe = strategy["timeframe"]
     start_date = strategy["startDate"]
@@ -935,7 +960,7 @@ def run_backtest(strategy: dict) -> dict:
 
     log.info(f"OHLCV: {pair} {timeframe} {start_date[:10]} -> {end_date[:10]}")
 
-    # --- 2. Indicators, warm-up, OHLCV ----------------------------------
+    # 2. Indicators, warm-up, OHLCV
     needed = extract_needed(conditions)
     # A ref explicitly set to the strategy's own timeframe behaves exactly
     # like "no timeframe specified" - normalize both to None.
@@ -1034,9 +1059,11 @@ def run_backtest(strategy: dict) -> dict:
     warnings = []
     if htf_needed:
         log.info(f"HTF indicators requested: {sorted({n[3] for n in htf_needed})}")
-        df, warnings = _compute_htf_columns(df, htf_needed, pair, exchange, start_date)
+        df, warnings = _compute_htf_columns(
+            df, htf_needed, pair, exchange, start_date, tf_minutes
+        )
 
-    # --- 3. Entry/exit signals, vectorized over the whole timeline -----
+    # 3. Entry/exit signals, vectorized over the whole timeline
     entry_signal_arr = (
         _eval_conditions_series(df, entry_conds, timeframe).to_numpy()
         if entry_conds
@@ -1078,7 +1105,7 @@ def run_backtest(strategy: dict) -> dict:
 
         ltf_resolver = LtfResolver(pair, exchange, tf_minutes)
 
-    # --- 4. Single-position simulation ----------------------------------
+    # 4. Single-position simulation
     capital = initial_capital
     position = None  # dict or None - see module docstring re: multi-position
     trades = []
@@ -1115,7 +1142,7 @@ def run_backtest(strategy: dict) -> dict:
                 position["highest_high"], float(high_arr[idx])
             )
 
-        # --- Execute orders decided on the previous candle, at this candle's open ---
+        # Execute orders decided on the previous candle, at this candle's open
         if pending_entry and position is None:
             if can_buy:
                 position, capital = _open_position(
@@ -1164,8 +1191,8 @@ def run_backtest(strategy: dict) -> dict:
                     dropped_cross_exit_warned = True
             pending_exit = False
 
-        # --- Detect this candle's signals, and resolve SL/TP/TSL if a
-        # position is (still, or newly) open ---
+        # Detect this candle's signals, and resolve SL/TP/TSL if a
+        # position is (still, or newly) open
         if position is None:
             if entry_conds and bool(entry_signal_arr[idx]):
                 pending_entry = True
@@ -1228,7 +1255,7 @@ def run_backtest(strategy: dict) -> dict:
 
     equity_rounded = np.round(np.array(equity_raw, dtype=np.float64), 2)
 
-    # --- 5. Aggregation & serialization ---------------------------------
+    # 5. Aggregation & serialization
     result = build_result(
         trades=trades,
         equity_dates=equity_dates,
