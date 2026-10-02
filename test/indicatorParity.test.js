@@ -4,11 +4,12 @@
 // values on the same fixed candle set (test/fixtures/candles.json).
 //
 // indicatorEngine.js is the ONLY JS indicator implementation in this project
-// (a second, unused one - src/utils/indicatorMath.js - existed until it was
-// removed for being dead code, wired to no route). This test exists so that
-// what the chart shows the user is provably the same thing the backtest saw.
+// This test exists so that what the chart shows the user is provably the same
+// thing the backtest saw.
 //
-// Usage: node test/indicatorParity.test.js
+// Usage:
+// source ./python/venv/bin/activate
+// npm run test:parity
 'use strict'
 
 const fs = require('fs')

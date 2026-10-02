@@ -83,7 +83,7 @@ async function loadJob() {
 
     renderMetrics(r)
     equityChart.config.referenceLines = [
-      { curveKey: 'equity', color: '#ff9632', value: r.initialCapital, label: t('results.chart_initial_capital') },
+      { curveKey: 'equity', color: '#FFC75F', value: r.initialCapital, label: t('results.chart_initial_capital') },
     ]
     
     equityChart.render(r)

@@ -90,14 +90,20 @@
     --danger-dim: rgba(255, 92, 92, .15);
     --danger-dim-strong: rgba(255, 92, 92, .4);
 
-    --infographic1: #6c8eff;
-    --infographic1-dim: color-mix(in srgb, var(--infographic1) 8%, transparent);
-    --infographic2: #ff9632;
-    --infographic2-dim: color-mix(in srgb, var(--infographic2) 8%, transparent);
-    --infographic3: #c878ff;
-    --infographic3-dim: color-mix(in srgb, var(--infographic3) 8%, transparent);
-    --infographic-neutral: #aaa;
-    --infographic-neutral-dim: color-mix(in srgb, var(--infographic-neutral) 4%, transparent);
+    --infographic1: #6B9AC4;
+    --infographic1-dim: color-mix(in srgb, var(--infographic1) 12%, transparent);
+
+    --infographic2: #FFC75F;
+    --infographic2-dim: color-mix(in srgb, var(--infographic2) 12%, transparent);
+
+    --infographic3: #9275C3;
+    --infographic3-dim: color-mix(in srgb, var(--infographic3) 12%, transparent);
+
+    --infographic4: #B0BEC5;
+    --infographic4-dim: color-mix(in srgb, var(--infographic4) 12%, transparent);
+
+    --infographic-neutral: #9E9E9E;
+    --infographic-neutral-dim: color-mix(in srgb, var(--infographic-neutral) 12%, transparent);
 
     --text: #F2F3F6;
     --text-muted: #979CA6;
@@ -4122,11 +4128,8 @@ input[type="color"] {
 }
 
 .toggle-btn.active[data-curve="price"],
-#mpfToggleTrades.active,
-#maeToggleUnitPct.active,
-#mfeToggleUnitPct.active,
-#maeToggleColorReason.active,
-#mfeToggleColorReason.active {
+#maeDistToggleColorReason.active,
+#mfeDistToggleColorReason.active {
     border-color: var(--infographic1);
     color: var(--infographic1);
     background: var(--infographic1-dim);
@@ -4140,14 +4143,17 @@ input[type="color"] {
 }
 
 .toggle-btn.active[data-curve="pnl"],
-#maeToggleUnitAtr.active,
-#mfeToggleUnitAtr.active {
+#mpfToggleTrades.active {
     border-color: var(--infographic3);
     color: var(--infographic3);
     background: var(--infographic3-dim);
 }
 
-.toggle-btn.active[data-curve="exposure"] {
+.toggle-btn.active[data-curve="exposure"],
+#maeToggleUnitPct.active,
+#mfeToggleUnitPct.active,
+#maeToggleUnitAtr.active,
+#mfeToggleUnitAtr.active {
     border-color: var(--infographic-neutral);
     color: var(--infographic-neutral);
     background: var(--infographic-neutral-dim);
@@ -4252,7 +4258,7 @@ input[type="color"] {
 }
 
 .trades-count {
-    color: var(--infographic1);
+    color: var(--infographic3);
     font-weight: 700;
 }
 
@@ -4735,6 +4741,13 @@ table::-webkit-scrollbar-track,
     flex-wrap: wrap;
     gap: .35rem;
     margin-left: auto;
+}
+
+.toggle-divider {
+    width: 2px;
+    align-self: stretch;
+    background: var(--border);
+    margin: 0 .1rem;
 }
 
 .chart-tooltip {

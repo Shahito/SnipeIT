@@ -370,13 +370,27 @@ class CanvasLineChart {
 
       if (c.dynamic) {
         const isPos = vals[vals.length - 1] >= vals[0]
-        color = _cssVar(isPos ? '--success' : '--danger')
-        fillColor = _cssVar(isPos ? '--success-dim' : '--danger-dim')
         const btn = document.querySelector(`#${this.config.togglesContainerId} [data-curve="${c.key}"]`)
         if (btn) {
           btn.classList.remove('positive', 'negative')
           btn.classList.add(isPos ? 'positive' : 'negative')
         }
+
+        // Baseline-relative coloring: green above the starting value, red below it
+        const baseline = c.baselineValue ? c.baselineValue(r) : vals[0]
+        const baseY = toY(baseline)
+        const topY = pad.top, bottomY = pad.top + cH
+        const ratio = Math.max(0, Math.min(1, (baseY - topY) / (bottomY - topY)))
+
+        const lineGrad = ctx.createLinearGradient(0, topY, 0, bottomY)
+        lineGrad.addColorStop(Math.max(0, ratio - 0.0001), _cssVar('--success'))
+        lineGrad.addColorStop(Math.min(1, ratio + 0.0001), _cssVar('--danger'))
+        color = lineGrad
+
+        const fillGrad = ctx.createLinearGradient(0, topY, 0, bottomY)
+        fillGrad.addColorStop(Math.max(0, ratio - 0.0001), _cssVar('--success-dim'))
+        fillGrad.addColorStop(Math.min(1, ratio + 0.0001), _cssVar('--danger-dim'))
+        fillColor = fillGrad
       }
 
       _drawPolyline(ctx, pts, color, fillColor, c.lineWidth || 1.5, pad.top, cH)
@@ -758,21 +772,44 @@ class CanvasHistogram {
       const x = scaleX(b.lo) + (slotW - barW) / 2
       const barH = (b.count / maxCount) * cH
       const y = pad.top + cH - barH
-      // Determine color: single-color mode (e.g. MAE, not a win/loss metric)
-      // bypasses the win/loss split entirely.
-      const isWin = b.lo >= 0
-      const fill = this.config.singleColor || (isWin ? colorWin : colorLoss)
-      const dimFill = this.config.singleColorDim || (isWin ? colorWinDim : colorLossDim)
+      const alpha = (this._hoveredIdx == null || this._hoveredIdx === i) ? 1 : 0.35
 
-      // Bar body
-      ctx.fillStyle = (this._hoveredIdx == null || this._hoveredIdx === i) ? fill : dimFill
-      ctx.beginPath()
-      ctx.roundRect?.(x, y, barW, barH, [3, 3, 0, 0]) || ctx.rect(x, y, barW, barH)
-      ctx.fill()
+      if (this.config.colorByReason?.() && b.br && b.count) {
+        // Stacked segments, one per exit reason, bottom to top - same
+        // per-reason breakdown and color/order as CanvasScatter's donut
+        // points, just laid out as a stack instead of a pie slice.
+        ctx.globalAlpha = alpha
+        let stackY = pad.top + cH
+        b.br.forEach((count, idx) => {
+          if (!count) return
+          const segH = (count / b.count) * barH
+          stackY -= segH
+          ctx.fillStyle = REASON_COLORS[SCATTER_REASON_ORDER[idx]] || REASON_COLORS.unknown
+          ctx.fillRect(x, stackY, barW, segH)
+        })
+        // Rounded cap on the topmost segment only, so the stack still reads
+        // as one bar rather than a row of little rectangles.
+        ctx.beginPath()
+        ctx.roundRect?.(x, y, barW, Math.min(3, barH), [3, 3, 0, 0])
+        ctx.fill()
+        ctx.globalAlpha = 1
+      } else {
+        // Single-color mode (e.g. no reason data, or toggle off) bypasses
+        // the win/loss split entirely for metrics like MAE that aren't one.
+        const isWin = b.lo >= 0
+        const fill = this.config.singleColor || (isWin ? colorWin : colorLoss)
+        const dimFill = this.config.singleColorDim || (isWin ? colorWinDim : colorLossDim)
 
-      // Bar border top
-      ctx.fillStyle = (this._hoveredIdx == null || this._hoveredIdx === i) ? fill : dimFill
-      ctx.fillRect(x, y, barW, 2)
+        // Bar body
+        ctx.fillStyle = (this._hoveredIdx == null || this._hoveredIdx === i) ? fill : dimFill
+        ctx.beginPath()
+        ctx.roundRect?.(x, y, barW, barH, [3, 3, 0, 0]) || ctx.rect(x, y, barW, barH)
+        ctx.fill()
+
+        // Bar border top
+        ctx.fillStyle = (this._hoveredIdx == null || this._hoveredIdx === i) ? fill : dimFill
+        ctx.fillRect(x, y, barW, 2)
+      }
 
       // X label - show every other if tight
       if (n <= 12 || i % 2 === 0) {
@@ -817,10 +854,11 @@ class CanvasHistogram {
         const idx = buckets.findIndex(b => v >= b.lo && v < b.hi)
         if (idx >= 0) {
           const b = buckets[idx]
-          _showTooltip(e,
-            `<div class="tt-date">${this._fmtBucket(b.lo)} · ${this._fmtBucket(b.hi)}</div>` +
-            `<span>Trade${b.count > 1 ? 's' : ''}: <strong>${b.count}</strong></span>`
-          )
+          const html = this.config.tooltip
+            ? this.config.tooltip(b)
+            : `<div class="tt-date">${this._fmtBucket(b.lo)} · ${this._fmtBucket(b.hi)}</div>` +
+              `<span>Trade${b.count > 1 ? 's' : ''}: <strong>${b.count}</strong></span>`
+          _showTooltip(e, html)
           if (this._hoveredIdx !== idx) {
             this._hoveredIdx = idx
             this._draw()
@@ -880,18 +918,27 @@ function _binnedToPoints(binned) {
  * across all iy for each ix), shaped to match what CanvasHistogram expects
  * ({label, count, lo}) - same shape the backend's _mae_buckets/_mfe_buckets
  * used to return, but computed client-side from the scatter cells.
+ *
+ * Also sums each cell's `br` (per-reason breakdown, [risk, tsl, signal, end])
+ * across iy into a bucket-level `br`, so CanvasHistogram can render stacked,
+ * reason-colored bars the same way CanvasScatter colors its points - both
+ * ultimately read from the same scatter payload, just collapsed differently.
  */
 function _bucketsFromBinned(binned, decimals = 1, suffix = '%') {
   if (!binned || !binned.cells || !binned.cells.length) return []
   const nx = Math.max(...binned.cells.map(c => c.ix)) + 1
   const counts = new Array(nx).fill(0)
-  binned.cells.forEach(c => { counts[c.ix] += c.n })
+  const brSums = Array.from({ length: nx }, () => [0, 0, 0, 0])
+  binned.cells.forEach(c => {
+    counts[c.ix] += c.n
+    if (c.br) c.br.forEach((v, idx) => { brSums[c.ix][idx] += v })
+  })
   const fmt = v => (v >= 0 ? '+' : '') + v.toFixed(decimals) + suffix
   return counts
     .map((count, ix) => {
       const lo = binned.xMin + ix * binned.xW
       const hi = lo + binned.xW
-      return { label: `${fmt(lo)} · ${fmt(hi)}`, count, lo, hi }
+      return { label: `${fmt(lo)} · ${fmt(hi)}`, count, lo, hi, br: brSums[ix] }
     })
     .filter(b => b.count > 0)
 }
@@ -933,9 +980,11 @@ class CanvasScatter {
 
   // Private
   _getPad() {
+    const xTop = this.config.xAxisSide === 'top'
+    const top = xTop ? 32 : 16, bottom = xTop ? 16 : 32
     return this.config.yAxisSide === 'right'
-      ? { top: 16, right: 40, bottom: 32, left: 16 }
-      : { top: 16, right: 16, bottom: 32, left: 40 }
+      ? { top, right: 40, bottom, left: 16 }
+      : { top, right: 16, bottom, left: 40 }
   }
 
   _draw() {
@@ -997,12 +1046,13 @@ class CanvasScatter {
       ctx.fillText(v.toFixed(decY) + suffixY, labelX, y + 4)
     }
 
-    // X axis labels
+    // X axis labels - above the plot when xAxisSide is 'top', below otherwise
     ctx.textAlign = 'center'
+    const xLabelY = this.config.xAxisSide === 'top' ? pad.top - 16 : pad.top + cH + 16
     for (let i = 0; i <= this.config.gridLines; i++) {
       const v = xScale.mn + (xScale.rng / this.config.gridLines) * i
       const x = pad.left + (cW / this.config.gridLines) * i
-      ctx.fillText(v.toFixed(decX) + suffixX, x, pad.top + cH + 16)
+      ctx.fillText(v.toFixed(decX) + suffixX, x, xLabelY)
     }
 
     // Points - colored per-point via getColor when provided (e.g. by exit
@@ -1277,7 +1327,7 @@ class MonthlyPerfChart {
     const colorStratNeg = _cssVar('--danger') || '#ef4444'
     const colorAsset = '#c8cdd8'
     const colorAssetNeg = '#5a6075'
-    const colorDelta = _cssVar('--warning') || '#e8a838'
+    const colorDelta = _cssVar('--infographic2') || '#FFC75F'
 
     // Grid
     ctx.strokeStyle = '#2a2f3d'
@@ -1303,7 +1353,7 @@ class MonthlyPerfChart {
     }
 
     // Secondary axis (trade count) - scale + right-hand labels
-    const colorTrades = _cssVar('--info') || '#5b8def'
+    const colorTrades = _cssVar('--infographic3') || '#9275C3'
     const maxTrades = Math.max(...data.map(d => d.trades || 0), 1)
     const toTradesY = v => pad.top + cH - (v / maxTrades) * cH
     if (this._showTrades) {

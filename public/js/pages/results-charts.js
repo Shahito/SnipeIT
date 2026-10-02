@@ -14,7 +14,8 @@ const equityChart = new CanvasLineChart('equityChart', {
       getData:      r => (r.equityCurve || []).map(p => p.e),
       axis:         'left',
       prefix:       '$',
-      dynamic:      true, // auto green/red based on perf
+      dynamic:      true,
+      baselineValue: r => r.initialCapital,
       lineWidth:    2,
     },
     // {
@@ -31,7 +32,7 @@ const equityChart = new CanvasLineChart('equityChart', {
       i18nKey:      'results.equity_chart.price',
       getData:      r => (r.priceCurve || []).map(p => p.c),
       axis:         'right',
-      color:        'rgba(108,142,255,0.8)',
+      color:        'rgba(107, 154, 196, 0.8)',
       fillColor:    null,
       lineWidth:    1.5,
     },
@@ -73,11 +74,31 @@ const maeDistributionChart = new CanvasHistogram('maeDistributionCanvas', {
   singleColorDim: _cssVar('--primary-dim'),
   labelSuffix:    '%',
   labelDecimals:  1,
+  // Same toggle state as the scatter below - it's the same "color by exit
+  // reason" concept, just stacked instead of split into donut slices.
+  colorByReason:  () => _maeColorByReason,
+  tooltip:        b => {
+    const breakdown = (b.br || [])
+      .map((count, idx) => count ? `${REASON_LABELS[SCATTER_REASON_ORDER[idx]]}: ${count}` : null)
+      .filter(Boolean).join(' · ')
+    return `<div class="tt-date">${maeDistributionChart._fmtBucket(b.lo)} · ${maeDistributionChart._fmtBucket(b.hi)}</div>` +
+      `<span>Trade${b.count > 1 ? 's' : ''}: <strong>${b.count}</strong>${breakdown ? ` (${breakdown})` : ''}</span>`
+  },
 })
 
 // Same color key used everywhere else on this page for exit reasons
 // (exitReasonsFilters buttons), so a given reason always looks the same.
-const REASON_COLORS = { risk: '#6c8eff', tsl: '#c878ff', signal: '#ff9632', end: '#aaa', unknown: '#5A5F73' }
+
+// Old colors, making graph difficult to read
+// const REASON_COLORS = { risk: '#6c8eff', tsl: '#c878ff', signal: '#ff9632', end: '#aaa', unknown: '#5A5F73' }
+const REASON_COLORS = {
+  risk: '#6B9AC4',
+  signal: '#FFC75F',
+  tsl: '#9275C3',
+  end: '#B0BEC5',
+  unknown: '#9E9E9E'
+};
+
 function _buildReasonLabels() {
   return { risk: 'TP/SL', signal: 'Signal', tsl: 'Trailing SL', end: t('results.exit_reasons.label_end'), unknown: t('results.exit_reasons.label_unknown') }
 }
@@ -117,14 +138,18 @@ const maeScatterChart = new CanvasScatter('maeScatterCanvas', {
   },
 })
 _renderReasonLegend('maeScatterLegend')
+_renderReasonLegend('maeDistLegend')
 
 function setMaeColorByReason(enabled) {
   _maeColorByReason = enabled
-  document.getElementById('maeToggleColorReason').classList.toggle('active', enabled)
+  document.getElementById('maeDistToggleColorReason').classList.toggle('active', enabled)
   document.getElementById('maeScatterLegend').style.display = enabled ? '' : 'none'
+  document.getElementById('maeDistLegend').style.display = enabled ? '' : 'none'
   maeScatterChart.render(maeScatterChart._result)
+  console.log(maeScatterChart._result)
+  maeDistributionChart.render(maeDistributionChart._result)
 }
-document.getElementById('maeToggleColorReason').addEventListener('click', () => setMaeColorByReason(!_maeColorByReason))
+document.getElementById('maeDistToggleColorReason').addEventListener('click', () => setMaeColorByReason(!_maeColorByReason))
 
 function setMaeUnit(unit) {
   _maeUnit = unit
@@ -156,6 +181,14 @@ const mfeDistributionChart = new CanvasHistogram('mfeDistributionCanvas', {
   singleColorDim: _cssVar('--primary-dim'),
   labelSuffix:    '%',
   labelDecimals:  1,
+  colorByReason:  () => _mfeColorByReason,
+  tooltip:        b => {
+    const breakdown = (b.br || [])
+      .map((count, idx) => count ? `${REASON_LABELS[SCATTER_REASON_ORDER[idx]]}: ${count}` : null)
+      .filter(Boolean).join(' · ')
+    return `<div class="tt-date">${mfeDistributionChart._fmtBucket(b.lo)} · ${mfeDistributionChart._fmtBucket(b.hi)}</div>` +
+      `<span>Trade${b.count > 1 ? 's' : ''}: <strong>${b.count}</strong>${breakdown ? ` (${breakdown})` : ''}</span>`
+  },
 })
 
 // MFE vs PnL scatter (losing trades only) - binned cells, colored by exit reason breakdown
@@ -170,6 +203,7 @@ const mfeScatterChart = new CanvasScatter('mfeScatterCanvas', {
   labelDecimalsX: 1,
   labelDecimalsY: 1,
   yAxisSide:      'left', // X domain always >= 0 (MFE)
+  xAxisSide:      'top',
   pointRadius:    p => 3 + p._radiusScale * 7,
   pointColor:     DEFAULT_POINT_COLOR,
   colorByReason:  () => _mfeColorByReason,
@@ -181,20 +215,25 @@ const mfeScatterChart = new CanvasScatter('mfeScatterCanvas', {
   },
 })
 _renderReasonLegend('mfeScatterLegend')
+_renderReasonLegend('mfeDistLegend')
 
 document.addEventListener('i18n:ready', () => {
   REASON_LABELS = _buildReasonLabels()
   _renderReasonLegend('maeScatterLegend')
+  _renderReasonLegend('maeDistLegend')
   _renderReasonLegend('mfeScatterLegend')
+  _renderReasonLegend('mfeDistLegend')
 })
 
 function setMfeColorByReason(enabled) {
   _mfeColorByReason = enabled
-  document.getElementById('mfeToggleColorReason').classList.toggle('active', enabled)
+  document.getElementById('mfeDistToggleColorReason').classList.toggle('active', enabled)
   document.getElementById('mfeScatterLegend').style.display = enabled ? '' : 'none'
+  document.getElementById('mfeDistLegend').style.display = enabled ? '' : 'none'
   mfeScatterChart.render(mfeScatterChart._result)
+  mfeDistributionChart.render(mfeDistributionChart._result)
 }
-document.getElementById('mfeToggleColorReason').addEventListener('click', () => setMfeColorByReason(!_mfeColorByReason))
+document.getElementById('mfeDistToggleColorReason').addEventListener('click', () => setMfeColorByReason(!_mfeColorByReason))
 
 function setMfeUnit(unit) {
   _mfeUnit = unit
