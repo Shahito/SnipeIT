@@ -1,6 +1,4 @@
 // Chart instances
-// To add a new line chart: instantiate a new CanvasLineChart here.
-// To add a new bar chart: instantiate a new HorizontalBarChart here.
 
 const equityChart = new CanvasLineChart('equityChart', {
   togglesContainerId: 'equityChartToggles',
@@ -127,7 +125,7 @@ const maeScatterChart = new CanvasScatter('maeScatterCanvas', {
   labelDecimalsX: 1,
   labelDecimalsY: 1,
   yAxisSide:      'right', // X domain always <= 0 (MAE)
-  pointRadius:    p => 3 + p._radiusScale * 7,
+  pointRadius:    p => 4 + p._radiusScale * 7,
   pointColor:     DEFAULT_POINT_COLOR,
   colorByReason:  () => _maeColorByReason,
   tooltip:        p => {
@@ -204,7 +202,7 @@ const mfeScatterChart = new CanvasScatter('mfeScatterCanvas', {
   labelDecimalsY: 1,
   yAxisSide:      'left', // X domain always >= 0 (MFE)
   xAxisSide:      'top',
-  pointRadius:    p => 3 + p._radiusScale * 7,
+  pointRadius:    p => 4 + p._radiusScale * 7,
   pointColor:     DEFAULT_POINT_COLOR,
   colorByReason:  () => _mfeColorByReason,
   tooltip:        p => {

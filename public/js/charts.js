@@ -87,6 +87,17 @@ window.addEventListener('touchmove', e => {
 }, { passive: true })
 
 // Helpers
+// Adaptive decimals by magnitude (same thresholds as trade-chart.js fmt)
+function _fmtAdaptive(v) {
+  if (v === null || v === undefined || Number.isNaN(v)) return '-'
+  const av = Math.abs(v)
+  if (av >= 1000) return v.toFixed(1)
+  if (av >= 10) return v.toFixed(2)
+  if (av >= 1) return v.toFixed(3)
+  if (av >= 0.01) return v.toFixed(4)
+  if (av >= 0.0001) return v.toFixed(6)
+  return v.toFixed(8)
+}
 function _cssVar(name) {
   return window.getComputedStyle(document.body).getPropertyValue(name).trim()
 }
@@ -474,14 +485,17 @@ class CanvasLineChart {
         if (!vals?.length) return null
         const v = vals[Math.round(ratio * (vals.length - 1))]
         if (v == null) return null
-        const valStr = (c.prefix || '') + (typeof v === 'number' ? v.toFixed(2) : v) + (c.suffix || '')
+        const valStr = (c.prefix || '') + (typeof v === 'number' ? _fmtAdaptive(v) : v) + (c.suffix || '')
         const label = _i18n(c.i18nKey, c.label || c.key)
         const classes = ['tt-' + c.key]
         if (c.dynamic) {
           const btn = document.querySelector(`#${this.config.togglesContainerId} [data-curve="${c.key}"]`)
           classes.push(btn?.classList.contains('positive') ? 'tt-positive' : 'tt-negative')
         }
-        return `<span class="tt-${c.key}">${label}: <strong>${valStr}</strong></span>`
+        const valColor = c.dynamic
+          ? _cssVar(v >= vals[0] ? '--success' : '--danger')
+          : c.color
+        return `<span class="tt-${c.key}">${label}: <strong${valColor ? ` style="color:${valColor}"` : ''}>${valStr}</strong></span>`
       })
       .filter(Boolean)
 
@@ -523,7 +537,7 @@ class CanvasLineChart {
 }
 
 
-// BarChart  (replaces HorizontalBarChart)
+// BarChart
 /**
  * Generic horizontal bar chart. Each row can have N segments (e.g. win+loss,
  * or a single PnL bar, etc.) - fully driven by config.
@@ -689,8 +703,11 @@ class CanvasHistogram {
   }
 
   // Private
-  _getPad() {
-    return { top: 16, right: 8, bottom: 32, left: 16 }
+  _getPad(maxCount) {
+    const ctx = document.getElementById(this.canvasId).getContext('2d')
+    ctx.font = '10px system-ui'
+    const wLeft = ctx.measureText(String(maxCount)).width
+    return { top: 16, right: 8, bottom: 32, left: Math.ceil(wLeft) + 14 }
   }
 
   _getBuckets() {
@@ -722,7 +739,9 @@ class CanvasHistogram {
     const W = canvas.offsetWidth || 600
     const H = canvas.offsetHeight || this.config.height
 
-    const pad = this._getPad()
+    const maxCount = Math.max(...buckets.map(b => b.count))
+
+    const pad = this._getPad(maxCount)
     const cW = W - pad.left - pad.right
     const cH = H - pad.top - pad.bottom
 
@@ -734,7 +753,6 @@ class CanvasHistogram {
     ctx.scale(devicePixelRatio, devicePixelRatio)
     ctx.clearRect(0, 0, W, H)
 
-    const maxCount = Math.max(...buckets.map(b => b.count))
     const n = buckets.length
     const domainLo = Math.min(...buckets.map(b => b.lo))
     const domainHi = Math.max(...buckets.map(b => b.hi))
@@ -845,7 +863,7 @@ class CanvasHistogram {
       canvas.addEventListener('mousemove', e => {
         const rect = canvas.getBoundingClientRect()
         const mouseX = e.clientX - rect.left
-        const pad = this._getPad()
+        const pad = this._pad
         const buckets = this._buckets || []
         const domainLo = this._domainLo
         const domainHi = this._domainHi
@@ -1027,12 +1045,14 @@ class CanvasScatter {
     const decX = this.config.labelDecimalsX ?? 1
     const decY = this.config.labelDecimalsY ?? 1
 
-    // Grid lines
+    // Grid lines (horizontal + vertical, vertical ones align with X labels)
     ctx.strokeStyle = '#2a2f3d'
     ctx.lineWidth = 1
     for (let i = 0; i <= this.config.gridLines; i++) {
       const y = pad.top + (cH / this.config.gridLines) * i
       ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cW, y); ctx.stroke()
+      const x = pad.left + (cW / this.config.gridLines) * i
+      ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + cH); ctx.stroke()
     }
 
     // Y axis labels
@@ -1053,6 +1073,65 @@ class CanvasScatter {
       const v = xScale.mn + (xScale.rng / this.config.gridLines) * i
       const x = pad.left + (cW / this.config.gridLines) * i
       ctx.fillText(v.toFixed(decX) + suffixX, x, xLabelY)
+    }
+
+    // Weighted medians (each cell weighted by its trade count n)
+    const drawMedians = (ctx) => {
+      const wMedian = key => {
+        const sorted = [...points].sort((a, b) => a[key] - b[key])
+        const half = sorted.reduce((sum, p) => sum + p.n, 0) / 2
+        let acc = 0
+        for (const p of sorted) { acc += p.n; if (acc >= half) return p[key] }
+        return null
+      }
+      const medX = wMedian('x')
+      const medY = wMedian('y')
+      if (medX == null || medY == null) return
+      const mx = xScale.toX(medX)
+      const my = yScale.toY(medY)
+      ctx.save()
+      ctx.setLineDash([4, 4])
+      ctx.lineWidth = 1.2
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)'
+      ctx.beginPath(); ctx.moveTo(mx, pad.top); ctx.lineTo(mx, pad.top + cH); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(pad.left, my); ctx.lineTo(pad.left + cW, my); ctx.stroke()
+      ctx.restore()
+
+      // Label pill with a solid background so it's readable over bubbles
+      const tag = (text, x, y, alignRight) => {
+        ctx.font = '10px system-ui'
+        const w = ctx.measureText(text).width + 8
+        const left = alignRight ? x - w : x
+        ctx.fillStyle = 'rgba(22,26,35,0.9)'
+        ctx.fillRect(left, y - 10, w, 14)
+        ctx.fillStyle = 'rgba(255,255,255,0.9)'
+        ctx.textAlign = 'left'
+        ctx.fillText(text, left + 4, y + 1)
+      }
+      const medLabel = t('results.scatter.median')
+      const nearRight = mx > pad.left + cW - 90
+      tag(`${medLabel} ${medX.toFixed(decX)}${suffixX}`, nearRight ? mx - 3 : mx + 3, pad.top + 12, nearRight)
+      tag(`${medLabel} ${medY.toFixed(decY)}${suffixY}`, pad.left + cW - 3, my - 16 < pad.top ? my + 14 : my - 6, true)
+    }
+    const hovering = this._hoveredIdx != null
+    if (hovering) {
+      const off = document.createElement('canvas')
+      off.width = canvas.width
+      off.height = canvas.height
+      const octx = off.getContext('2d')
+      octx.scale(devicePixelRatio, devicePixelRatio)
+      drawMedians(octx)
+      // Erase the lines wherever a bubble sits: lines "step back" behind all bubbles
+      octx.globalCompositeOperation = 'destination-out'
+      octx.fillStyle = '#000'
+      points.forEach(p => {
+        octx.beginPath()
+        octx.arc(xScale.toX(p.x), yScale.toY(p.y), radiusFn(p), 0, Math.PI * 2)
+        octx.fill()
+      })
+      ctx.globalAlpha = 0.6
+      ctx.drawImage(off, 0, 0, W, H)
+      ctx.globalAlpha = 1
     }
 
     // Points - colored per-point via getColor when provided (e.g. by exit
@@ -1087,6 +1166,9 @@ class CanvasScatter {
       }
     })
     ctx.globalAlpha = 1
+
+    // Medians go on top normally, but under the bubbles while one is hovered.
+    if (!hovering) drawMedians(ctx)
 
     this._points = points
     this._pad = pad

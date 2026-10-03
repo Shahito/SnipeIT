@@ -1226,6 +1226,16 @@ select.field-invalid {
     min-height: 0;
 }
 
+#equityChart,
+#pnlDistributionCanvas,
+#maeDistributionCanvas,
+#maeScatterCanvas,
+#mfeDistributionCanvas,
+#mfeScatterCanvas,
+#monthlyPerfCanvas {
+    cursor: crosshair;
+}
+
 #pnlDistributionCard canvas {
     min-height: 12.9rem;
 }
@@ -1393,6 +1403,103 @@ select.field-invalid {
 
 .ctx-tooltip.visible {
     opacity: 1;
+}
+
+/* Info tip (js/info-tip.js) */
+.info-tip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    width: 1.15em;
+    height: 1.15em;
+    min-width: .8rem;
+    min-height: .8rem;
+    margin-left: .3rem;
+    color: var(--text-muted);
+    cursor: help;
+    text-transform: none;
+    letter-spacing: normal;
+    transition: color .15s;
+}
+
+.info-tip::after {
+    content: '';
+    position: absolute;
+    inset: -.4rem;
+}
+
+.info-tip:hover,
+.info-tip:focus-visible {
+    color: var(--primary);
+}
+
+.info-tip:focus-visible {
+    outline: 2px solid var(--primary-dim-strong);
+    outline-offset: 2px;
+    border-radius: 50%;
+}
+
+.info-tip svg {
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.info-tip-popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 9999;
+    max-width: min(18rem, calc(100vw - 1rem));
+    padding: .5rem .75rem;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--primary-dim-strong);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    font-size: .8rem;
+    font-weight: 600;
+    line-height: 1.5;
+    text-align: left;
+    text-transform: none;
+    letter-spacing: normal;
+    white-space: normal;
+    overflow-wrap: break-word;
+    pointer-events: none;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity .12s, visibility 0s .12s;
+}
+
+.info-tip-popup.is-open {
+    visibility: visible;
+    opacity: 1;
+    transition: opacity .12s;
+}
+
+.info-tip-popup::after {
+    content: '';
+    position: absolute;
+    left: var(--arrow-x, 50%);
+    width: .5rem;
+    height: .5rem;
+    background: var(--surface2);
+    border: 1px solid var(--primary-dim-strong);
+    transform: translateX(-50%) rotate(45deg);
+}
+
+.info-tip-popup[data-side="top"]::after {
+    bottom: -.3rem;
+    border-top-color: transparent;
+    border-left-color: transparent;
+}
+
+.info-tip-popup[data-side="bottom"]::after {
+    top: -.3rem;
+    border-bottom-color: transparent;
+    border-right-color: transparent;
 }
 
 @keyframes pulse {
@@ -4101,6 +4208,7 @@ input[type="color"] {
     font-family: var(--font);
     transition: all .15s;
     white-space: nowrap;
+    user-select: none;
 }
 
 .toggle-btn:hover,

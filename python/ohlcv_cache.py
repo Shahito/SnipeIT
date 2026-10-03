@@ -354,6 +354,22 @@ def get_ohlcv(pair: str, timeframe: str, start_date: str, end_date: str,
     log_cache_miss(pair, timeframe, start_date[:10], end_date[:10])
     df = _fetch_from_exchange(exchange, pair, timeframe, start, end)
     if not df.empty:
+        df = df.sort_values("timestamp").reset_index(drop=True)
+        for gap_start, gap_end in _find_gaps(df, step):
+            patch = _fetch_from_exchange(exchange, pair, timeframe, gap_start, gap_end)
+            patch = patch[(patch["timestamp"] > gap_start) & (patch["timestamp"] < gap_end)]
+            if patch.empty:
+                log.warning(
+                    f"Gap {gap_start} -> {gap_end} on {pair}/{timeframe} confirmed empty "
+                    f"on first fetch - caching as known gap."
+                )
+                _save_confirmed_gap(cache_dir, gap_start, gap_end)
+            else:
+                log.info(
+                    f"Gap {gap_start} -> {gap_end} on {pair}/{timeframe} patched "
+                    f"within the initial fetch."
+                )
+                df = pd.concat([df, patch]).drop_duplicates(subset=["timestamp"]).sort_values("timestamp").reset_index(drop=True)
         _save_to_disk(cache_dir, df)
         _save_fetch_start(cache_dir, start)
     return df

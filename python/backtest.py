@@ -399,11 +399,20 @@ def _resolve_open_position(
             exit_price = min(
                 fill_price, level
             )  # gapped through -> fills at the open, never better
+            # The candle's own low can run well past this trigger - without
+            # LTF data we don't know the true sub-candle order, but we do
+            # know the position closed at exit_price, so MAE can't go
+            # past it either (same correction the ambiguous+LTF branch
+            # applies with its own precisely-walked seen_low).
+            prev_ll = prev_lowest_low if prev_lowest_low is not None else position["entry_price"]
+            position["lowest_low"] = min(prev_ll, exit_price)
         elif tp_price is not None and high >= tp_price:
             exit_price, reason = (
                 tp_price,
                 "risk",
             )  # a resting limit never fills better than its own level
+            prev_hh = prev_highest_high if prev_highest_high is not None else position["entry_price"]
+            position["highest_high"] = max(prev_hh, exit_price)
 
     return exit_price, reason, resolution
 

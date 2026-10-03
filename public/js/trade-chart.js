@@ -429,39 +429,50 @@ document.addEventListener('header:ready', async () => {
   candleSeries.setData(candles.map(c => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close })))
   candleSeries.setMarkers(markers)
 
-  // "In position" shaded zones (semi-transparent band from entry to exit)
-  const zonesLayer = document.createElement('div')
-  zonesLayer.style.position = 'absolute'
-  zonesLayer.style.top = '0'
-  zonesLayer.style.left = '0'
-  zonesLayer.style.right = '0'
-  zonesLayer.style.bottom = '0'
-  zonesLayer.style.pointerEvents = 'none'
-  zonesLayer.style.overflow = 'hidden'
-  zonesLayer.style.zIndex = '1' // above the candle canvas, below .pane-legend (z-index 5)
-  chartMainPaneEl.appendChild(zonesLayer)
-
-  function renderPositionZones() {
-    zonesLayer.innerHTML = ''
-    const ts = mainChart.timeScale()
-    for (const trade of trades) {
-      const x1 = ts.timeToCoordinate(trade.entryTime)
-      const x2 = ts.timeToCoordinate(trade.exitTime)
-      if (x1 == null || x2 == null) continue // trade outside the current visible range
-      const left = Math.min(x1, x2)
-      const width = Math.abs(x2 - x1)
-      if (width <= 0) continue
-      const zone = document.createElement('div')
-      zone.style.position = 'absolute'
-      zone.style.top = '0'
-      zone.style.bottom = '0'
-      zone.style.left = `${left}px`
-      zone.style.width = `${width}px`
-      zone.style.background = trade.pnlPct >= 0 ? 'color-mix(in srgb, var(--success) 10%, transparent)' : 'color-mix(in srgb, var(--danger) 10%, transparent)'
-      zonesLayer.appendChild(zone)
+  // "In position" shaded zones (semi-transparent band from entry to exit),
+  // drawn straight into the candle series' own canvas so takeScreenshot()
+  // picks them up natively.
+  class PositionZonesPrimitive {
+    constructor(trades) {
+      this._trades = trades
+      this.visible = true
+    }
+    attached({ chart, requestUpdate }) {
+      this._chart = chart
+      this._requestUpdate = requestUpdate
+    }
+    updateAllViews() {}
+    paneViews() { return [this] }
+    renderer() {
+      return {
+        draw: target => {
+          if (!this.visible) return
+          target.useBitmapCoordinateSpace(scope => {
+            const ctx = scope.context
+            const ts = this._chart.timeScale()
+            ctx.globalAlpha = 0.1
+            for (const trade of this._trades) {
+              const x1 = ts.timeToCoordinate(trade.entryTime)
+              const x2 = ts.timeToCoordinate(trade.exitTime)
+              if (x1 == null || x2 == null) continue
+              const left = Math.min(x1, x2) * scope.horizontalPixelRatio
+              const width = Math.abs(x2 - x1) * scope.horizontalPixelRatio
+              if (width <= 0) continue
+              ctx.fillStyle = trade.pnlPct >= 0 ? colors.success : colors.danger
+              ctx.fillRect(left, 0, width, scope.bitmapSize.height)
+            }
+            ctx.globalAlpha = 1
+          })
+        },
+      }
+    }
+    setVisible(visible) {
+      this.visible = visible
+      this._requestUpdate && this._requestUpdate()
     }
   }
-  mainChart.timeScale().subscribeVisibleLogicalRangeChange(() => renderPositionZones())
+  const positionZones = new PositionZonesPrimitive(trades)
+  candleSeries.attachPrimitive(positionZones)
 
   const toggleables = [] // individual line toggles - overlay indicators only (they share the main pane, no dedicated graph to remove)
   const colorOf = {}
@@ -660,7 +671,7 @@ document.addEventListener('header:ready', async () => {
     alignPriceScaleWidths()
     setTimeout(alignPriceScaleWidths, 50) // safety re-check once layout has fully settled
   })
-  window.addEventListener('resize', () => setTimeout(() => { alignPriceScaleWidths(); renderPositionZones() }, 50))
+  window.addEventListener('resize', () => setTimeout(alignPriceScaleWidths, 50))
 
   function bindPaneScreenshot(chart, el) {
     el.addEventListener('contextmenu', e => {
@@ -762,7 +773,7 @@ document.addEventListener('header:ready', async () => {
     title.textContent = t('chart.group.position')
     menuBodyEl.appendChild(title)
     addToggleRow(`${colors.primary}80`, t('chart.position_zones'), checked => {
-      zonesLayer.style.display = checked ? '' : 'none'
+      positionZones.setVisible(checked)
     })
   }
 
@@ -800,5 +811,4 @@ document.addEventListener('header:ready', async () => {
   const total = times.length
   const initialRange = { from: Math.max(0, total - INITIAL_VISIBLE_CANDLES), to: total - 1 }
   allCharts.forEach(c => c.timeScale().setVisibleLogicalRange(initialRange))
-  renderPositionZones()
 })

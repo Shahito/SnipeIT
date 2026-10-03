@@ -39,14 +39,14 @@ function initMetricCardInteractivity(gridId, targetMap) {
     const targetId = targetMap[card.dataset.metric]
     if (!targetId) return
     const target = document.getElementById(targetId)
-    if (!target) return
+    if (!target || target.classList.contains('hidden')) return
     scrollToMetricTarget(target)
   })
 }
 
 /** Builds the interactive class/attrs string for a metric card given its key. */
-function metricCardInteractiveAttrs(key, targetMap) {
-  const isInteractive = key in targetMap
+function metricCardInteractiveAttrs(key, targetMap, enabled = true) {
+  const isInteractive = enabled && key in targetMap
   return {
     cls: isInteractive ? ' metric-card-interactive' : '',
     attrs: isInteractive ? `data-metric="${key}" tabindex="0" role="button"` : '',

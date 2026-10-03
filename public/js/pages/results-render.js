@@ -10,14 +10,15 @@ const METRIC_TARGET_CARD = {
 initMetricCardInteractivity('metricsGrid', METRIC_TARGET_CARD)
 
 function renderMetrics(r) {
+  const hasTrades = r.totalTrades > 0
   const metrics = [
-    { key: 'results.metric.pnl_pct', value: r.pnlPercent, fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, cls: v => v >= 0 ? 'positive' : 'negative' },
+    { key: 'results.metric.pnl_pct', info: 'info.metric.sharpe', value: r.pnlPercent, fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, cls: v => v >= 0 ? 'positive' : 'negative' },
     { key: 'results.metric.pnl_cumul', value: r.cumulativePnl, fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, cls: v => v >= 0 ? 'positive' : 'negative' },
     { key: 'results.metric.buy_hold_pct', value: r.buyHoldPercent, fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, cls: v => v >= 0 ? 'positive' : 'negative' },
     { key: 'results.metric.capital', value: r.finalCapital, fmt: v => `$${v.toFixed(2)}`, cls: () => 'neutral' },
     { key: 'results.metric.trades', value: r.totalTrades, fmt: v => v, cls: () => 'neutral' },
-    { key: 'results.metric.winrate', value: r.winRate, fmt: v => `${v.toFixed(1)}%`, cls: v => v >= 50 ? 'positive' : 'negative' },
-    { key: 'results.metric.maxdd', value: r.maxDrawdown, fmt: v => `-${v.toFixed(2)}%`, cls: () => 'negative' },
+    { key: 'results.metric.winrate', value: hasTrades ? r.winRate : null, fmt: v => `${v.toFixed(1)}%`, cls: v => v >= 50 ? 'positive' : 'negative' },
+    { key: 'results.metric.maxdd', value: hasTrades ? r.maxDrawdown : null, fmt: v => `-${v.toFixed(2)}%`, cls: () => 'negative' },
     { key: 'results.metric.sharpe', value: r.sharpeRatio, fmt: v => v.toFixed(2), cls: v => v >= 1.5 ? 'positive' : v >= 0 ? 'neutral' : 'negative' },
     { key: 'results.metric.profit_factor', value: r.profitFactor, fmt: v => v.toFixed(2), cls: v => v >= 1.75 ? 'positive' : v >= 1 ? 'neutral' : 'negative' },
     { key: 'results.metric.exposure', value: r.exposurePct, fmt: v => `${v.toFixed(1)}%`, cls: () => 'neutral' },
@@ -27,9 +28,9 @@ function renderMetrics(r) {
   document.getElementById('metricsGrid').innerHTML = metrics.map(m => {
     const formatted = m.value != null ? m.fmt(m.value) : '-'
     const cls = m.value != null ? m.cls(m.value) : 'neutral'
-    const { cls: interCls, attrs } = metricCardInteractiveAttrs(m.key, METRIC_TARGET_CARD)
+    const { cls: interCls, attrs } = metricCardInteractiveAttrs(m.key, METRIC_TARGET_CARD, m.value != null)
     return `<div class="metric-card${interCls}" ${attrs}>
-      <div class="metric-label">${t(m.key)}</div>
+      <div class="metric-label">${t(m.key)}${m.info ? ` <span class="info-tip" data-info="${m.info}"></span>` : ''}</div>
       <div class="metric-value ${cls}">${formatted}</div>
     </div>`
   }).join('')
