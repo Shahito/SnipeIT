@@ -193,11 +193,12 @@ function renderJobRow(j) {
         })()}
         </span>
         <div class="job-row-meta">
-          <a href="/strategy-editor.html?id=${j.strategy.id}" class="job-strategy-name">${escHtml(j.strategy.name)}</a>
+          <a href="/strategy-editor.html?id=${j.strategy.id}" class="job-strategy-name">${escHtml(j.strategySnapshot?.name ?? j.strategy.name)}</a>
           <div class="job-row-sub">
-            <span class="tag tag-primary">${j.pair ?? j.strategySnapshot?.pair ?? '?'}</span>
+            <span class="tag tag-primary">${j.strategySnapshot?.pair ?? j.strategy.pair ?? '?'}</span>
             <span class="tag">${j.strategySnapshot?.timeframe ?? '?'}</span>
-            <span class="text-muted text-sm">${fmtDateTime(j.createdAt)}</span>          </div>
+            <span class="text-muted text-sm">${fmtDateTime(j.createdAt)}</span>
+          </div>
         </div>
       </div>
       <div class="job-row-metrics">

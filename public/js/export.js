@@ -286,11 +286,11 @@
 
         if (_opts.includeSummary) {
             lines.push(`  ${t('export.text.section.perf')}`)
-            lines.push(row(t('export.text.label.pnl'), `${sign(r.pnlPercent)}${fmt(r.pnlPercent)}% (${sign(r.pnlAbsolute)}$${fmt(r.pnlAbsolute)})`))
+            lines.push(row(t('export.text.label.pnl'), `${sign(r.pnlPercent)}${fmt(r.pnlPercent)}% (${sign(r.pnlAbsolute)}$${_fmtAdaptive(r.pnlAbsolute)})`))
             lines.push(row(t('export.text.label.pnl_cumul'), `${sign(r.cumulativePnl)}${fmt(r.cumulativePnl)}%`))
             lines.push(row(t('export.text.label.buyhold'), `${sign(r.buyHoldPercent)}${fmt(r.buyHoldPercent)}%`))
-            lines.push(row(t('export.text.label.capital_initial'), `$${fmt(r.initialCapital)}`))
-            lines.push(row(t('export.text.label.capital_final'), `$${fmt(r.finalCapital)}`))
+            lines.push(row(t('export.text.label.capital_initial'), `$${_fmtAdaptive(r.initialCapital)}`))
+            lines.push(row(t('export.text.label.capital_final'), `$${_fmtAdaptive(r.finalCapital)}`))
             lines.push('')
             lines.push(`  ${t('export.text.section.stats')}`)
             lines.push(row(t('export.text.label.trades'), `${r.totalTrades}`))

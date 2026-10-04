@@ -15,7 +15,7 @@ function renderMetrics(r) {
     { key: 'results.metric.pnl_pct', info: 'info.metric.sharpe', value: r.pnlPercent, fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, cls: v => v >= 0 ? 'positive' : 'negative' },
     { key: 'results.metric.pnl_cumul', value: r.cumulativePnl, fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, cls: v => v >= 0 ? 'positive' : 'negative' },
     { key: 'results.metric.buy_hold_pct', value: r.buyHoldPercent, fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, cls: v => v >= 0 ? 'positive' : 'negative' },
-    { key: 'results.metric.capital', value: r.finalCapital, fmt: v => `$${v.toFixed(2)}`, cls: () => 'neutral' },
+    { key: 'results.metric.capital', value: r.finalCapital, fmt: v => `$${_fmtAdaptive(v)}`, cls: () => 'neutral' },
     { key: 'results.metric.trades', value: r.totalTrades, fmt: v => v, cls: () => 'neutral' },
     { key: 'results.metric.winrate', value: hasTrades ? r.winRate : null, fmt: v => `${v.toFixed(1)}%`, cls: v => v >= 50 ? 'positive' : 'negative' },
     { key: 'results.metric.maxdd', value: hasTrades ? r.maxDrawdown : null, fmt: v => `-${v.toFixed(2)}%`, cls: () => 'negative' },
@@ -59,9 +59,9 @@ function renderTrades(r, trades, totalTrades) {
     return `<div class="trade-row trade-${tr.side}">
       <span class="tag ${tr.side === 'buy' ? 'tag-success' : 'tag-danger'}">${t('results.trade.' + tr.side)}</span>
       <span class="text-muted text-sm">${fmtDateTime(tr.date)}</span>
-      <span class="trade-price">$${tr.price?.toFixed(2) ?? '-'}</span>
-      <span class="trade-qty text-muted text-sm">${tr.quantity?.toFixed(6) ?? '-'}</span>
-      <span class="trade-value">$${tr.value?.toFixed(2) ?? '-'}</span>
+      <span class="trade-price">$${tr.price != null ? _fmtAdaptive(tr.price) : '-'}</span>
+      <span class="trade-qty text-muted text-sm">${tr.quantity != null ? _fmtAdaptive(tr.quantity) : '-'}</span>
+      <span class="trade-value">$${tr.value != null ? _fmtAdaptive(tr.value) : '-'}</span>
       <span class="${pnlClass} trade-pnl">${pnlStr}</span>
     </div>`
   }).join('')

@@ -11,7 +11,7 @@ const equityChart = new CanvasLineChart('equityChart', {
       i18nKey:      'results.equity_chart.equity',
       getData:      r => (r.equityCurve || []).map(p => p.e),
       axis:         'left',
-      prefix:       '$',
+      prefix:       '',
       dynamic:      true,
       baselineValue: r => r.initialCapital,
       lineWidth:    2,

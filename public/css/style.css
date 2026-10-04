@@ -90,6 +90,9 @@
     --danger-dim: rgba(255, 92, 92, .15);
     --danger-dim-strong: rgba(255, 92, 92, .4);
 
+    --success-marker: color-mix(in srgb, var(--success) 65%, white);
+    --danger-marker: color-mix(in srgb, var(--danger) 65%, white);
+
     --infographic1: #6B9AC4;
     --infographic1-dim: color-mix(in srgb, var(--infographic1) 12%, transparent);
 

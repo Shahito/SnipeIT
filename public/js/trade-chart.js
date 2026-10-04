@@ -92,6 +92,7 @@ function themeColors() {
   return {
     bg: v('--bg'), bg2: v('--bg2'), border: v('--border'), text: v('--text'), textMuted: v('--text-muted'),
     primary: v('--primary'), success: v('--success'), danger: v('--danger'),
+    successMarker: v('--success-marker'), dangerMarker: v('--danger-marker'),
   }
 }
 
@@ -175,17 +176,22 @@ document.addEventListener('header:ready', async () => {
     })
   }
 
-  function buildMarkers(trades, colors) {
+  function buildMarkers(trades, colors, level) {
     const markers = []
+    const size = level === 'far' ? 0.6 : 1
     for (const trade of trades) {
-      markers.push({ time: trade.entryTime, position: 'belowBar', color: colors.primary, shape: 'arrowUp', text: t('chart.marker.buy') })
+      markers.push({ time: trade.entryTime, position: 'belowBar', color: colors.primary, shape: 'arrowUp', size })
       const win = trade.pnlPct >= 0
+      let text = ''
+      if (level !== 'far') text = `${win ? '+' : ''}${trade.pnlPct.toFixed(1)}%`
+      if (level === 'close') text += ` ${reasonLabel(trade.reason)}`
       markers.push({
         time: trade.exitTime,
         position: 'aboveBar',
-        color: win ? colors.success : colors.danger,
-        shape: 'arrowDown',
-        text: `${win ? '+' : ''}${trade.pnlPct.toFixed(1)}% (${reasonLabel(trade.reason)})`,
+        color: win ? colors.successMarker : colors.dangerMarker,
+        shape: 'circle',
+        text,
+        size,
       })
     }
     markers.sort((a, b) => a.time - b.time)
@@ -205,16 +211,17 @@ document.addEventListener('header:ready', async () => {
     return 'overlay' // EMA_/SMA_ on CLOSE/HIGH/LOW/OPEN, BB_*, VWAP - all price-unit
   }
 
-  function fmt(v) {
-    if (v === null || v === undefined || Number.isNaN(v)) return '-'
-    const av = Math.abs(v)
-    if (av >= 1000) return v.toFixed(1)
-    if (av >= 10) return v.toFixed(2)
-    if (av >= 1) return v.toFixed(3)
-    if (av >= 0.01) return v.toFixed(4)
-    if (av >= 0.0001) return v.toFixed(6)
-    return v.toFixed(8)
-  }
+  // _fmtAdaptive comes from format.js (shared with charts.js on results.html)
+  const fmt = _fmtAdaptive
+
+  // lightweight-charts has its own price formatter for the native axis/
+  // crosshair labels, completely separate from fmt() above - it defaults to
+  // a fixed { precision: 2, minMove: 0.01 }, which is why a sub-$1 asset
+  // like ADA always showed X.XX on the Y axis regardless of fmt() being used
+  // in the legend. type:'custom' routes the axis through fmt() too; minMove
+  // is kept tiny since the formatter (not minMove/precision) now drives what
+  // gets displayed.
+  const PRICE_FORMAT = { type: 'custom', minMove: 0.00000001, formatter: fmt }
 
   const PRICE_ZOOM_STEP = 0.005
   const PRICE_ZOOM_MIN = 0 // fully zoomed in
@@ -355,7 +362,14 @@ document.addEventListener('header:ready', async () => {
   // (e.g. the chart's candle cap kicked in for a very long backtest). Markers
   // whose time doesn't match a real candle get visually clamped/stacked by
   // lightweight-charts, which is misleading - filter them out and count them.
-  const allMarkers = buildMarkers(trades, colors)
+  function detailLevel() {
+    const range = mainChart.timeScale().getVisibleLogicalRange()
+    if (!range) return 'mid'
+    const spacing = chartMainPaneEl.clientWidth / (range.to - range.from)
+    return spacing < 6 ? 'far' : spacing < 16 ? 'mid' : 'close'
+  }
+
+  const allMarkers = buildMarkers(trades, colors, 'mid')
   const markers = allMarkers.filter(m => timeToIdx.has(m.time))
   const hiddenMarkersCount = allMarkers.length - markers.length
 
@@ -425,9 +439,20 @@ document.addEventListener('header:ready', async () => {
   const candleSeries = mainChart.addCandlestickSeries({
     upColor: colors.success, downColor: colors.danger, borderVisible: false,
     wickUpColor: colors.success, wickDownColor: colors.danger,
+    priceFormat: PRICE_FORMAT,
   })
+  
   candleSeries.setData(candles.map(c => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close })))
   candleSeries.setMarkers(markers)
+
+  let markerLevel = 'mid'
+  function applyMarkerDetail() {
+    const level = detailLevel()
+    if (level === markerLevel) return
+    markerLevel = level
+    candleSeries.setMarkers(buildMarkers(trades, colors, level).filter(m => timeToIdx.has(m.time)))
+  }
+  mainChart.timeScale().subscribeVisibleLogicalRangeChange(applyMarkerDetail)
 
   // "In position" shaded zones (semi-transparent band from entry to exit),
   // drawn straight into the candle series' own canvas so takeScreenshot()
@@ -483,7 +508,7 @@ document.addEventListener('header:ready', async () => {
   overlayLabels.forEach((label, i) => {
     const color = INDICATOR_COLORS.overlay[i % INDICATOR_COLORS.overlay.length]
     colorOf[label] = color
-    const s = mainChart.addLineSeries({ color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, title: IS_MOBILE ? '' : label, lineType: htfLineType(label) })
+    const s = mainChart.addLineSeries({ color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, title: IS_MOBILE ? '' : label, lineType: htfLineType(label), priceFormat: PRICE_FORMAT })
     s.setData(pointSeries[label])
     toggleables.push({ label, series: s, color })
     overlaySeriesByLabel[label] = s

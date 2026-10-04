@@ -87,17 +87,7 @@ window.addEventListener('touchmove', e => {
 }, { passive: true })
 
 // Helpers
-// Adaptive decimals by magnitude (same thresholds as trade-chart.js fmt)
-function _fmtAdaptive(v) {
-  if (v === null || v === undefined || Number.isNaN(v)) return '-'
-  const av = Math.abs(v)
-  if (av >= 1000) return v.toFixed(1)
-  if (av >= 10) return v.toFixed(2)
-  if (av >= 1) return v.toFixed(3)
-  if (av >= 0.01) return v.toFixed(4)
-  if (av >= 0.0001) return v.toFixed(6)
-  return v.toFixed(8)
-}
+// _fmtAdaptive now lives in format.js (shared with trade-chart.js on chart.html)
 function _cssVar(name) {
   return window.getComputedStyle(document.body).getPropertyValue(name).trim()
 }
@@ -245,7 +235,7 @@ class CanvasLineChart {
   }
 
   // Private
-  _measurePad(canvas, r) {
+  _getPad(canvas, r) {
     const W = canvas.offsetWidth || 800
     const small = W < 640
     const ctx = canvas.getContext('2d')
@@ -267,7 +257,7 @@ class CanvasLineChart {
       return max
     }
 
-    const margin = 0 // small ? 20 : 25
+    const margin = 8 // just enough to cover the 6px draw offset below
     const wLeft = widestLabel('left')
     const wRight = widestLabel('right')
     return {
@@ -341,7 +331,7 @@ class CanvasLineChart {
     canvas.height = 0
     const W = canvas.offsetWidth || 800
     const H = this.config.height
-    const pad = this._measurePad(canvas, r)
+    const pad = this._getPad(canvas, r)
     const cW = W - pad.left - pad.right
     const cH = H - pad.top - pad.bottom
     const n = timestamps.length
@@ -473,7 +463,7 @@ class CanvasLineChart {
     const canvas = document.getElementById(this.canvasId)
     const rect = canvas.getBoundingClientRect()
     const W = canvas.offsetWidth
-    const pad = this._measurePad(canvas, r)
+    const pad = this._getPad(canvas, r)
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left - pad.left) / (W - pad.left - pad.right)))
     const idx = Math.round(ratio * (timestamps.length - 1))
     const fmtDate = this.config.formatTooltipDate || this.config.formatDate || (ts => new Date(ts).toLocaleDateString())
@@ -1343,7 +1333,7 @@ class MonthlyPerfChart {
   }
 
   // Private
-  // Left/right margins sized to the widest axis label, same approach as CanvasLineChart._measurePad
+  // Left/right margins sized to the widest axis label, same approach as CanvasLineChart._getPad
   _getPad(W) {
     const small = W < 640
     const fallbackRight = this._showTrades ? (small ? 34 : 40) : 8
