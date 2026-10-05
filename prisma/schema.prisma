@@ -48,6 +48,7 @@ model User {
   apiKeys         ApiKey[]
   tags            Tag[]
   sweepGroups     SweepGroup[]
+  pushSubscriptions PushSubscription[]
 }
 
 model ApiKey {
@@ -62,6 +63,15 @@ model ApiKey {
 
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobs          BacktestJob[]
+}
+
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  endpoint  String   @unique @db.VarChar(500)
+  keys      Json
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 }
 
 model Strategy {

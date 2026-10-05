@@ -17,6 +17,7 @@ const sweepRoutes = require('./src/routes/sweep')
 const eventsRoutes = require('./src/routes/events')
 const coinRoutes = require('./src/routes/coin')
 const webhookRoutes = require('./src/routes/webhooks')
+const pushRoutes = require('./src/routes/push')
 
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./src/config/swagger');
@@ -99,6 +100,7 @@ app.use('/api/worker', workerRoutes)
 app.use('/api/tags', tagRoutes)
 app.use('/api/coins', coinRoutes)
 app.use('/api/webhooks', webhookRoutes)
+app.use('/api/push', pushRoutes)
 app.use('/api', sweepRoutes) // expose /api/strategies/:id/sweep* and /api/sweeps*
 
 if (!isProd) {
