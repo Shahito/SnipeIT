@@ -327,6 +327,11 @@ def _resolve_open_position(
         take_profit_val,
         position["entry_atr"],
     )
+    # Resolved once, reused everywhere below a "before this candle" bound
+    # is needed (entry candle: no prior extreme yet, fall back to entry price)
+    entry_price = position["entry_price"]
+    prev_hh = prev_highest_high if prev_highest_high is not None else entry_price
+    prev_ll = prev_lowest_low if prev_lowest_low is not None else entry_price
 
     ambiguous, trigger = _detect_ambiguous_candle(
         low,
@@ -335,6 +340,8 @@ def _resolve_open_position(
         tp_price,
         trailing_stop_loss_val,
         position["trailing_high"],
+        prev_hh,
+        prev_ll,
     )
 
     exit_price, reason, resolution = None, None, "base"
@@ -361,11 +368,6 @@ def _resolve_open_position(
             # bound: prior state (or entry price, if the trade entered and
             # exited this same candle) capped by what the LTF walk
             # actually saw up to the trigger
-            entry_price = position["entry_price"]
-            prev_hh = (
-                prev_highest_high if prev_highest_high is not None else entry_price
-            )
-            prev_ll = prev_lowest_low if prev_lowest_low is not None else entry_price
             position["highest_high"] = max(prev_hh, outcome["seen_high"])
             position["lowest_low"] = min(prev_ll, outcome["seen_low"])
 
@@ -403,22 +405,12 @@ def _resolve_open_position(
             # know the position closed at exit_price, so MAE can't go
             # past it either (same correction the ambiguous+LTF branch
             # applies with its own precisely-walked seen_low)
-            prev_ll = (
-                prev_lowest_low
-                if prev_lowest_low is not None
-                else position["entry_price"]
-            )
             position["lowest_low"] = min(prev_ll, exit_price)
         elif tp_price is not None and high >= tp_price:
             exit_price, reason = (
                 tp_price,
                 "risk",
             )  # a resting limit never fills better than its own level
-            prev_hh = (
-                prev_highest_high
-                if prev_highest_high is not None
-                else position["entry_price"]
-            )
             position["highest_high"] = max(prev_hh, exit_price)
 
     return exit_price, reason, resolution
@@ -739,12 +731,19 @@ def _stop_target_prices(
 
 
 def _detect_ambiguous_candle(
-    low, high, sl_price, tp_price, trailing_stop_loss_val, trailing_high
+    low,
+    high,
+    sl_price,
+    tp_price,
+    trailing_stop_loss_val,
+    trailing_high,
+    prev_highest_high,
+    prev_lowest_low,
 ):
     """
     A base candle's high/low alone can't always tell which of several
-    same-candle triggers happened first. Only these three situations are
-    ambiguous - everything else is resolved exactly from the base candle:
+    same-candle triggers happened first. These situations are ambiguous -
+    everything else is resolved exactly from the base candle:
       - TSL: a new high THIS candle raises the trailing stop, and the
         candle's low already breaches that raised stop - whether the
         pullback happened before or after the new high is unknown
@@ -753,10 +752,13 @@ def _detect_ambiguous_candle(
         unknown (this can happen even without a new high this candle, if
         the low simply breaches both already-standing levels at once)
       - SL+TP: both levels sit inside this candle's [low, high] range
-    A wide candle where the low breaches an ALREADY-STANDING TSL level (no
-    new high this candle) AND the high also reaches TP is not currently
-    flagged - not proven to occur in practice yet. If it does, add it here
-    the same way as the other cases
+      - a stop-out (SL or TSL) could trigger on a candle that ALSO sets a
+        new high for the position: whether that high happened before or
+        after the stop fired is unknown, so this candle's MFE can't be
+        trusted without resolving the order (symmetric to the TSL case
+        above, but for a plain SL too, which doesn't have its own check)
+      - symmetric: a TP could trigger on a candle that ALSO sets a new
+        low - same uncertainty, for the MAE side
     """
     effective_high = (
         max(high, trailing_high) if trailing_stop_loss_val is not None else None
@@ -780,6 +782,10 @@ def _detect_ambiguous_candle(
         return True, "sl_tsl_conflict"
     if sl_could_trigger and tp_could_trigger:
         return True, "sl_tp_conflict"
+    if (sl_could_trigger or tsl_could_trigger) and high > prev_highest_high:
+        return True, "stop_new_high"
+    if tp_could_trigger and low < prev_lowest_low:
+        return True, "tp_new_low"
     return False, None
 
 

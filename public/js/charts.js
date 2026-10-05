@@ -248,7 +248,7 @@ class CanvasLineChart {
         const vals = c.getData(r)
         if (!vals?.length) return
         const mn = Math.min(...vals), mx = Math.max(...vals)
-        const fmtVal = v => (c.prefix || '') + v.toFixed(v > 100 ? 0 : 2) + (c.suffix || '')
+        const fmtVal = v => (c.prefix || '') + _fmtAdaptive(v) + (c.suffix || '')
         for (let i = 0; i <= this.config.gridLines; i++) {
           const v = mx - ((mx - mn) / this.config.gridLines) * i
           max = Math.max(max, ctx.measureText(fmtVal(v)).width)
@@ -396,7 +396,7 @@ class CanvasLineChart {
 
       _drawPolyline(ctx, pts, color, fillColor, c.lineWidth || 1.5, pad.top, cH)
 
-      const fmtVal = v => (c.prefix || '') + v.toFixed(v > 100 ? 0 : 2) + (c.suffix || '')
+      const fmtVal = v => (c.prefix || '') + _fmtAdaptive(v) + (c.suffix || '')
       ctx.font = '10px system-ui'
       if (c.axis === 'left') {
         ctx.fillStyle = color; ctx.textAlign = 'right'
