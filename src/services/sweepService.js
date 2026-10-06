@@ -4,6 +4,7 @@ const { resolveSweep } = require('../utils/sweepEngine')
 const { SWEEP_WARNING_THRESHOLD, SWEEP_ALL_RUNS_THRESHOLD } = require('../config/sweep')
 const { CATEGORIES, categoryOf } = require('../config/coinCategories')
 const { emitToUser } = require('../utils/eventBus')
+const { sendLocalizedNotificationToUser } = require('./pushService')
 
 function stableStringify(value) {
   if (value instanceof Date) return JSON.stringify(value.toISOString())
@@ -304,7 +305,7 @@ async function getSweepGroup(id, userId) {
 // Called after every status transition of a BacktestJob attached to a sweep
 async function refreshSweepGroupStatus(sweepGroupId) {
   if (!sweepGroupId) return
-  const jobs = await prisma.backtestJob.findMany({ where: { sweepGroupId }, select: { status: true } })
+  const jobs = await prisma.backtestJob.findMany({ where: { sweepGroupId }, select: { id: true, status: true } })
   const allTerminal = jobs.every(j => j.status === 'done' || j.status === 'error')
 
   if (!allTerminal) {
@@ -313,9 +314,10 @@ async function refreshSweepGroupStatus(sweepGroupId) {
     const g = await prisma.sweepGroup.update({
       where: { id: sweepGroupId },
       data: { status: anyRunning ? 'running' : 'pending' },
-      select: { id: true, userId: true, status: true },
+      select: { id: true, userId: true, status: true, name: true, totalRuns: true, halfwayNotified: true },
     })
     emitToUser(g.userId, 'sweep:update', { sweepGroupId: g.id, status: g.status })
+    await notifySweepHalfway(g, jobs)
     return
   }
 
@@ -327,9 +329,59 @@ async function refreshSweepGroupStatus(sweepGroupId) {
       status: allDone ? 'done' : (anyDone ? 'partial_error' : 'error'),
       completedAt: new Date(),
     },
-    select: { id: true, userId: true, status: true },
+    select: { id: true, userId: true, status: true, name: true, totalRuns: true },
   })
   emitToUser(g.userId, 'sweep:update', { sweepGroupId: g.id, status: g.status })
+  notifySweepGroupCompletion(g, jobs)
+}
+
+// Sends a one-time push once a multi-run sweep crosses 50 percent done.
+// Single runs, totalRuns equal to 1, are skipped, there is no halfway point.
+async function notifySweepHalfway(g, jobs) {
+  if (g.totalRuns <= 1 || g.halfwayNotified) return
+
+  const terminalCount = jobs.filter(j => j.status === 'done' || j.status === 'error').length
+  if (terminalCount / g.totalRuns < 0.5) return
+
+  await prisma.sweepGroup.update({
+    where: { id: g.id },
+    data: { halfwayNotified: true },
+  })
+
+  sendLocalizedNotificationToUser(g.userId, {
+    titleKey: 'push.sweep_halfway.title',
+    bodyKey: 'push.sweep_halfway.body',
+    vars: { name: g.name || 'Strategy', done: terminalCount, total: g.totalRuns },
+  }, `/sweep-results.html?id=${g.id}`).catch((err) => {
+    console.error('Push notification failed:', err)
+  })
+}
+
+// Fire and forget. A failed push must not break job or sweep finalization.
+// Text is translated per subscription by sendLocalizedNotificationToUser.
+// Push keys live in public/locales, lookup logic is in src/i18n/push.js.
+function notifySweepGroupCompletion(g, jobs) {
+  const isSingleRun = g.totalRuns === 1
+  const url = isSingleRun ? `/results.html?jobId=${jobs[0].id}` : `/sweep-results.html?id=${g.id}`
+  const vars = { name: g.name || 'Strategy', total: g.totalRuns }
+
+  let topicKey
+  if (g.status === 'done') {
+    topicKey = isSingleRun ? 'backtest_done' : 'sweep_done'
+  } else if (g.status === 'partial_error') {
+    topicKey = 'sweep_partial'
+    vars.failed = jobs.filter(j => j.status === 'error').length
+  } else {
+    topicKey = isSingleRun ? 'backtest_failed' : 'sweep_failed'
+  }
+
+  sendLocalizedNotificationToUser(g.userId, {
+    titleKey: `push.${topicKey}.title`,
+    bodyKey: `push.${topicKey}.body`,
+    vars,
+  }, url).catch((err) => {
+    console.error('Push notification failed:', err)
+  })
 }
 
 module.exports = { previewSweep, launchSweep, listSweeps, getSweepGroup, refreshSweepGroupStatus }

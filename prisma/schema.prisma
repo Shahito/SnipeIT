@@ -60,6 +60,7 @@ model ApiKey {
   lastUsedAt    DateTime?
   lastHeartbeat DateTime?   // updated by the worker every N seconds
   createdAt     DateTime  @default(now())
+  disconnectedNotified Boolean @default(false) // set once the disconnect push is sent, reset on next heartbeat
 
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobs          BacktestJob[]
@@ -71,6 +72,7 @@ model PushSubscription {
   keys      Json
   userId    Int?
   user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lang      String   @default("en") @db.VarChar(5)
   createdAt DateTime @default(now())
 }
 
@@ -161,6 +163,7 @@ model SweepGroup {
   status             String    @default("pending") // pending | running | done | partial_error | error
   createdAt          DateTime  @default(now())
   completedAt        DateTime?
+  halfwayNotified    Boolean   @default(false) // set once the 50 percent progress push is sent
 
   strategy Strategy      @relation(fields: [strategyId], references: [id], onDelete: Cascade)
   user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -38,11 +38,13 @@ async function enablePushNotifications() {
       applicationServerKey: urlBase64ToUint8Array(publicKey),
     });
 
-    // Send subscription to backend
+    // Send subscription to backend, tagged with the current UI language
+    // so push payloads can be localized per device
+    const lang = typeof window.i18nCurrentLang === 'function' ? window.i18nCurrentLang() : 'en';
     const res = await fetch('/api/push/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(subscription),
+      body: JSON.stringify({ ...subscription.toJSON(), lang }),
     });
 
     if (res.ok) {
@@ -52,6 +54,14 @@ async function enablePushNotifications() {
     console.error('Push subscription failed:', error);
   }
 }
+
+// If permission was already granted in a previous session, resubscribe
+// silently on load so the backend always has an up to date subscription.
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    enablePushNotifications();
+  }
+});
 
 document.addEventListener('click', function triggerPush() {
   if (Notification.permission === 'default') {

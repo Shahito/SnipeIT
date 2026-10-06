@@ -1,5 +1,6 @@
 const { claimPendingJobs, submitResult, reconcileInFlightJob } = require('../services/jobService')
 const prisma = require('../utils/prisma')
+const { WORKER_DISCONNECT_THRESHOLD_MS } = require('../config/worker')
 
 function parseReportedJobId(raw) {
   const n = parseInt(raw, 10)
@@ -10,7 +11,7 @@ async function heartbeatController(req, res) {
   try {
     await prisma.apiKey.update({
       where: { id: req.apiKey.id },
-      data:  { lastHeartbeat: new Date() },
+      data:  { lastHeartbeat: new Date(), disconnectedNotified: false },
     })
     const reportedJobId = parseReportedJobId(req.body && req.body.jobId)
     await reconcileInFlightJob(req.apiKey.id, reportedJobId)
@@ -25,7 +26,7 @@ async function pollController(req, res) {
     // The poll also counts as a heartbeat
     await prisma.apiKey.update({
       where: { id: req.apiKey.id },
-      data:  { lastHeartbeat: new Date(), lastUsedAt: new Date() },
+      data:  { lastHeartbeat: new Date(), lastUsedAt: new Date(), disconnectedNotified: false },
     })
     const reportedJobId = parseReportedJobId(req.query.jobId)
     await reconcileInFlightJob(req.apiKey.id, reportedJobId)
@@ -52,7 +53,7 @@ async function resultController(req, res) {
 // Called from the UI (JWT user) to check whether a worker is active
 async function statusController(req, res) {
   try {
-    const threshold = new Date(Date.now() - 45_000) // 45s
+    const threshold = new Date(Date.now() - WORKER_DISCONNECT_THRESHOLD_MS)
     const active = await prisma.apiKey.findFirst({
       where: { userId: req.user.id, lastHeartbeat: { gte: threshold } },
       select: { name: true, lastHeartbeat: true },

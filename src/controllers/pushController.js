@@ -21,13 +21,13 @@ async function getVapidPublicKeyController(req, res) {
 
 async function subscribeController(req, res) {
   try {
-    const subscription = req.body
-    const userId = req.user ? req.user.id : null
-
-    await subscribePush(userId, subscription)
+    // authRequired guarantees req.user. subscribePush still checks for a
+    // missing userId in case this route is ever mounted without it.
+    await subscribePush(req.user.id, req.body)
     res.json({ success: true })
   } catch (e) {
-    res.status(400).json({ error: errorCode(e) })
+    const code = errorCode(e)
+    res.status(code === 'UNAUTHORIZED' ? 401 : 400).json({ error: code })
   }
 }
 

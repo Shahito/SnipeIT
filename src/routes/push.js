@@ -37,9 +37,10 @@ router.get('/vapid-public-key', getVapidPublicKeyController)
  *         description: OK
  *       400:
  *         description: MISSING_FIELDS
+ *       401:
+ *         description: Not authenticated
  */
-// Optionnel: tu peux ajouter `authRequired` si la souscription nécessite d'être connecté
-router.post('/subscribe', subscribeController)
+router.post('/subscribe', authRequired, subscribeController)
 
 /**
  * @openapi

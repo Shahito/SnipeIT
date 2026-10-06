@@ -140,6 +140,7 @@
     --text-dim: #697876; */
 
     --radius-lg: 1rem;
+    --radius-md: 0.6rem;
     --radius: 0.4rem;
     --radius-sm: 0.2rem;
     --shadow: 0 0.2rem 1.2rem rgba(0, 0, 0, .4);
@@ -1624,7 +1625,8 @@ select.field-invalid {
 .modal {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 0.6rem;
+    border-radius: var(--radius-md);
+    border-radius: var(--radius-md);
     box-shadow: var(--shadow);
     width: 100%;
     max-width: 26rem;
@@ -1952,6 +1954,66 @@ select.field-invalid {
     font-weight: 700;
 }
 
+/* Engine warnings: pill under the results title + overlay */
+.warn-pill {
+    margin-top: .5rem;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.warn-pill svg {
+    width: .85rem;
+    height: .85rem;
+}
+
+.modal.warn-modal {
+    max-width: 34rem;
+    max-height: 70vh;
+    overflow: hidden;
+}
+
+.warn-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    max-height: 100%;
+    overflow-y: scroll;
+}
+
+.warn-item {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+    padding: .6rem .75rem;
+    border-radius: var(--radius);
+    background: var(--surface2);
+    border-left: 3px solid var(--border);
+}
+
+.warn-item.warn-important { border-left-color: var(--danger); }
+.warn-item.warn-warning { border-left-color: var(--warning); }
+.warn-item.warn-info { border-left-color: var(--primary); }
+
+.warn-level {
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.warn-important .warn-level { color: var(--danger); }
+.warn-warning .warn-level { color: var(--warning); }
+.warn-info .warn-level { color: var(--primary); }
+
+.warn-text {
+    font-size: .85rem;
+    color: var(--text);
+    line-height: 1.4;
+}
+
 /* Export overlay */
 .modal-overlay.exp-overlay {
     background: rgba(0, 0, 0, .65);
@@ -2130,7 +2192,7 @@ select.field-invalid {
 .auth-card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 0.6rem;
+    border-radius: var(--radius-md);
     box-shadow: var(--shadow);
     padding: 2.5rem 2rem;
     width: 100%;
@@ -5253,7 +5315,7 @@ table::-webkit-scrollbar-track,
     .modal.exp-modal {
         max-width: 100%;
         margin: 0;
-        border-radius: 0.6rem 0.6rem 0 0;
+        border-radius: var(--radius-md) var(--radius-md) 0 0;
         padding-top: 0;
         max-height: 85vh;
         transform: translateY(2rem);

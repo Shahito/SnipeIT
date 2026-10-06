@@ -77,6 +77,70 @@ def _nan_to_none(x):
     return None if (x is None or np.isnan(x)) else float(x)
 
 
+# Warning levels, lowest to highest: "info", "warning", "important"
+# The UI translates `code` + `params`; `message` is the English fallback
+def _warn(warnings: list, level: str, code: str, message: str, **params) -> None:
+    warnings.append(
+        {"level": level, "code": code, "params": params, "message": message}
+    )
+
+
+def _check_coverage(timestamps, tf_minutes: int, start, end, warnings: list) -> None:
+    """Warns when the data covers less than the requested period, with one
+    candle of tolerance on each side. `end` is exclusive (midnight after the
+    last requested day)"""
+    step = pd.Timedelta(minutes=tf_minutes)
+    first, last = timestamps.iloc[0], timestamps.iloc[-1]
+    if first > start + step:
+        actual, requested = f"{first:%Y-%m-%d}", f"{start:%Y-%m-%d}"
+        _warn(
+            warnings,
+            "info",
+            "data_starts_late",
+            f"Data starts on {actual}, after the requested start date {requested} "
+            f"- the run covers a shorter period than requested",
+            actual=actual,
+            requested=requested,
+        )
+    if last < end - 2 * step:
+        actual = f"{last:%Y-%m-%d}"
+        requested = f"{end - pd.Timedelta(days=1):%Y-%m-%d}"
+        _warn(
+            warnings,
+            "info",
+            "data_ends_early",
+            f"Data ends on {actual}, before the requested end date {requested} "
+            f"- the run covers a shorter period than requested",
+            actual=actual,
+            requested=requested,
+        )
+
+
+def _check_gaps(timestamps, tf_minutes: int, label: str, warnings: list) -> None:
+    """Warns when candles are missing. Lookback, offset and indicators count
+    rows, so they silently span any hole as if candles were consecutive"""
+    ts = timestamps.reset_index(drop=True)
+    step = pd.Timedelta(minutes=tf_minutes)
+    diffs = ts.diff()
+    holes = diffs[diffs > step * 1.5]
+    if holes.empty:
+        return
+    missing = int((holes / step).round().sum()) - len(holes)
+    first = str(ts[holes.index[0] - 1])
+    _warn(
+        warnings,
+        "important",
+        "data_gap",
+        f"{len(holes)} gap(s) in {label} data ({missing} missing candles, first one "
+        f"after {first}) - lookback, offset and indicators treat "
+        f"the candles around each gap as consecutive",
+        count=len(holes),
+        missing=missing,
+        first=first,
+        label=label,
+    )
+
+
 # Rule evaluation - vectorized over the whole DataFrame, single code path
 
 
@@ -567,6 +631,11 @@ def _merge_htf_column(
 
     A base candle earlier than every closed HTF candle gets NaN
     (resolve_value() then reports it as "no value yet")
+
+    Simultaneous close: an HTF candle closing at the exact instant the base
+    candle closes (e.g. 4h [08:00,12:00) and 1h [11:00,12:00)) IS visible to
+    that base candle. A live executor must therefore already have the fresh
+    HTF close when it evaluates its own base candle close
     """
     right = pd.DataFrame(
         {
@@ -592,7 +661,6 @@ def _compute_htf_columns(
     needed_htf: list,
     pair: str,
     exchange: str,
-    start_date: str,
     base_tf_minutes: int,
 ):
     """
@@ -603,9 +671,9 @@ def _compute_htf_columns(
     (e.g. RSI_14@4h) - aligned via _merge_htf_column so no base candle ever
     sees an HTF value from a candle that hasn't closed yet
 
-    Returns (df_base, warnings) - warnings is a list of human-readable
-    strings for any timeframe that came back empty, so the caller can
-    surface it instead of leaving the person to notice "0 trades" and
+    Returns (df_base, warnings) - warnings is a list of {"level", "message"}
+    dicts for any timeframe that came back empty or has gaps, so the caller
+    can surface it instead of leaving the person to notice "0 trades" and
     wonder why
     """
     from ohlcv_cache import get_ohlcv
@@ -615,13 +683,13 @@ def _compute_htf_columns(
 
     df_base = df_base.copy()
     base_ts = df_base["timestamp"].to_numpy()
-    real_start = pd.Timestamp(start_date[:10])
+    first_ts = df_base["timestamp"].iloc[0]
     warnings = []
 
     for tf, items in _group_needed_by_timeframe(needed_htf).items():
         tf_minutes = _timeframe_to_minutes(tf)
         warmup_n = _warmup_candles(items)
-        warmup_start = real_start - pd.Timedelta(minutes=tf_minutes * warmup_n)
+        warmup_start = first_ts - pd.Timedelta(minutes=tf_minutes * warmup_n)
 
         # _inclusive_end: the base fetch's own last day may only be
         # partially covered by df_base (end-of-data, not end-of-day) - the
@@ -637,8 +705,10 @@ def _compute_htf_columns(
         if htf_df.empty:
             msg = f"No {tf} data available for {pair} - conditions using this timeframe stayed inert"
             log.warning(msg)
-            warnings.append(msg)
+            _warn(warnings, "important", "htf_no_data", msg, tf=tf, pair=pair)
             continue
+
+        _check_gaps(htf_df["timestamp"], tf_minutes, f"{tf}", warnings)
 
         htf_df = compute_all(htf_df, items)
         htf_df = htf_df.dropna(subset=["close"]).reset_index(drop=True)
@@ -849,9 +919,11 @@ def _open_position(
     was requested but no valid ATR is available yet - silently reinterpreting
     an ATR multiplier as a percentage would change what the strategy's own
     numbers mean without telling anyone."""
-    if (sl_type == "atr" or tp_type == "atr") and not entry_atr:
+    # A zero ATR (flat candles) would give zero-width levels, so it is
+    # refused like a missing one
+    if (sl_type == "atr" or tp_type == "atr") and (entry_atr is None or entry_atr <= 0):
         log.warning(
-            f"{date}: ATR-based SL/TP requested but ATR is unavailable - entry skipped"
+            f"{date}: ATR-based SL/TP requested but ATR is missing or zero - entry skipped"
         )
         return None, capital
     allocated = capital * position_size
@@ -1002,15 +1074,24 @@ def run_backtest(strategy: dict) -> dict:
     base_needed = [n for n in needed if n[3] is None]
     htf_needed = [n for n in needed if n[3] is not None]
 
-    def _max_lookback(conds: list) -> int:
-        m = 1
+    def _history_needed(conds: list) -> int:
+        # Rows a rule reads before its first valid result: the lookback
+        # window, the deepest offset, and the previous value used by cross_*
+        need = 1
         for item in conds:
             for rule in (item if isinstance(item, list) else [item]):
-                m = max(m, rule.get("lookback") or 1)
-        return m
+                offsets = [
+                    rule.get(_prefixed_keys(p)[k]) or 0
+                    for p in ("", "value")
+                    for k in ("offset", "combine_offset")
+                ]
+                need = max(need, (rule.get("lookback") or 1) + max(offsets))
+        return need
 
-    max_lookback = max(_max_lookback(entry_conds), _max_lookback(exit_conds))
-    warmup_n = max(_warmup_candles(base_needed), max_lookback)
+    # Indicators must converge BEFORE the first row a rule reads, so the two
+    # margins add up
+    history_n = max(_history_needed(entry_conds), _history_needed(exit_conds))
+    warmup_n = _warmup_candles(base_needed) + history_n
     tf_minutes = _timeframe_to_minutes(timeframe)
     real_start = pd.Timestamp(start_date[:10])
     warmup_start = real_start - pd.Timedelta(minutes=tf_minutes * warmup_n)
@@ -1041,54 +1122,56 @@ def run_backtest(strategy: dict) -> dict:
     atr_col = column_name("ATR", atr_period, None)
     df_full["_atr_prev"] = df_full[atr_col].shift(1)
 
-    # Trim to real start_date. Guard: if the actual data starts *after*
-    # real_start (e.g. pair listed later), keep whatever we have instead
-    actual_data_start = df_full["timestamp"].iloc[0]
-    if actual_data_start < real_start:
-        df = df_full[df_full["timestamp"] >= real_start].reset_index(drop=True)
-        log.info(
-            f"Warmup trimmed: {len(df_full) - len(df)} candles discarded, "
-            f"{len(df)} remain for simulation"
-        )
-    else:
-        df = df_full
-        log.info(
-            f"Data starts at {actual_data_start.date()} (>= requested "
-            f"{real_start.date()}), no warmup trim applied"
-        )
-
-    if df.empty or len(df) < 2:
-        raise ValueError("Not enough data after warmup trim (< 2 candles)")
-
     # Trim to end_date's own day, inclusive - regardless of exactly where
     # _inclusive_end()'s one-extra-day fetch draws its own boundary, the
     # simulation itself must never run past the day the strategy asked for
     real_end = pd.Timestamp(end_date[:10]) + pd.Timedelta(days=1)
-    df = df[df["timestamp"] < real_end].reset_index(drop=True)
+    df_full = df_full[df_full["timestamp"] < real_end].reset_index(drop=True)
 
-    if df.empty or len(df) < 2:
+    if len(df_full) < 2:
         raise ValueError("Not enough data after end-date trim (< 2 candles)")
 
     # HTF indicators: computed on their own timeframe, aligned onto the
     # base timeframe without look-ahead (see _compute_htf_columns)
     warnings = []
+    _check_coverage(df_full["timestamp"], tf_minutes, real_start, real_end, warnings)
+    _check_gaps(df_full["timestamp"], tf_minutes, timeframe, warnings)
     if htf_needed:
         log.info(f"HTF indicators requested: {sorted({n[3] for n in htf_needed})}")
-        df, warnings = _compute_htf_columns(
-            df, htf_needed, pair, exchange, start_date, tf_minutes
+        df_full, htf_warnings = _compute_htf_columns(
+            df_full, htf_needed, pair, exchange, tf_minutes
         )
+        warnings.extend(htf_warnings)
 
-    # 3. Entry/exit signals, vectorized over the whole timeline
+    # 3. Entry/exit signals, vectorized over the whole timeline. Evaluated
+    # BEFORE the start trim: lookback and offset read rows that sit before
+    # start_date, so the warm-up rows must still be there
     entry_signal_arr = (
-        _eval_conditions_series(df, entry_conds, timeframe).to_numpy()
+        _eval_conditions_series(df_full, entry_conds, timeframe).to_numpy()
         if entry_conds
         else None
     )
     exit_signal_arr = (
-        _eval_conditions_series(df, exit_conds, timeframe).to_numpy()
+        _eval_conditions_series(df_full, exit_conds, timeframe).to_numpy()
         if exit_conds
         else None
     )
+
+    # Trim to real start_date. If the data starts after it (e.g. pair listed
+    # later), sim_start is 0 and everything is kept
+    sim_start = int(df_full["timestamp"].searchsorted(real_start))
+    df = df_full.iloc[sim_start:].reset_index(drop=True)
+    if entry_signal_arr is not None:
+        entry_signal_arr = entry_signal_arr[sim_start:]
+    if exit_signal_arr is not None:
+        exit_signal_arr = exit_signal_arr[sim_start:]
+    log.info(
+        f"Warmup trimmed: {sim_start} candles discarded, "
+        f"{len(df)} remain for simulation"
+    )
+
+    if len(df) < 2:
+        raise ValueError("Not enough data after warmup trim (< 2 candles)")
 
     ts_arr = df["timestamp"].to_numpy()
     open_arr = df["open"].to_numpy(dtype=float)
@@ -1133,7 +1216,9 @@ def run_backtest(strategy: dict) -> dict:
     # is what makes signal look-ahead structurally impossible
     pending_entry = False
     pending_exit = False
+    entry_uses_cross = _uses_cross_operator(entry_conds)
     exit_uses_cross = _uses_cross_operator(exit_conds)
+    dropped_cross_entry_warned = False
     dropped_cross_exit_warned = False
 
     for idx in range(len(df)):
@@ -1177,6 +1262,19 @@ def run_backtest(strategy: dict) -> dict:
                     high_arr,
                 )
                 log.debug(f"ENTRY  {date} @ {fill_price:.4f}")
+            elif entry_uses_cross and not dropped_cross_entry_warned:
+                # A level-based rule is re-evaluated on the next candle, a
+                # cross is a one-candle event and is lost for good
+                _warn(
+                    warnings,
+                    "warning",
+                    "cross_entry_dropped",
+                    f"{date}: a cross_above/cross_below entry signal was blocked by trading "
+                    f"hours and dropped - since a cross doesn't repeat on the next candle, "
+                    f"this entry is lost",
+                    date=date,
+                )
+                dropped_cross_entry_warned = True
             pending_entry = False  # a blocked buy signal is dropped, not retried
 
         if pending_exit and position is not None:
@@ -1207,10 +1305,14 @@ def run_backtest(strategy: dict) -> dict:
                 # is never signalled out again and rides to a forced
                 # liquidation instead
                 if exit_uses_cross and not dropped_cross_exit_warned:
-                    warnings.append(
+                    _warn(
+                        warnings,
+                        "important",
+                        "cross_exit_dropped",
                         f"{date}: a cross_above/cross_below exit signal was blocked by trading "
                         f"hours and dropped - since a cross doesn't repeat on the next candle, "
-                        f"this position may end up held until the end of the backtest"
+                        f"this position may end up held until the end of the backtest",
+                        date=date,
                     )
                     dropped_cross_exit_warned = True
             pending_exit = False

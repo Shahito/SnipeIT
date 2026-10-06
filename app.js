@@ -116,6 +116,13 @@ cron.schedule('*/30 * * * * *', async () => {
   catch (e) { console.error('[SnipeIT] timeoutStaleJobs error:', e.message) }
 })
 
+const { notifyDisconnectedWorkers } = require('./src/services/apikeyService')
+// 30s
+cron.schedule('*/30 * * * * *', async () => {
+  try { await notifyDisconnectedWorkers() }
+  catch (e) { console.error('[SnipeIT] notifyDisconnectedWorkers error:', e.message) }
+})
+
 const { cleanupStaleCandleCache } = require('./src/utils/candleCache')
 // 3AM
 cron.schedule('0 3 * * *', () => {

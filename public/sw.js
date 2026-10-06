@@ -3,11 +3,6 @@
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', () => self.clients.claim());
 
-self.addEventListener('fetch', (event) => {
-  if (new URL(event.request.url).origin !== self.location.origin) return;
-  event.respondWith(fetch(event.request));
-});
-
 // Listen for incoming push notifications
 self.addEventListener('push', (event) => {
   let data = { title: 'Notification', body: '', url: '/' };
@@ -22,8 +17,7 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: '/icon-192.png',
-    badge: '/badge-72.png',
+    badge: '/images/icons/72.png',
     data: {
       url: data.url || '/'
     }

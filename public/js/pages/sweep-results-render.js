@@ -58,7 +58,7 @@ function renderGlobalMetrics(g) {
     { key: 'sweep.metric.worst', value: fmtPct(g.worstPnlPercent), cls: g.worstPnlPercent >= 0 ? 'positive' : 'negative' },
   ]
   grid.innerHTML = metrics.map(m => {
-    const { cls: interCls, attrs } = metricCardInteractiveAttrs(m.key, SWEEP_METRIC_TARGET_CARD)
+    const { cls: interCls, attrs } = metricCardInteractiveAttrs(m.key, SWEEP_METRIC_TARGET_CARD, m.value != null)
     return `
     <div class="metric-card${interCls}" ${attrs}>
       <div class="metric-label">${t(m.key)}</div>

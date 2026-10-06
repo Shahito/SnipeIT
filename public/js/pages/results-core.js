@@ -80,6 +80,7 @@ async function loadJob() {
 
     // Warning divergence
     renderSnapshotWarning(snap, cur, job)
+    renderWarningsPill(r.warnings)
 
     renderMetrics(r)
     equityChart.config.referenceLines = [
