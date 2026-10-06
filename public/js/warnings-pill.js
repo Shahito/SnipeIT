@@ -48,7 +48,9 @@
           <span class="modal-title">${ICONS.warning}${t('warning.title')}</span>
           <button class="modal-close" id="warnCloseBtn" aria-label="${t('warning.close')}">${ICONS.cross}</button>
         </div>
-        <ul class="warn-list" id="warnList"></ul>
+        <div class="warn-list-wrapper">
+          <ul class="warn-list" id="warnList"></ul>
+        </div>
       </div>
     `
     document.body.appendChild(el)

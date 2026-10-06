@@ -177,10 +177,7 @@ async function claimPendingJobs(apiKeyId, userId) {
     take: 5,
   })
 
-  if (potentialJobs.length === 0) return []
-  const claimedJobs = []
-
-  // Anti race condtion (Optimistic locking)
+  // One job per claim: take the first candidate we win (optimistic locking)
   for (const job of potentialJobs) {
     const claimAttempt = await prisma.backtestJob.updateMany({
       where: {
@@ -197,20 +194,25 @@ async function claimPendingJobs(apiKeyId, userId) {
 
     if (claimAttempt.count > 0) {
       const fullJob = await prisma.backtestJob.findUnique({ where: { id: job.id } })
-      claimedJobs.push({
-        id: fullJob.id,
-        strategy: fullJob.strategySnapshot,
-      })
-      await refreshSweepGroupStatus(job.sweepGroupId) // notify SSE clients: pending -> running
+      await refreshSweepGroupStatus(job.sweepGroupId) // notify SSE clients
+      return [{ id: fullJob.id, strategy: fullJob.strategySnapshot }]
     }
   }
 
-  return claimedJobs
+  return []
 }
 
-async function submitResult(jobId, apiKeyId, payload) {
+async function submitResult(jobId, apiKeyId, userId, payload) {
+  // Accept a running job of this key, or one reverted to pending and not reclaimed yet
   const job = await prisma.backtestJob.findFirst({
-    where: { id: jobId, apiKeyId, status: 'running' },
+    where: {
+      id: jobId,
+      strategy: { userId },
+      OR: [
+        { status: 'running', apiKeyId },
+        { status: 'pending', apiKeyId: null },
+      ],
+    },
   })
   if (!job) throw new Error('JOB_NOT_FOUND')
 
@@ -220,6 +222,7 @@ async function submitResult(jobId, apiKeyId, payload) {
     where: { id: jobId },
     data: {
       status: success ? 'done' : 'error',
+      apiKeyId,
       completedAt: new Date(),
       result: success ? result : null,
       errorMessage: success ? null : (errorMessage || 'Worker error'),

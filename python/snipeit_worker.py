@@ -115,10 +115,10 @@ def _process_job(job: dict):
     from backtest import run_backtest
 
     job_id   = job["id"]
+    _set_current_job(job_id)  # set first so a heartbeat never sees this job as lost
     strategy = job["strategy"]
     log.info(f"Job #{job_id} - {strategy['name']} ({strategy['pair']} {strategy['timeframe']})")
 
-    _set_current_job(job_id)
     try:
         with backtest_spinner(job_id, strategy["name"], strategy["pair"], strategy["timeframe"]):
             result = run_backtest(strategy)
@@ -200,6 +200,7 @@ def main():
                     log_poll_jobs(len(jobs))
                     for job in jobs:
                         _process_job(job)
+                    continue  # poll again right away
                 else:
                     log_poll_empty()
 

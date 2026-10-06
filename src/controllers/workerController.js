@@ -42,7 +42,7 @@ async function resultController(req, res) {
     const jobId = parseInt(req.params.id)
     const { success, result, errorMessage } = req.body
     if (success === undefined) return res.status(400).json({ error: 'MISSING_FIELDS' })
-    const job = await submitResult(jobId, req.apiKey.id, { success, result, errorMessage })
+    const job = await submitResult(jobId, req.apiKey.id, req.workerUser.id, { success, result, errorMessage })
     res.json({ job })
   } catch (e) {
     const code = e.message === 'JOB_NOT_FOUND' ? 'JOB_NOT_FOUND' : 'UNKNOWN'

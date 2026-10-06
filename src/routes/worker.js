@@ -37,7 +37,7 @@ router.post('/heartbeat', workerAuth, heartbeatController)
  * /api/worker/jobs:
  *   get:
  *     tags: [worker]
- *     summary: Poll available jobs (also acts as heartbeat)
+ *     summary: Claim the next pending job, if any (also acts as heartbeat)
  *     security: [{ apiKeyAuth: [] }]
  *     parameters:
  *       - in: query
@@ -49,7 +49,7 @@ router.post('/heartbeat', workerAuth, heartbeatController)
  *           or omitted if idle. Same semantics as the heartbeat's jobId body field.
  *     responses:
  *       200:
- *         description: OK
+ *         description: OK. The jobs array holds at most one job.
  */
 router.get('/jobs', workerAuth, pollController)
 
