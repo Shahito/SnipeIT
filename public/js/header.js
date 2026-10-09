@@ -153,12 +153,20 @@ document.addEventListener('i18n:ready', async () => {
           <span class="color-scheme-dot" style="background: var(--danger)"></span>
         </span>
       </button>
+      <button class="btn btn-ghost btn-sm theme-switch-btn" id="themeSwitchBtnDesktop" aria-label="${t('header.theme_switcher_label')}">
+        ${ICONS.bulb}
+      </button>
       <button class="btn btn-ghost btn-sm lang-btn" id="langSwitchBtn">${t('header.lang')}</button>
       <button class="btn btn-ghost btn-sm" id="logoutMenuBtn">${t('header.logout_menu')}</button>
     </div>
-    <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menu">
-      <span></span><span></span><span></span>
-    </button>
+    <div class="header-mobile-actions">
+      <button class="btn btn-ghost btn-sm theme-switch-btn" id="themeSwitchBtnMobile" aria-label="${t('header.theme_switcher_label')}">
+        ${ICONS.bulb}
+      </button>
+      <button class="btn btn-ghost btn-sm" id="hamburgerBtn" aria-label="Menu">
+        ${ICONS.burger}
+      </button>
+    </div>
   `
 
   // Bottom tab bar (mobile) - primary nav
@@ -182,6 +190,33 @@ document.addEventListener('i18n:ready', async () => {
   const mobileNode = overlay.firstElementChild
   if (!mobileNode) return
   document.body.appendChild(mobileNode)
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme)
+    document.querySelectorAll('.theme-switch-btn').forEach(btn => {
+      btn.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false')
+    })
+  }
+
+  function initTheme() {
+    const stored = localStorage.getItem('theme')
+    applyTheme(stored === 'light' ? 'light' : 'dark')
+  }
+
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme') || 'dark'
+    const next = current === 'dark' ? 'light' : 'dark'
+    localStorage.setItem('theme', next)
+    applyTheme(next)
+  }
+
+  initTheme()
+  document.querySelectorAll('.theme-switch-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation()
+      toggleTheme()
+    })
+  })
 
   initColorScheme()
   const picker = document.getElementById('colorSchemeBtn')

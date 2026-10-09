@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SnipeIT</title>
+  <script src="/js/theme-init.js"></script>
   <link rel="icon" type="image/png" href="/images/tab/tab-icon.png">
   <link rel="manifest" href="/manifest.json">
   <link rel="stylesheet" href="/css/style.css">
@@ -156,8 +157,9 @@
         <button class="btn btn-primary btn-sm" id="createTagBtn" data-i18n="jobs.tags.create_btn"></button>
       </div>
       <p class="form-error" id="tagCreateError"></p>
-      <div class="divider"></div>
-      <div id="tagsList" class="tags-manage-list"></div>
+      <div class="tags-manage-list-wrapper">
+        <div id="tagsList" class="tags-manage-list"></div>
+      </div>
     </div>
   </div>
 

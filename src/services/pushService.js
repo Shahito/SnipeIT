@@ -2,17 +2,31 @@ const webpush = require('web-push')
 const prisma = require('../utils/prisma')
 const { t: translate, SUPPORTED_LANGS, DEFAULT_LANG } = require('../i18n/push')
 
-// Webpush config
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || 'mailto:admin@example.com',
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-  )
+// Webpush config. Both keys are required - without a private key web-push
+// has nothing to sign with, so a public key alone is still "not configured".
+const PUSH_CONFIGURED = Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY)
+
+if (PUSH_CONFIGURED) {
+  try {
+    webpush.setVapidDetails(
+      process.env.VAPID_SUBJECT || 'mailto:admin@example.com',
+      process.env.VAPID_PUBLIC_KEY,
+      process.env.VAPID_PRIVATE_KEY
+    )
+  } catch (err) {
+    pushConfigured = false
+    console.warn(`[SnipeIT] Push notifications disabled: VAPID keys are invalid (${err.message})`)
+  }
+} else {
+  console.warn('[SnipeIT] Push notifications disabled: VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY not set in .env')
+}
+
+function isPushConfigured() {
+  return PUSH_CONFIGURED
 }
 
 function getVapidPublicKey() {
-  if (!process.env.VAPID_PUBLIC_KEY) {
+  if (!PUSH_CONFIGURED) {
     throw new Error('VAPID_NOT_CONFIGURED')
   }
   return process.env.VAPID_PUBLIC_KEY
@@ -45,28 +59,6 @@ async function subscribePush(userId, subscription) {
       lang,
     },
   })
-}
-
-async function sendNotificationToAll(title, body, url = '/') {
-  const payload = JSON.stringify({ title, body, url })
-  const subscriptions = await prisma.pushSubscription.findMany()
-
-  const sendPromises = subscriptions.map((sub) => {
-    const pushSubscription = {
-      endpoint: sub.endpoint,
-      keys: typeof sub.keys === 'string' ? JSON.parse(sub.keys) : sub.keys,
-    }
-
-    return webpush.sendNotification(pushSubscription, payload).catch(async (err) => {
-      // Auto clean up of expired subscriptions (410 Gone / 404 Not Found)
-      if (err.statusCode === 410 || err.statusCode === 404) {
-        await prisma.pushSubscription.delete({ where: { id: sub.id } })
-      }
-    })
-  })
-
-  await Promise.all(sendPromises)
-  return { count: subscriptions.length }
 }
 
 // Localized push notification.
@@ -102,8 +94,8 @@ async function sendLocalizedNotificationToUser(userId, { titleKey, bodyKey, vars
 }
 
 module.exports = {
+  isPushConfigured,
   getVapidPublicKey,
   subscribePush,
-  sendNotificationToAll,
   sendLocalizedNotificationToUser,
 }

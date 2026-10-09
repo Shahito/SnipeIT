@@ -92,6 +92,14 @@ function _cssVar(name) {
   return window.getComputedStyle(document.body).getPropertyValue(name).trim()
 }
 
+function _clearWithBg(ctx, W, H) {
+  ctx.clearRect(0, 0, W, H)
+  ctx.save()
+  ctx.fillStyle = _cssVar('--surface')
+  ctx.fillRect(0, 0, W, H)
+  ctx.restore()
+}
+
 function _scaleY(values, padTop, cH) {
   const mn = Math.min(...values)
   const mx = Math.max(...values)
@@ -162,8 +170,40 @@ function _i18n(key, fallback) {
   return (key && typeof t === 'function') ? t(key) : (fallback || key || '')
 }
 
+const CHART_CARD_PAIRS = [
+  ['exitReasonsCard', 'pnlDistributionCard'],
+  ['maeDistributionCard', 'maeScatterCard'],
+  ['mfeDistributionCard', 'mfeScatterCard'],
+]
+
+function _syncCardPairs() {
+  for (const pair of CHART_CARD_PAIRS) {
+    const cards = pair.map(id => document.getElementById(id))
+    if (cards.some(c => !c)) continue
+    const hidden = cards.map(c => c.classList.contains('hidden'))
+    const showPlaceholder = hidden[0] !== hidden[1]
+    cards.forEach((card, i) => {
+      let ph = card.nextElementSibling?.classList.contains('chart-empty') ? card.nextElementSibling : null
+      if (showPlaceholder && hidden[i]) {
+        if (!ph) {
+          ph = document.createElement('div')
+          ph.className = 'card chart-empty'
+          card.insertAdjacentElement('afterend', ph)
+        }
+        const title = card.querySelector('.card-title')?.textContent || ''
+        ph.innerHTML = `<div class="card-header"><div class="card-title">${title}</div></div>` +
+          `<div class="chart-empty-msg">${t('results.chart_empty')}</div>`
+      } else if (ph) {
+        ph.remove()
+      }
+    })
+  }
+}
+
 function _toggleChartCard(elementId, hasData) {
   document.getElementById(elementId)?.closest('.card')?.classList.toggle('hidden', !hasData)
+  _syncCardPairs()
+  if (typeof METRIC_TARGET_CARD !== 'undefined') syncMetricCardInteractivity('metricsGrid', METRIC_TARGET_CARD)
 }
 
 // Re-run a canvas chart's draw whenever the canvas's actual box size
@@ -343,10 +383,10 @@ class CanvasLineChart {
     canvas.style.height = H + 'px'
     const ctx = canvas.getContext('2d')
     ctx.scale(devicePixelRatio, devicePixelRatio)
-    ctx.clearRect(0, 0, W, H)
+    _clearWithBg(ctx, W, H)
 
     // Grid
-    ctx.strokeStyle = '#2a2f3d'
+    ctx.strokeStyle =  _cssVar('--border') || 'rgba(112, 120, 138, 0.08)'
     ctx.lineWidth = 1
     for (let i = 0; i <= this.config.gridLines; i++) {
       const y = pad.top + (cH / this.config.gridLines) * i
@@ -506,7 +546,7 @@ class CanvasLineChart {
     const x = pad.left + ratio * (W - pad.left - pad.right)
     ctx.save()
     ctx.setLineDash([4, 3])
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)'
+    ctx.strokeStyle =  _cssVar('--infographic-neutral') || '#9E9E9E'
     ctx.lineWidth = 1
     ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + cH); ctx.stroke()
     ctx.restore()
@@ -741,7 +781,7 @@ class CanvasHistogram {
     canvas.style.height = H + 'px'
     const ctx = canvas.getContext('2d')
     ctx.scale(devicePixelRatio, devicePixelRatio)
-    ctx.clearRect(0, 0, W, H)
+    _clearWithBg(ctx, W, H)
 
     const n = buckets.length
     const domainLo = Math.min(...buckets.map(b => b.lo))
@@ -757,7 +797,7 @@ class CanvasHistogram {
     const labelDecimals = this.config.labelDecimals ?? 1
 
     // Grid lines
-    ctx.strokeStyle = '#2a2f3d'
+    ctx.strokeStyle = _cssVar('--border') || 'rgba(112, 120, 138, 0.08)'
     ctx.lineWidth = 1
     for (let i = 0; i <= this.config.gridLines; i++) {
       const y = pad.top + (cH / this.config.gridLines) * i
@@ -1021,7 +1061,7 @@ class CanvasScatter {
     canvas.style.height = H + 'px'
     const ctx = canvas.getContext('2d')
     ctx.scale(devicePixelRatio, devicePixelRatio)
-    ctx.clearRect(0, 0, W, H)
+    _clearWithBg(ctx, W, H)
 
     const xScale = _scaleX(points.map(p => p.x), pad.left, cW)
     const yScale = _scaleY(points.map(p => p.y), pad.top, cH)
@@ -1036,7 +1076,7 @@ class CanvasScatter {
     const decY = this.config.labelDecimalsY ?? 1
 
     // Grid lines (horizontal + vertical, vertical ones align with X labels)
-    ctx.strokeStyle = '#2a2f3d'
+    ctx.strokeStyle = _cssVar('--border') || 'rgba(112, 120, 138, 0.08)'
     ctx.lineWidth = 1
     for (let i = 0; i <= this.config.gridLines; i++) {
       const y = pad.top + (cH / this.config.gridLines) * i
@@ -1082,7 +1122,7 @@ class CanvasScatter {
       ctx.save()
       ctx.setLineDash([4, 4])
       ctx.lineWidth = 1.2
-      ctx.strokeStyle = 'rgba(255,255,255,0.6)'
+      ctx.strokeStyle = _cssVar('--infographic-neutral') || '#9E9E9E'
       ctx.beginPath(); ctx.moveTo(mx, pad.top); ctx.lineTo(mx, pad.top + cH); ctx.stroke()
       ctx.beginPath(); ctx.moveTo(pad.left, my); ctx.lineTo(pad.left + cW, my); ctx.stroke()
       ctx.restore()
@@ -1092,9 +1132,9 @@ class CanvasScatter {
         ctx.font = '10px system-ui'
         const w = ctx.measureText(text).width + 8
         const left = alignRight ? x - w : x
-        ctx.fillStyle = 'rgba(22,26,35,0.9)'
+        ctx.fillStyle = _cssVar('--bg2') || '#15171F'
         ctx.fillRect(left, y - 10, w, 14)
-        ctx.fillStyle = 'rgba(255,255,255,0.9)'
+        ctx.fillStyle = _cssVar('--text') || '#F2F3F6'
         ctx.textAlign = 'left'
         ctx.fillText(text, left + 4, y + 1)
       }
@@ -1385,7 +1425,7 @@ class MonthlyPerfChart {
     const dpr = devicePixelRatio || 1
     const ctx = canvas.getContext('2d')
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.clearRect(0, 0, W, H)
+    _clearWithBg(ctx, W, H)
 
     const n = data.length
     const allVals = data.flatMap(d => [d.strat, d.asset ?? 0, this._showDelta ? d.strat - (d.asset ?? 0) : 0])
@@ -1402,7 +1442,7 @@ class MonthlyPerfChart {
     const colorDelta = _cssVar('--infographic2') || '#FFC75F'
 
     // Grid
-    ctx.strokeStyle = '#2a2f3d'
+    ctx.strokeStyle = _cssVar('--border') || 'rgba(112, 120, 138, 0.08)'
     ctx.lineWidth = 1
     for (let i = 0; i <= this.config.gridLines; i++) {
       const y = pad.top + (cH / this.config.gridLines) * i
@@ -1623,7 +1663,7 @@ class MonthlyPerfChart {
           const cH = this.config.height - pad.top - pad.bottom
           ctx2.save()
           ctx2.setLineDash([4, 3])
-          ctx2.strokeStyle = 'rgba(255,255,255,0.15)'
+          ctx2.strokeStyle =  _cssVar('--infographic-neutral') || '#9E9E9E'
           ctx2.lineWidth = 1
           ctx2.beginPath(); ctx2.moveTo(x, pad.top); ctx2.lineTo(x, pad.top + cH); ctx2.stroke()
           ctx2.restore()

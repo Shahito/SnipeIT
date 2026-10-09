@@ -46,9 +46,28 @@ function initMetricCardInteractivity(gridId, targetMap) {
 
 /** Builds the interactive class/attrs string for a metric card given its key. */
 function metricCardInteractiveAttrs(key, targetMap, enabled = true) {
-  const isInteractive = enabled && key in targetMap
+  const mapped = key in targetMap
+  const isInteractive = enabled && mapped
   return {
     cls: isInteractive ? ' metric-card-interactive' : '',
-    attrs: isInteractive ? `data-metric="${key}" tabindex="0" role="button"` : '',
+    attrs: isInteractive ? `data-metric="${key}" tabindex="0" role="button"` : (mapped ? `data-metric="${key}"` : ''),
   }
+}
+
+/** Enables a metric card only when its target card exists and is not hidden. */
+function syncMetricCardInteractivity(gridId, targetMap) {
+  const grid = document.getElementById(gridId)
+  if (!grid) return
+  grid.querySelectorAll('.metric-card[data-metric]').forEach(card => {
+    const target = document.getElementById(targetMap[card.dataset.metric])
+    const enabled = !!target && !target.classList.contains('hidden')
+    card.classList.toggle('metric-card-interactive', enabled)
+    if (enabled) {
+      card.setAttribute('tabindex', '0')
+      card.setAttribute('role', 'button')
+    } else {
+      card.removeAttribute('tabindex')
+      card.removeAttribute('role')
+    }
+  })
 }

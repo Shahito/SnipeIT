@@ -68,6 +68,13 @@ function closePopover() {
 
 document.getElementById('popoverClose').addEventListener('click', closePopover)
 
+// Close on page scroll
+document.addEventListener('scroll', e => {
+  const popover = document.getElementById('tagPopover')
+  if (popover.classList.contains('hidden') || popover.contains(e.target)) return
+  closePopover()
+}, { capture: true, passive: true })
+
 // Close popover by clicking outside
 document.addEventListener('click', e => {
   const popover = document.getElementById('tagPopover')

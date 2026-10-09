@@ -61,6 +61,14 @@ function closeFailedRunsPopover() {
 }
 
 document.getElementById('failedRunsClose').addEventListener('click', closeFailedRunsPopover)
+
+// Close on page scroll
+document.addEventListener('scroll', e => {
+  const popover = document.getElementById('failedRunsPopover')
+  if (popover.classList.contains('hidden') || popover.contains(e.target)) return
+  closeFailedRunsPopover()
+}, { capture: true, passive: true })
+
 document.getElementById('failedRunsToggle').addEventListener('click', () => {
   _failedRunsExpanded = !_failedRunsExpanded
   _renderFailedRunsList()

@@ -1,4 +1,4 @@
-const { getVapidPublicKey, subscribePush, sendNotificationToAll } = require('../services/pushService')
+const { getVapidPublicKey, subscribePush } = require('../services/pushService')
 
 const KNOWN_CODES = new Set([
   'MISSING_FIELDS',
@@ -31,22 +31,7 @@ async function subscribeController(req, res) {
   }
 }
 
-async function sendTestNotificationController(req, res) {
-  try {
-    const { title, body, url } = req.body
-    if (!title || !body) {
-      return res.status(400).json({ error: 'MISSING_FIELDS' })
-    }
-
-    const result = await sendNotificationToAll(title, body, url)
-    res.json({ success: true, ...result })
-  } catch (e) {
-    res.status(500).json({ error: errorCode(e) })
-  }
-}
-
 module.exports = {
   getVapidPublicKeyController,
   subscribeController,
-  sendTestNotificationController,
 }

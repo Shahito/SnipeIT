@@ -699,6 +699,10 @@ document.addEventListener('header:ready', async () => {
   window.addEventListener('resize', () => setTimeout(alignPriceScaleWidths, 50))
 
   function bindPaneScreenshot(chart, el) {
+    if(IS_MOBILE) {
+      el.addEventListener('contextmenu', (e) => { e.preventDefault(); });
+      return
+    }
     el.addEventListener('contextmenu', e => {
       const canvas = e.target.closest ? e.target : null
       if (!canvas || canvas.tagName !== 'CANVAS') return
@@ -725,7 +729,7 @@ document.addEventListener('header:ready', async () => {
       <b>H</b> ${fmt(c.high)} 
       <b>L</b> ${fmt(c.low)} 
       <b>C</b> ${fmt(c.close)} 
-      <span style="color:${pnlColor}">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} (${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</span>
+      <span style="color:${pnlColor}">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} (<strong>${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</strong>)</span>
       </div>`
       for (const label of entry.labels) {
         if (overlaySeriesByLabel[label].options().visible === false) continue
