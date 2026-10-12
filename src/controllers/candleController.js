@@ -87,8 +87,9 @@ async function getCandlesController(req, res) {
       timeframe: (!n.timeframe || n.timeframe === timeframe) ? null : n.timeframe,
     }))
 
-    if (snap.slType === 'atr' || snap.tpType === 'atr') {
-      needed.push({ indicator: 'ATR', period: snap.atrPeriod || 14, source: null, timeframe: null, settings: null })
+    const exits = snap.exits || {}
+    if (['sl', 'tsl', 'tp'].some(k => exits[k] && exits[k].enabled && exits[k].type === 'atr')) {
+      needed.push({ indicator: 'ATR', period: exits.atrPeriod || 14, source: null, timeframe: null, settings: null })
     }
 
     const baseNeeded = needed.filter(n => !n.timeframe)

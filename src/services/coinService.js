@@ -64,7 +64,7 @@ function assetVolume(symbol, volumes) {
 // enriched with their known name/category (coinCategories.js). A coin not
 // listed in coinCategories.js still appears, just without a name or
 // category (category: null -> "Uncategorized" on the sweep-results side).
-// symbol ("BTCUSDT") -> quoteVolume (volume 24h dans la devise de quote)
+// symbol ("BTCUSDT") -> quoteVolume (24h volume in the quote currency)
 async function listCoins() {
   const [symbols, volumes] = await Promise.all([getTradingSymbols(), getTicker24hVolumes()])
   const assets = new Set()

@@ -20,10 +20,11 @@ function unpackTrades(payload, snap) {
   if (!payload?.rows) return []
   const ft = (snap?.feeTaker ?? 0) / 100
   const fm = (snap?.feeMaker ?? 0) / 100
-  return payload.rows.flatMap(([eOff, xOff, ep, xp, a, r]) => {
+  return payload.rows.flatMap(([eOff, xOff, ep, xp, a, r, , xf]) => {
     const entryDate = new Date((payload.t0 + eOff) * 1000).toISOString()
     const exitDate  = new Date((payload.t0 + xOff) * 1000).toISOString()
-    const pnl       = tradePnl(ep, xp, a, ft, fm)
+    // xf: fee rate the exit actually paid; fm is the fallback for older payloads
+    const pnl       = tradePnl(ep, xp, a, ft, xf ?? fm)
     return [
       { side: 'buy',  date: entryDate, price: ep, quantity: a / ep, value: a,          pnl: null },
       { side: 'sell', date: exitDate,  price: xp, quantity: a / ep, value: xp * a / ep, pnl,
@@ -123,6 +124,16 @@ function setCloneOriginalBtnMode(mode) {
   cloneOriginalBtn.classList.toggle('btn-surface', mode !== 'sweep')
 }
 
+function stripDisabledRules(conditions) {
+  if (!conditions) return conditions
+  const clean = groups => (groups || [])
+    .map(g => Array.isArray(g)
+      ? g.filter(r => r.enabled !== false).map(({ enabled, ...rule }) => rule)
+      : (g.enabled !== false ? (({ enabled, ...rule }) => rule)(g) : null))
+    .filter(g => g !== null && !(Array.isArray(g) && g.length === 0))
+  return { ...conditions, entry: clean(conditions.entry), exit: clean(conditions.exit) }
+}
+
 function renderSnapshotWarning(snap, cur, job) {
   const existing = document.getElementById('snapshotWarning')
   if (existing) existing.remove()
@@ -159,17 +170,22 @@ function renderSnapshotWarning(snap, cur, job) {
     return
   }
 
-  const FIELDS = ['timeframe', 'initialCapital', 'positionSize', 'stopLoss', 'trailingStopLoss', 'takeProfit', 'feeMaker', 'feeTaker', 'tradingHours']
+  const FIELDS = ['timeframe', 'initialCapital', 'positionSize', 'exits', 'execution', 'feeMaker', 'feeTaker', 'tradingHours']
+  // The current value may hold sweep markers at any depth: a 1-value sweep still matches
   const stillMatches = (snapVal, curVal) => {
-    if (curVal && typeof curVal === 'object' && !Array.isArray(curVal) && Array.isArray(curVal.sweep)) {
-      if (curVal.sweep.length > 1) return false
-      return curVal.sweep.some(v => JSON.stringify(v) === JSON.stringify(snapVal))
+    if (curVal && typeof curVal === 'object' && !Array.isArray(curVal)) {
+      if (Array.isArray(curVal.sweep)) {
+        return curVal.sweep.length <= 1 && curVal.sweep.some(v => stillMatches(snapVal, v))
+      }
+      if (!snapVal || typeof snapVal !== 'object') return false
+      return [...new Set([...Object.keys(curVal), ...Object.keys(snapVal)])]
+        .every(k => stillMatches(snapVal[k], curVal[k]))
     }
     return JSON.stringify(curVal) === JSON.stringify(snapVal)
   }
   const changed = FIELDS.filter(f => !stillMatches(snap[f], cur[f]))
   if (!stillMatches(snap.pair, { sweep: cur.pairs })) changed.unshift('pair')
-  const conditionsChanged = JSON.stringify(snap.conditions) !== JSON.stringify(cur.conditions)
+  const conditionsChanged = JSON.stringify(snap.conditions) !== JSON.stringify(stripDisabledRules(cur.conditions))
   const dateChanged = new Date(snap.startDate).getTime() !== new Date(cur.startDate).getTime() ||
                 new Date(snap.endDate).getTime()   !== new Date(cur.endDate).getTime()
 
@@ -190,9 +206,8 @@ function renderSnapshotWarning(snap, cur, job) {
     feeMaker:         t('results.snapshot.field.fee_maker'),
     feeTaker:         t('results.snapshot.field.fee_taker'),
     tradingHours:     t('results.snapshot.field.trading_hours'),
-    stopLoss:         t('results.snapshot.field.stop_loss'),
-    trailingStopLoss: t('results.snapshot.field.trailing_stop_loss'),
-    takeProfit:       t('results.snapshot.field.take_profit'),
+    exits:            t('results.snapshot.field.exits'),
+    execution:        t('results.snapshot.field.execution'),
     conditions:       t('results.snapshot.field.conditions'),
     dates:            t('results.snapshot.field.dates'),
   }

@@ -3,16 +3,17 @@
  *
  * Owns everything outside of condition rows: reading/writing the form fields,
  * building the API payload, save and save+run actions, trading hours slots,
- * ATR visibility, mobile step nav, and the leave-page guard.
+ * mobile step nav, and the leave-page guard.
  *
- * Sweep refonte : pairs/timeframe/positionSize/stopLoss/takeProfit/
- * trailingStopLoss/slType/tpType/atrPeriod can all be lists
+ * Sweep: pairs/timeframe/positionSize and the exit levels (the
+ * `exits` / `execution` blocks edited in exits-overlay.js) can all be lists
  * (sweep) rather than a single value - see sweep-parse.js for the
  * convention (multi-select chips for enums, "a, b, c" for
  * numeric fields).
  *
  * Depends on (must be loaded before this file):
  *   - sweep-parse.js         (parseSweepNumber, formatSweepNumber, chip-group helpers)
+ *   - exits-overlay.js       (ExitsOverlay: reads/writes the SL/TSL/TP/execution block)
  *   - indicator-config.js    (INDICATOR_SOURCES)
  *   - condition-renderer.js  (conditions, normalizeConditions, renderConditions)
  *   - api.js, toast.js, i18n (api(), toast(), t())
@@ -25,7 +26,6 @@
 // List constants (replace the old static <option> elements)
 
 const TIMEFRAMES_LIST = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d', '3d', '1w']
-const RISK_TYPES = [{ value: 'percent', label: '%' }, { value: 'atr', label: '× ATR' }]
 
 const STRATEGY_NAME_ADJECTIVES = [
   'Diamond', 'Feral', 'Reckless', 'Caffeinated', 'Nocturnal', 'Greedy',
@@ -78,25 +78,8 @@ window.addEventListener('beforeunload', confirmLeave)
 document.querySelector('a[href="/strategies.html"]')
   .addEventListener('click', () => window.removeEventListener('beforeunload', confirmLeave))
 
-// ATR visibility / trailing visibility (depends on the slType/tpType chips)
-
-function updateAtrVisibility() {
-  const slTypes = getChipGroupSelected('fSlTypeGroup')
-  const tpTypes = getChipGroupSelected('fTpTypeGroup')
-  const show = slTypes.includes('atr') || tpTypes.includes('atr')
-  document.getElementById('atrPeriodGroup').style.display = show ? 'grid' : 'none'
-
-  const trailingLabel = document.getElementById('fSlTrailing').closest('label')
-  if (slTypes.includes('atr')) {
-    document.getElementById('fSlTrailing').checked = false
-    trailingLabel.style.display = 'none'
-  } else {
-    trailingLabel.style.display = ''
-  }
-}
 function bindSweepChipGroups() {
   ;['fTimeframeGroup'].forEach(id => bindChipGroup(id, updatePreview))
-    ;['fSlTypeGroup', 'fTpTypeGroup'].forEach(id => bindChipGroup(id, () => { updateAtrVisibility(); updatePreview() }))
 }
 
 // Base coins × quote coins -> pairs[]. Filtered server-side on what
@@ -190,7 +173,7 @@ function addTradingHourSlot(slot = null) {
       <input type="time" class="th-end"   value="${slot?.end || '17:00'}">
       <label class="checkbox-label th-block-sell-label">
         <input type="checkbox" class="th-block-sell" ${slot ? !slot.blockSell ? 'checked' : '' : ''}>
-        ${t('editor.field.trading_hours_block_sell')}
+        <span>${t('editor.field.trading_hours_block_sell')}</span>
       </label>
     </div>
     <button type="button" class="btn btn-danger btn-sm th-remove-btn">${ICONS.cross}</button>
@@ -257,15 +240,7 @@ function buildPayload() {
     endDate: document.getElementById('fEndDate').value,
     initialCapital: parseFloat(document.getElementById('fCapital').value) || 1000,
     positionSize: parseSweepNumber(document.getElementById('fPositionSize').value) ?? 10,
-    stopLoss: !document.getElementById('fSlTrailing').checked && document.getElementById('fStopLoss').value
-      ? parseSweepNumber(document.getElementById('fStopLoss').value) : null,
-    trailingStopLoss: document.getElementById('fSlTrailing').checked && document.getElementById('fStopLoss').value
-      ? parseSweepNumber(document.getElementById('fStopLoss').value) : null,
-    takeProfit: document.getElementById('fTakeProfit').value
-      ? parseSweepNumber(document.getElementById('fTakeProfit').value) : null,
-    slType: parseSweepChoice(getChipGroupSelected('fSlTypeGroup')),
-    tpType: parseSweepChoice(getChipGroupSelected('fTpTypeGroup')),
-    atrPeriod: parseSweepNumber(document.getElementById('fAtrPeriod').value, parseInt) ?? 14,
+    ...ExitsOverlay.readState(),
     feeTaker: Number.isNaN(parseFloat(document.getElementById('fFeeTaker').value)) ? 0.1 : parseFloat(document.getElementById('fFeeTaker').value),
     feeMaker: Number.isNaN(parseFloat(document.getElementById('fFeeMaker').value)) ? 0.1 : parseFloat(document.getElementById('fFeeMaker').value),
     tradingHours: getTradingHours().length ? getTradingHours() : null,
@@ -331,13 +306,7 @@ async function loadStrategy(id) {
     document.getElementById('fEndDate').value = s.endDate.slice(0, 10)
     document.getElementById('fCapital').value = s.initialCapital
     document.getElementById('fPositionSize').value = formatSweepNumber(s.positionSize)
-    document.getElementById('fStopLoss').value = formatSweepNumber(s.stopLoss ?? s.trailingStopLoss)
-    document.getElementById('fTakeProfit').value = formatSweepNumber(s.takeProfit)
-    document.getElementById('fSlTrailing').checked = !!s.trailingStopLoss && !s.stopLoss
-    renderChipGroup('fSlTypeGroup', RISK_TYPES, formatSweepChoice(s.slType || 'percent'))
-    renderChipGroup('fTpTypeGroup', RISK_TYPES, formatSweepChoice(s.tpType || 'percent'))
-    document.getElementById('fAtrPeriod').value = formatSweepNumber(s.atrPeriod ?? 14)
-    updateAtrVisibility()
+    ExitsOverlay.writeState(s.exits, s.execution)
     document.getElementById('fFeeTaker').value = s.feeTaker ?? 0.1
     document.getElementById('fFeeMaker').value = s.feeMaker ?? 0.1
     document.getElementById('tradingHoursContainer').innerHTML = ''
@@ -483,11 +452,10 @@ document.addEventListener('keydown', e => {
   // Field change -> preview
 
   ;['fName', 'fStartDate', 'fEndDate', 'fCapital',
-    'fPositionSize', 'fStopLoss', 'fTakeProfit', 'fAtrPeriod'].forEach(id => {
+    'fPositionSize'].forEach(id => {
       const el = document.getElementById(id)
       if (el) { el.addEventListener('input', updatePreview); el.addEventListener('change', updatePreview) }
     })
-document.getElementById('fSlTrailing').addEventListener('change', updatePreview)
 
 document.getElementById('addGroupBtn').addEventListener('click', () => {
   conditions[currentTab].push([{ indicator: 'RSI', period: INDICATOR_DEFAULT_PERIOD['RSI'], operator: '<', value: 30 }])
@@ -531,5 +499,4 @@ window.updatePreview = updatePreview
 window.buildPayload = buildPayload
 window.loadStrategy = loadStrategy
 window.addTradingHourSlot = addTradingHourSlot
-window.updateAtrVisibility = updateAtrVisibility
 window.goToStep = goToStep

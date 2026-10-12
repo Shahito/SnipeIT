@@ -1,6 +1,7 @@
 const crypto = require('crypto')
 const prisma = require('../utils/prisma')
 const { resolveSweep } = require('../utils/sweepEngine')
+const { usesTrailingTp } = require('../utils/exitsModel')
 const { SWEEP_WARNING_THRESHOLD, SWEEP_ALL_RUNS_THRESHOLD } = require('../config/sweep')
 const { CATEGORIES, categoryOf } = require('../config/coinCategories')
 const { emitToUser } = require('../utils/eventBus')
@@ -25,14 +26,20 @@ function buildDefinition(strategy) {
     pairs:             strategy.pairs,
     timeframe:         strategy.timeframe,
     positionSize:      strategy.positionSize,
-    stopLoss:          strategy.stopLoss,
-    takeProfit:        strategy.takeProfit,
-    trailingStopLoss:  strategy.trailingStopLoss,
-    slType:            strategy.slType,
-    tpType:            strategy.tpType,
-    atrPeriod:         strategy.atrPeriod,
+    exits:             strategy.exits,
+    execution:         strategy.execution,
     conditions:        strategy.conditions,
   }
+}
+
+const isRuleOn = r => r.enabled !== false
+const withoutEnabled = ({ enabled, ...rule }) => rule
+
+function stripDisabledRules(conditions) {
+  const clean = groups => groups
+    .map(g => Array.isArray(g) ? g.filter(isRuleOn).map(withoutEnabled) : (isRuleOn(g) ? withoutEnabled(g) : null))
+    .filter(g => g !== null && !(Array.isArray(g) && g.length === 0))
+  return { ...conditions, entry: clean(conditions.entry), exit: clean(conditions.exit) }
 }
 
 // Rebuilds a 100% resolved strategySnapshot (no sweep marker) for ONE run.
@@ -49,13 +56,9 @@ function buildSnapshot(strategy, combo) {
     feeMaker:         strategy.feeMaker,
     feeTaker:         strategy.feeTaker,
     tradingHours:     strategy.tradingHours,
-    stopLoss:         combo.resolved.stopLoss,
-    trailingStopLoss: combo.resolved.trailingStopLoss,
-    takeProfit:       combo.resolved.takeProfit,
-    slType:           combo.resolved.slType,
-    tpType:           combo.resolved.tpType,
-    atrPeriod:        combo.resolved.atrPeriod,
-    conditions:       combo.resolved.conditions,
+    exits:            combo.resolved.exits,
+    execution:        combo.resolved.execution,
+    conditions:       stripDisabledRules(combo.resolved.conditions),
   }
 }
 
@@ -80,6 +83,9 @@ async function launchSweep(strategyId, userId, { confirmLarge = false } = {}) {
     where: { strategyId, status: { in: ['pending', 'running'] } },
   })
   if (active) throw new Error('JOB_ALREADY_RUNNING')
+
+  // The engine can't simulate a trailing TP yet: refuse rather than skew the backtest
+  if (usesTrailingTp(strategy.exits)) throw new Error('TRAILING_TP_NOT_SUPPORTED')
 
   const definition = buildDefinition(strategy)
   const { totalRuns, combinations } = resolveSweep(definition) // throws SWEEP_TOO_LARGE if > max

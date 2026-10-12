@@ -96,6 +96,8 @@ function themeColors() {
   }
 }
 
+document.addEventListener('theme:changed', () => location.reload())
+
 document.addEventListener('header:ready', async () => {
   const loadingEl = document.getElementById('loadingState')
   const loadingSubtextEl = document.getElementById('loadingSubtext')

@@ -12,13 +12,28 @@
 
     function isMobileDrawer() {
         return window.matchMedia('(hover: none) and (pointer: coarse)').matches
-            && ((window.innerWidth > 0) ? window.innerWidth : screen.width) <= 640
+            && ((window.innerWidth > 0) ? window.innerWidth : screen.width) <= 850
+    }
+
+    function getScrollParent(node, boundary) {
+        if (!node) return null
+        const style = getComputedStyle(node)
+        const canScroll = (style.overflowY === 'auto' || style.overflowY === 'scroll')
+            && node.scrollHeight > node.clientHeight
+        if (canScroll) return node
+        // Only stop climbing *after* testing the boundary itself — panelEl
+        // is the scrollable element for a plain modal (overflow-y: auto on
+        // panelEl directly), so it has to be eligible, not excluded.
+        if (node === boundary || node === document.body) return null
+        return getScrollParent(node.parentElement, boundary)
     }
 
     function enableDrawerSwipe(overlayEl, panelEl, closeFn) {
         if (!overlayEl || !panelEl || panelEl.dataset.swipeBound) return
         panelEl.dataset.swipeBound = '1'
 
+        // Visual grip only now — the whole panel is draggable, this is just
+        // the affordance users expect to see at the top of a sheet.
         const handle = document.createElement('div')
         handle.className = 'drawer-handle'
         handle.setAttribute('aria-hidden', 'true')
@@ -29,20 +44,38 @@
         let startY = 0
         let startT = 0
         let dragY = 0
-        let dragging = false
+        let dragging = false     // true once the sheet itself is being pulled
+        let tracking = false     // true for the whole duration of a touch on the panel
+        let startedAtTop = false // decided once, at touchstart — never re-checked mid-gesture
 
         function onStart(e) {
             if (!isMobileDrawer()) return
-            dragging = true
+            tracking = true
+            dragging = false
+            // panelEl itself may be overflow:hidden with its own scrollable
+            // children (e.g. .ip-results) — check whichever element under
+            // the finger actually scrolls, not panelEl.
+            const scrollTarget = getScrollParent(e.target, panelEl)
+            startedAtTop = scrollTarget ? scrollTarget.scrollTop <= 0 : true
             startY = e.touches[0].clientY
             startT = performance.now()
             dragY = 0
-            panelEl.style.transition = 'none'
         }
 
         function onMove(e) {
-            if (!dragging) return
+            // If this gesture didn't start at the top of the content, it's a
+            // plain scroll for its whole duration — even once scrollTop
+            // rebounds to 0 mid-gesture. Switching mid-flight is what causes
+            // the "cancelable=false" warning and the visual jump.
+            if (!tracking || !startedAtTop) return
             const raw = e.touches[0].clientY - startY
+
+            if (!dragging) {
+                if (raw <= 0) return
+                dragging = true
+                panelEl.style.transition = 'none'
+            }
+
             dragY = raw > 0 ? raw : raw * 0.3
             if (dragY < -50) dragY = -50
             panelEl.style.transform = `translateY(${dragY}px)`
@@ -52,6 +85,7 @@
         }
 
         function onEnd() {
+            tracking = false
             if (!dragging) return
             dragging = false
             const dt = performance.now() - startT
@@ -74,10 +108,10 @@
             }
         }
 
-        handle.addEventListener('touchstart', onStart, { passive: true })
-        handle.addEventListener('touchmove', onMove, { passive: false })
-        handle.addEventListener('touchend', onEnd)
-        handle.addEventListener('touchcancel', onEnd)
+        panelEl.addEventListener('touchstart', onStart, { passive: true })
+        panelEl.addEventListener('touchmove', onMove, { passive: false })
+        panelEl.addEventListener('touchend', onEnd)
+        panelEl.addEventListener('touchcancel', onEnd)
     }
 
     function openModal(modalId, focusId) {

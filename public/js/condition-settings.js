@@ -5,7 +5,7 @@
  * indicator-picker (LHS or RHS-as-indicator). Lets the user edit everything
  * that used to have no UI at all: offset, timeframe, an indicator's extra
  * params (MACD fast/slow/signal, etc.), the RHS multiplier, and the
- * optional "combine with" second ref (combineOp/combineIndicator/...).
+ * optional "combine with" second ref (combineOp/combineIndicator/...)
  *
  * Depends on (must be loaded before this file):
  *   - indicator-config.js    (INDICATORS, INDICATORS_WITH_PERIOD,
@@ -31,7 +31,7 @@
  * a couple of layout tweaks are new (see the small `.cs-*` block in
  * style.css). If overlay-a11y.js's openModal()/closeModal() turns out to
  * have a simple enough contract, swapping this out for it later is a small
- * change confined to open/close - the field-rendering logic is unaffected.
+ * change confined to open/close - the field-rendering logic is unaffected
  *
  * Exposes:
  *   window.openConditionSettings(type, gidx, ridx, prefix)
@@ -48,7 +48,7 @@
 
   // Key derivation for one "ref" (indicator + period/source/offset/
   // timeframe/settings + optional combine* sub-ref). Mirrors backtest.py's
-  // _resolve_expr() exactly - keep both in sync if the schema ever changes.
+  // _resolve_expr() exactly - keep both in sync if the schema ever changes
   function _refKeys(prefix) {
     const p = prefix || ''
     return {
@@ -68,7 +68,7 @@
   }
 
   // True if this ref (or its combine sub-ref) carries anything beyond the
-  // old flat schema - purely used to light up the gear button's dot.
+  // old flat schema - purely used to light up the gear button's dot
   function hasNonDefaultConditionSettings(cond, prefix) {
     const k = _refKeys(prefix)
     if (cond[k.off] || cond[k.tf] || cond[k.set] || cond[k.cop]) return true
@@ -76,7 +76,7 @@
     return false
   }
 
-  // Scroll lock / inert - same technique as indicator-picker.js's overlay.
+  // Scroll lock / inert - same technique as indicator-picker.js's overlay
   function _lockScroll() {
     _scrollY = window.scrollY
     document.body.style.position = 'fixed'
@@ -166,7 +166,7 @@
     _setInert(false)
     _cond = null
     // Re-render the row so the gear dot / row stays in sync after edits
-    // made in the overlay (offset, timeframe, combine...).
+    // made in the overlay (offset, timeframe, combine...)
     if (window.renderConditions) renderConditions()
     if (window.updatePreview) updatePreview()
     _lastFocused?.focus?.()
@@ -175,9 +175,9 @@
 
   // Small field builders - all built on the app's existing .form-group /
   // .form-row / .section-title / .checkbox-label CSS (style.css), same as
-  // every other field in the editor (Capital, Position size, SL/TP...).
+  // every other field in the editor (Capital, Position size, SL/TP...)
   // Nothing custom-styled here beyond the gear button and a couple of
-  // layout tweaks for the indicator-picker inside a form-row.
+  // layout tweaks for the indicator-picker inside a form-row
 
   function _numberField(id, label, value, opts = {}) {
     const { min, max, step } = opts
@@ -197,7 +197,7 @@
   // sweep-parse.js. Used only for period/valueMultiplier (fields
   // recognized as sweepable by strategyService) - NOT for offset, the
   // indicator extra-params (MACD fast/slow/signal...), or combine*, which
-  // restent volontairement scalaires (_numberField ci-dessus).
+  // restent volontairement scalaires (_numberField ci-dessus)
   function _sweepNumberField(id, label, value) {
     return `
       <div class="form-group">
@@ -208,7 +208,7 @@
   }
 
   // number/% switch for the multiplier field. Display-only: cond.valueMultiplier
-  // always stays a plain multiplier on disk, backend/backtest.py never see '%'.
+  // always stays a plain multiplier on disk, backend/backtest.py never see '%'
   const MULTIPLIER_MODES = [{ value: 'number', label: '#' }, { value: 'percent', label: '%' }]
 
   function _scaleMultiplier(value, factor) {
@@ -271,15 +271,15 @@
       const willBeActive = !btn.classList.contains('active')
 
       if (!willBeActive) {
-        // Unchecking: at least one value must remain selected.
+        // Unchecking: at least one value must remain selected
         if (el.querySelectorAll('.toggle-btn.active').length <= 1) return
         btn.classList.remove('active')
       } else if (isClose) {
-        // "close" excludes any other selected source.
+        // "close" excludes any other selected source
         el.querySelectorAll('.toggle-btn.active').forEach(b => b.classList.remove('active'))
         btn.classList.add('active')
       } else {
-        // Une source explicite exclut "close".
+        // An explicit source excludes "close"
         el.querySelector(`.toggle-btn[data-chip-value="${SOURCE_CLOSE_SENTINEL}"]`)?.classList.remove('active')
         btn.classList.add('active')
       }
@@ -301,7 +301,7 @@
     // Restriction is UI-only and forward-looking: an indicator already
     // combined (legacy data, or added before this indicator was
     // restricted) keeps showing/editing normally - see INDICATORS_NO_COMBINE
-    // in indicator-config.js.
+    // in indicator-config.js
     const combineAllowed = hasCombine || !INDICATORS_NO_COMBINE.includes(indicator)
 
     const strategyTf   = (typeof getPrimaryTimeframe === 'function' && getPrimaryTimeframe()) || '1h'
@@ -427,7 +427,7 @@
       const strategyTf = (typeof getPrimaryTimeframe === 'function' && getPrimaryTimeframe()) || '1h'
       // Explicitly picking the strategy's own timeframe is equivalent to
       // "no timeframe specified" (see backtest.py's run_backtest(), which
-      // normalizes both to the same code path) - so just omit the key.
+      // normalizes both to the same code path) - so just omit the key
       if (e.target.value && e.target.value !== strategyTf) cond[k.tf] = e.target.value
       else delete cond[k.tf]
       updatePreview()
@@ -435,7 +435,7 @@
 
     document.getElementById('cs-multiplier')?.addEventListener('input', e => {
       const parsed = parseSweepNumber(e.target.value) ?? 1
-      // '%' mode: the field holds e.g. 5 for "5%" - store the plain multiplier.
+      // '%' mode: the field holds e.g. 5 for "5%" - store the plain multiplier
       cond.valueMultiplier = cond.valueMultiplierMode === 'percent' ? _scaleMultiplier(parsed, 1 / 100) : parsed
       updatePreview()
     })
@@ -446,7 +446,7 @@
       if (btn.dataset.chipValue === 'percent') cond.valueMultiplierMode = 'percent'
       else delete cond.valueMultiplierMode
       // Full re-render so the field shows the same multiplier converted to
-      // the new mode (0.05 <-> 5%) instead of stale text on screen.
+      // the new mode (0.05 <-> 5%) instead of stale text on screen
       _renderBody()
       updatePreview()
     })
@@ -462,7 +462,7 @@
       updatePreview()
       // Full re-render (not just a display toggle): turning combine off on
       // a restricted indicator must hide the checkbox again, since
-      // INDICATORS_NO_COMBINE only grandfathers already-combined refs.
+      // INDICATORS_NO_COMBINE only grandfathers already-combined refs
       _renderBody()
     })
   }

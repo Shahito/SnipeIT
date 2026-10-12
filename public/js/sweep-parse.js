@@ -2,10 +2,10 @@
  * sweep-parse.js
  *
  * Convention shared across the front end for sweepable fields:
- *   - Un champ NUMÉRIQUE (positionSize, stopLoss, period, value...) accepte
- *     accepts either a single value ("14") or a comma-separated list
+ *   - A NUMERIC field (positionSize, SL/TP, period, value...) accepts
+ *     either a single value ("14") or a comma-separated list
  *     ("14, 15, 16") -> { sweep: [14,15,16] }.
- *   - An ENUM field (pairs, timeframe, slType, tpType, source) is chosen
+ *   - An ENUM field (pairs, timeframe, source) is chosen
  *     via a chip group (.toggle-group/.toggle-btn): a single chip
  *     checked = scalar value, several checked = { sweep: [...] }.
  *

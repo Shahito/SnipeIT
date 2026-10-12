@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const authRequired = require('../middleware/auth')
-const { listController, validatePairsController } = require('../controllers/coinController')
+const { listController, validatePairsController, atrRefController } = require('../controllers/coinController')
 
 /**
  * @openapi
@@ -36,5 +36,22 @@ router.get('/', authRequired, listController)
  *       200: { description: OK }
  */
 router.post('/validate-pairs', authRequired, validatePairsController)
+
+/**
+ * @openapi
+ * /api/coins/atr-ref:
+ *   get:
+ *     tags: [coin]
+ *     summary: Recent ATR as a percent of price (indicative, for the exits overlay axis)
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - { in: query, name: pair, required: true, schema: { type: string }, example: BTC/USDT }
+ *       - { in: query, name: timeframe, required: true, schema: { type: string }, example: 1h }
+ *       - { in: query, name: period, schema: { type: integer, default: 14 } }
+ *     responses:
+ *       200: { description: "{ pair, timeframe, period, atrPct }" }
+ *       404: { description: NO_DATA }
+ */
+router.get('/atr-ref', authRequired, atrRefController)
 
 module.exports = router

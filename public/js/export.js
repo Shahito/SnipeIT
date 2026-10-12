@@ -595,6 +595,7 @@
                 includeCurrent: true,
             }
         }
+        if (cond.enabled !== undefined) out.enabled = cond.enabled
         return out
     }
 
@@ -620,27 +621,35 @@
             clean.signals = signals
         }
 
-        // riskManagement (stopLoss / trailingStopLoss / takeProfit / slType / tpType / atrPeriod)
-        const hasSL = clean.stopLoss != null || clean.trailingStopLoss != null
-        const hasTP = clean.takeProfit != null
-        if (hasSL || hasTP) {
+        // riskManagement + execution, from the strategy's `exits` / `execution` blocks
+        const ex = clean.exits
+        if (ex) {
             const risk = {}
-            if (hasSL) {
-                risk.stopLoss = {
-                    value: clean.stopLoss ?? clean.trailingStopLoss,
-                    type: (clean.slType || 'percent').toUpperCase(),
-                    trailing: clean.stopLoss == null && clean.trailingStopLoss != null,
+            const legJSON = (l, withMode) => {
+                const out = {}
+                if (withMode) out.mode = _upperSweepable(l.mode || 'fixed')
+                if (l.mode !== 'trailing') {
+                    out.value = l.value
+                    out.type = _upperSweepable(l.type || 'percent')
                 }
+                out.order = _upperSweepable(l.order)
+                return out
             }
-            if (hasTP) {
-                risk.takeProfit = { value: clean.takeProfit, type: (clean.tpType || 'percent').toUpperCase() }
+            if (ex.sl?.enabled)  risk.stopLoss = legJSON(ex.sl)
+            if (ex.tsl?.enabled) risk.trailingStopLoss = legJSON(ex.tsl)
+            if (ex.tp?.enabled)  risk.takeProfit = legJSON(ex.tp, true)
+            const usesAtr = ['sl', 'tsl', 'tp'].some(k => ex[k]?.enabled && ex[k]?.mode !== 'trailing' && _sweepableIncludes(ex[k].type, 'atr'))
+            if (usesAtr && ex.atrPeriod != null) risk.atrPeriod = ex.atrPeriod
+            if (Object.keys(risk).length) clean.riskManagement = risk
+            if (ex.signal?.order) {
+                clean.execution = { ...(clean.execution || {}), signalExitOrder: _upperSweepable(ex.signal.order) }
             }
-            const usesAtr = (hasSL && (clean.slType || 'percent') === 'atr') || (hasTP && (clean.tpType || 'percent') === 'atr')
-            if (usesAtr && clean.atrPeriod != null) risk.atrPeriod = clean.atrPeriod
-            clean.riskManagement = risk
         }
-        delete clean.stopLoss; delete clean.trailingStopLoss; delete clean.takeProfit
-        delete clean.slType; delete clean.tpType; delete clean.atrPeriod
+        if (clean.execution && clean.execution.slippage != null) {
+            clean.execution = { slippagePct: clean.execution.slippage, ...clean.execution }
+            delete clean.execution.slippage
+        }
+        delete clean.exits
 
         // positionSizing
         if (clean.positionSize != null) {
@@ -688,6 +697,15 @@
         return label
     }
 
+    function _upperSweepable(v) {
+        if (v && typeof v === 'object' && Array.isArray(v.sweep)) return { sweep: v.sweep.map(x => String(x).toUpperCase()) }
+        return v == null ? v : String(v).toUpperCase()
+    }
+
+    function _sweepableIncludes(v, x) {
+        return v && typeof v === 'object' && Array.isArray(v.sweep) ? v.sweep.includes(x) : v === x
+    }
+
     function _formatSweepableValue(v) {
         if (v && typeof v === 'object' && Array.isArray(v.sweep)) return `sweep(${v.sweep.join(', ')})`
         return v
@@ -715,6 +733,7 @@
             line += ` (${mode} ${cond.lookback} ${t('editor.cond.lookback_candles')})`
         }
         if (cond.offset) line += ` [offset ${cond.offset}]`
+        if (cond.enabled !== undefined) line += ` [enabled: ${_formatSweepableValue(cond.enabled)}]`
         return line
     }
 
@@ -767,23 +786,29 @@
     }
 
     function _formatRiskManagementLines(s) {
-        const hasSL = s.stopLoss != null || s.trailingStopLoss != null
-        const hasTP = s.takeProfit != null
-        if (!hasSL && !hasTP) return []
-        const lines = [`  ${t('export.text.section.risk')}:`]
-        if (hasSL) {
-            const val = s.stopLoss ?? s.trailingStopLoss
-            const isAtr = (s.slType || 'percent') === 'atr'
-            const trailing = s.stopLoss == null && s.trailingStopLoss != null ? ` (${t('export.text.label.trailing')})` : ''
-            lines.push(`    ${t('export.text.label.stop_loss').padEnd(20)}${_formatSweepableValue(val)}${isAtr ? ' x ATR' : '%'}${trailing}`)
+        const ex = s.exits
+        if (!ex) return []
+        const U = { percent: '%', atr: ' x ATR', r: 'R' }
+        const unitOf = v => (v && typeof v === 'object' && Array.isArray(v.sweep))
+            ? v.sweep.map(x => U[x] ?? x).join(' / ')
+            : (U[v] ?? U.percent)
+        const orderOf = o => `[${(o && typeof o === 'object' ? o.sweep.join('/') : o) || ''}]`
+        const rows = []
+        const add = (label, l) => rows.push(
+            `    ${label.padEnd(20)}${_formatSweepableValue(l.value)}${unitOf(l.type)} ${orderOf(l.order)}`
+        )
+        if (ex.sl?.enabled)  add(t('export.text.label.stop_loss'), ex.sl)
+        if (ex.tsl?.enabled) add(t('export.text.label.trailing_stop_loss'), ex.tsl)
+        if (ex.tp?.enabled && ex.tp.mode === 'trailing') {
+            rows.push(`    ${t('export.text.label.trailing_take_profit').padEnd(20)}${t('export.text.label.not_simulated')}`)
+        } else if (ex.tp?.enabled) {
+            add(t('export.text.label.take_profit'), ex.tp)
         }
-        if (hasTP) {
-            const isAtr = (s.tpType || 'percent') === 'atr'
-            lines.push(`    ${t('export.text.label.take_profit').padEnd(20)}${_formatSweepableValue(s.takeProfit)}${isAtr ? ' x ATR' : '%'}`)
-        }
-        const usesAtr = (hasSL && (s.slType || 'percent') === 'atr') || (hasTP && (s.tpType || 'percent') === 'atr')
-        if (usesAtr && s.atrPeriod != null) lines.push(`    ${t('export.text.label.atr_period').padEnd(20)}${s.atrPeriod}`)
-        return lines
+        const usesAtr = ['sl', 'tsl', 'tp'].some(k => ex[k]?.enabled && ex[k]?.mode !== 'trailing' && _sweepableIncludes(ex[k].type, 'atr'))
+        if (usesAtr && ex.atrPeriod != null) rows.push(`    ${t('export.text.label.atr_period').padEnd(20)}${_formatSweepableValue(ex.atrPeriod)}`)
+        if (ex.signal?.order) rows.push(`    ${t('export.text.label.signal_exit').padEnd(20)}${orderOf(ex.signal.order)}`)
+        if (s.execution?.slippage != null) rows.push(`    ${t('export.text.label.slippage').padEnd(20)}${_formatSweepableValue(s.execution.slippage)}%`)
+        return rows.length ? [`  ${t('export.text.section.risk')}:`, ...rows] : []
     }
 
     function _formatPositionSizingLines(s) {
@@ -829,8 +854,7 @@
         lines.push(..._formatRiskManagementLines(rest))
         lines.push(..._formatPositionSizingLines(rest))
         lines.push(..._formatFeesLines(rest))
-        delete rest.stopLoss; delete rest.trailingStopLoss; delete rest.takeProfit
-        delete rest.slType; delete rest.tpType; delete rest.atrPeriod
+        delete rest.exits; delete rest.execution
         delete rest.positionSize; delete rest.feeMaker; delete rest.feeTaker
 
         lines.push(..._dumpStrategyLines(rest, 1))

@@ -14,13 +14,22 @@ document.addEventListener('header:ready', async () => {
 
     const SWEEP_TOP_LEVEL_LABELS = {
     positionSize:     t('editor.field.position_size'),
-    stopLoss:         t('editor.field.stop_loss'),
-    takeProfit:       t('editor.field.take_profit'),
-    trailingStopLoss: t('editor.field.stop_loss'),
-    atrPeriod:        t('editor.field.atr_period'),
     timeframe:        t('editor.field.timeframe'),
-    slType:           t('sweep.param.sl_type'),
-    tpType:           t('sweep.param.tp_type'),
+    }
+
+    // Sweep paths under exits.* / execution.* -> readable label
+    function resolveExitLabel(path) {
+    const m = path.match(/^exits\.(sl|tsl|tp)\.(value|type|order)$/)
+    if (m) {
+        const leg = t('exits.leg.' + m[1])
+        if (m[2] === 'type') return t('sweep.param.exit_type', { leg })
+        if (m[2] === 'order') return t('sweep.param.exit_order', { leg })
+        return leg
+    }
+    // Regexes on purpose: quoted literals would be mistaken for i18n keys by the i18n usage test
+    if (/^exits\.atrPeriod$/.test(path)) return t('editor.field.atr_period')
+    if (/^execution\.slippage$/.test(path)) return t('exits.field.slippage')
+    return null
     }
 
     function normalizeGroups(arr) {
@@ -79,12 +88,20 @@ document.addEventListener('header:ready', async () => {
     }
 
 
+    function describeRule(cond) {
+        const op = SWEEP_OPERATOR_LABELS[cond.operator] || cond.operator
+        const v = cond.value
+        const right = cond.valueIndicator ? describeRef(cond, 'value') : (v && typeof v === 'object' ? v.sweep.join('/') : v)
+        return `${describeRef(cond, '')} ${op} ${right}`
+    }
+
     function describeSweepAxis(path, definition) {
         const hit = resolveConditionFromPath(path, definition)
-        if (!hit) return SWEEP_TOP_LEVEL_LABELS[path] || path
+        if (!hit) return SWEEP_TOP_LEVEL_LABELS[path] || resolveExitLabel(path) || path
 
         const { cond, field, subfield } = hit
         switch (field) {
+            case 'enabled': return describeRule(cond)
             case 'period': return `${indicatorName(cond, '')} - ${t('editor.cond.period')}`
             case 'source': return `${indicatorName(cond, '')} - ${t('editor.cond.source')}`
             case 'value':
@@ -107,9 +124,10 @@ document.addEventListener('header:ready', async () => {
     // PARAM=VALUE label (used in table rows and Best/Worst)
     function describeSweepValue(path, value, definition) {
     const hit = resolveConditionFromPath(path, definition)
-    if (!hit) return `${SWEEP_TOP_LEVEL_LABELS[path] || path} = ${JSON.stringify(value)}`
+    if (!hit) return `${SWEEP_TOP_LEVEL_LABELS[path] || resolveExitLabel(path) || path} = ${JSON.stringify(value)}`
 
     const { cond, field } = hit
+    if (field === 'enabled')             return `${describeRule(cond)} : ${value ? t('editor.cond.state_on') : t('editor.cond.state_off')}`
     if (field === 'period')              return `${cond.indicator}(${value})`
     if (field === 'source')               return `${indicatorName(cond, '')}[${value}]`
     if (field === 'value')               return `${describeRef(cond, '')} ${SWEEP_OPERATOR_LABELS[cond.operator] || cond.operator} ${value}`

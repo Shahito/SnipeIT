@@ -357,7 +357,7 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
     if not sell_trades:
         return {
             "t0": 0,
-            "cols": ["eOff", "xOff", "ep", "xp", "a", "r", "rs"],
+            "cols": ["eOff", "xOff", "ep", "xp", "a", "r", "rs", "xf"],
             "rows": [],
             "sampled": False,
             "rate": 1,
@@ -374,6 +374,7 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
             t["allocated"],
             REASON_CODES.get(t.get("reason", "signal"), 2),
             RESOLUTION_CODES.get(t.get("resolution", "base"), 0),
+            t.get("exitFee", 0),
         ]
 
     def _encode(stride):
@@ -388,14 +389,14 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
             json.dumps(
                 {
                     "t0": t0,
-                    "cols": ["eOff", "xOff", "ep", "xp", "a", "r", "rs"],
+                    "cols": ["eOff", "xOff", "ep", "xp", "a", "r", "rs", "xf"],
                     "rows": rows,
                 },
                 separators=(",", ":"),
             )
         )
 
-    # binary search sur le stride optimal
+    # binary search for the optimal stride
     if _size(1) <= max_bytes:
         stride = 1
     else:
@@ -411,7 +412,7 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
     rows = _encode(stride)
     return {
         "t0": t0,
-        "cols": ["eOff", "xOff", "ep", "xp", "a", "r", "rs"],
+        "cols": ["eOff", "xOff", "ep", "xp", "a", "r", "rs", "xf"],
         "rows": rows,
         "sampled": stride > 1,
         "rate": stride,
@@ -464,13 +465,15 @@ def _scalar_metrics(
 
     # Deepest adverse move endured by a trade that still closed as a win
     mae_values = [
-        t["mae"] for t in sell_trades
+        t["mae"]
+        for t in sell_trades
         if t.get("pnl") and t["pnl"] > 0 and t.get("mae") is not None
     ]
     max_mae = min(mae_values) if mae_values else None
 
     mfe_values = [
-        t["mfe"] for t in sell_trades
+        t["mfe"]
+        for t in sell_trades
         if t.get("pnl") and t["pnl"] < 0 and t.get("mfe") is not None
     ]
     max_mfe = max(mfe_values) if mfe_values else None

@@ -3,12 +3,12 @@ const { SWEEP_MAX_COMBINATIONS } = require('../config/sweep')
 // Whitelist of field names a sweep axis path may traverse.
 // Anything outside this set is rejected, independent of the cloning strategy used downstream.
 const ALLOWED_SWEEP_KEYS = new Set([
-  'timeframe', 'positionSize', 'stopLoss', 'takeProfit', 'trailingStopLoss',
-  'slType', 'tpType', 'atrPeriod', 'conditions',
+  'timeframe', 'positionSize', 'conditions',
+  'exits', 'execution', 'atrPeriod', 'sl', 'tsl', 'tp', 'enabled', 'mode', 'type', 'order', 'slippage',
   'entry', 'exit',
   'indicator', 'operator', 'period', 'source',
   'valueIndicator', 'valueIndicatorSource', 'valueIndicatorPeriod', 'valueMultiplier', 'value',
-  'lookback', 'lookbackMode',
+  'lookback', 'lookbackMode', 'enabled',
   'offset', 'settings', 'valueMultiplierMode',
   'combineOp', 'combineIndicator', 'combinePeriod', 'combineSource', 'combineOffset', 'combineSettings',
   'valueIndicatorOffset', 'valueIndicatorTimeframe', 'valueIndicatorSettings',

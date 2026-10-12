@@ -208,6 +208,7 @@ document.addEventListener('i18n:ready', async () => {
     const next = current === 'dark' ? 'light' : 'dark'
     localStorage.setItem('theme', next)
     applyTheme(next)
+    document.dispatchEvent(new CustomEvent('theme:changed', { detail: { theme: next } }))
   }
 
   initTheme()

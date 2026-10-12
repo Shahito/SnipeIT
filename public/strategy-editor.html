@@ -131,52 +131,15 @@
                   <p class="text-muted text-sm mt-sm" data-i18n="editor.field.sweep_number_hint"></p>
                 </div>
               </div>
-              <div class="form-row">
-                <div class="form-group fee-group">
-                  <label><span data-i18n="editor.field.fee_taker"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
-                  <div class="input-with-select">
-                    <input type="number" id="fFeeTaker" value="0.1" min="0" max="10" step="0.01" placeholder="0.1">
-                    <span class="input-addon">%</span>
-                  </div>
-                </div>
-                <div class="form-group fee-group">
-                  <label><span data-i18n="editor.field.fee_maker"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
-                  <div class="input-with-select">
-                    <input type="number" id="fFeeMaker" value="0.1" min="0" max="10" step="0.01" placeholder="0.1">
-                    <span class="input-addon">%</span>
-                  </div>
-                </div>
-              </div>
-
               <div class="divider mt-md mb-md"></div>
 
-              <div class="form-row">
-                <div class="form-group risk-group">
-                  <label><span data-i18n="editor.field.stop_loss"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
-                  <div class="input-with-select">
-                    <input type="text" id="fStopLoss" data-i18n-attr="placeholder" data-i18n="editor.field.sl_ph" inputmode="decimal">
-                    <div class="toggle-group" id="fSlTypeGroup"></div>
-                  </div>
-                  <label class="checkbox-label sl-trailing-label">
-                    <input type="checkbox" id="fSlTrailing">
-                    <span class="text-muted" data-i18n="editor.field.sl_trailing"></span>
-                  </label>
-                  <p class="text-muted text-sm mt-sm" data-i18n="editor.field.sweep_number_hint"></p>
-                </div>
-                <div class="form-group risk-group">
-                  <label><span data-i18n="editor.field.take_profit"></span> <span class="text-muted text-sm optional-label" data-i18n="editor.field.optional"></span></label>
-                  <div class="input-with-select">
-                    <input type="text" id="fTakeProfit" data-i18n-attr="placeholder" data-i18n="editor.field.tp_ph" inputmode="decimal">
-                    <div class="toggle-group" id="fTpTypeGroup"></div>
-                  </div>
-                  <p class="text-muted text-sm mt-sm" data-i18n="editor.field.sweep_number_hint"></p>
-                </div>
-              </div>
-              <div class="form-row" id="atrPeriodGroup" style="display:none">
-                <div class="form-group">
-                  <label data-i18n="editor.field.atr_period"></label>
-                  <input type="text" id="fAtrPeriod" value="14" inputmode="numeric">
-                </div>
+              <div class="form-group">
+                <label data-i18n="exits.title"></label>
+                <div class="exits-summary" id="exitsSummary"></div>
+                <button type="button" class="btn btn-ghost btn-sm mt-sm" id="openExitsBtn">
+                  <i data-icon="sliders"></i>
+                  <span data-i18n="exits.open"></span>
+                </button>
               </div>
 
               <div class="divider mt-md mb-md"></div>
@@ -184,7 +147,10 @@
               <div class="form-group">
                 <label data-i18n="editor.field.trading_hours"></label>
                 <div id="tradingHoursContainer"></div>
-                <button type="button" class="btn btn-ghost btn-sm mt-sm" id="addTradingHourBtn" data-i18n="editor.field.trading_hours_add"></button>
+                <button type="button" class="btn btn-ghost btn-sm mt-sm" id="addTradingHourBtn">
+                  <i data-icon="plus"></i>
+                  <span data-i18n="editor.field.trading_hours_add"></span>
+                </button>
                 <p class="text-muted text-sm mt-sm" data-i18n="editor.field.trading_hours_hint"></p>
               </div>
             </div>
@@ -193,10 +159,7 @@
           <!-- Step 3: Preview + indicators legend -->
           <div class="mobile-step" data-step="3">
             <div class="card sidebar-panel">
-              <div class="card-header">
-                <div class="section-title" data-i18n="editor.sidebar.json_title"></div>
-                <span class="text-muted text-sm" data-i18n="editor.sidebar.json_sub"></span>
-              </div>
+              <div class="section-title" data-i18n="editor.sidebar.json_title"></div>
               <pre class="preview-json" id="jsonPreview">{}</pre>
             </div>
           </div>
@@ -236,6 +199,114 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
+  <div id="exitsModal" class="modal-overlay exits-overlay hidden">
+    <div class="modal exits-modal" role="dialog" aria-modal="true" aria-labelledby="exitsTitle">
+      <div class="modal-header">
+        <div class="modal-title" id="exitsTitle" data-i18n="exits.title"></div>
+        <button type="button" class="modal-close" id="exitsClose" data-i18n-attr="aria-label" data-i18n="exits.close"><i data-icon="cross"></i></button>
+      </div>
+
+      <div class="exits-modal-content">
+        <p class="ex-section" data-i18n="exits.section.levels"></p>
+        <div class="ex-track" id="exTrack">
+          <div class="ex-rail"></div>
+          <div class="ex-fill ex-fill--danger" id="exFillL"></div>
+          <div class="ex-fill ex-fill--success" id="exFillR"></div>
+          <div class="ex-tick"></div>
+          <div class="ex-axis ex-axis--mid" data-i18n="exits.slider.entry"></div>
+          <div class="ex-axis ex-axis--l" id="exAxisL"></div>
+          <div class="ex-axis ex-axis--r" id="exAxisR"></div>
+
+          <div class="ex-band ex-band--danger" id="exB_sl"></div>
+          <div class="ex-band ex-band--danger ex-band--tsl" id="exB_tsl"></div>
+          <div class="ex-band ex-band--success" id="exB_tp"></div>
+
+          <div class="ex-stem" id="exS_tsl"></div>
+          <div class="ex-handle ex-handle--tsl" id="exH_tsl" tabindex="0" role="slider" aria-valuemin="0.1" data-i18n-attr="aria-label" data-i18n="exits.leg.tsl"></div>
+          <div class="ex-label ex-label--tsl" id="exL_tsl"></div>
+
+          <div class="ex-handle ex-handle--sl" id="exH_sl" tabindex="0" role="slider" aria-valuemin="0.1" data-i18n-attr="aria-label" data-i18n="exits.leg.sl"></div>
+          <div class="ex-label ex-label--sl" id="exL_sl"></div>
+
+          <div class="ex-handle ex-handle--tp" id="exH_tp" tabindex="0" role="slider" aria-valuemin="0.1" data-i18n-attr="aria-label" data-i18n="exits.leg.tp"></div>
+          <div class="ex-label ex-label--tp" id="exL_tp"></div>
+        </div>
+
+        <div class="ex-rows">
+          <div class="form-group ex-row" id="exSlRow">
+            <label class="ex-leg"><input type="checkbox" id="exSlOn"> <span data-i18n="exits.leg.sl"></span></label>
+            <div class="ex-val"><input type="text" id="exSlValue" inputmode="decimal"><span class="ex-unit" id="exSlUnit"></span></div>
+            <div class="ex-chips" id="exSlTypeGroup"></div>
+            <select id="exSlOrder" data-i18n-attr="aria-label" data-i18n="exits.order.label"></select>
+          </div>
+          <div class="form-group ex-row" id="exTslRow">
+            <label class="ex-leg"><input type="checkbox" id="exTslOn"> <span data-i18n="exits.leg.tsl"></span></label>
+            <div class="ex-val"><input type="text" id="exTslValue" inputmode="decimal"><span class="ex-unit" id="exTslUnit"></span></div>
+            <div class="ex-chips" id="exTslTypeGroup"></div>
+            <select id="exTslOrder" data-i18n-attr="aria-label" data-i18n="exits.order.label"></select>
+          </div>
+          <div class="form-group ex-row" id="exTpRow">
+            <label class="ex-leg"><input type="checkbox" id="exTpOn"> <span data-i18n="exits.leg.tp"></span></label>
+            <div class="ex-val"><input type="text" id="exTpValue" inputmode="decimal"><span class="ex-unit" id="exTpUnit"></span></div>
+            <div class="ex-chips" id="exTpTypeGroup"></div>
+            <select id="exTpOrder" data-i18n-attr="aria-label" data-i18n="exits.order.label"></select>
+          </div>
+          <div class="form-group ex-row ex-row--text" id="exTtpRow">
+            <label class="ex-leg"><input type="checkbox" id="exTtpOn"> <span data-i18n="exits.leg.ttp"></span></label>
+            <span class="text-muted text-sm ex-row-note" data-i18n="exits.ttp.hint"></span>
+          </div>
+          <p class="field-error-msg ex-err" id="exErr"></p>
+          <div class="form-group ex-row ex-row--signal" id="exSignalRow">
+            <div class="ex-leg" data-i18n="exits.leg.signal"></div>
+            <span class="ex-dash">-</span>
+            <span class="text-muted text-sm" data-i18n="exits.signal.hint"></span>
+            <select id="exSignalOrder" data-i18n-attr="aria-label" data-i18n="exits.order.label"></select>
+          </div>
+          <div class="form-group ex-atr hidden" id="exAtrRow">
+            <label for="exAtrPeriod" data-i18n="editor.field.atr_period"></label>
+            <input type="text" id="exAtrPeriod" value="14" inputmode="numeric">
+            <p class="text-muted text-sm mt-sm" id="exAtrNote"></p>
+          </div>
+        </div>
+
+        <p class="ex-section ex-section--ruled" data-i18n="exits.section.execution"></p>
+        <div class="ex-exec">
+          <div class="form-group">
+            <label for="fSlippage" data-i18n="exits.field.slippage"></label>
+            <input type="text" id="fSlippage" value="0" inputmode="decimal">
+          </div>
+          <div class="form-group fee-group">
+            <label for="fFeeTaker"><span data-i18n="editor.field.fee_taker"></span></label>
+            <div class="input-with-select">
+              <input type="number" id="fFeeTaker" value="0.1" min="0" max="10" step="0.01" placeholder="0.1">
+              <span class="input-addon">%</span>
+            </div>
+          </div>
+          <div class="form-group fee-group">
+            <label for="fFeeMaker"><span data-i18n="editor.field.fee_maker"></span></label>
+            <div class="input-with-select">
+              <input type="number" id="fFeeMaker" value="0.1" min="0" max="10" step="0.01" placeholder="0.1">
+              <span class="input-addon">%</span>
+            </div>
+          </div>
+        </div>
+        <p class="text-muted text-sm ex-hint" data-i18n="exits.slippage.hint"></p>
+
+        <div class="ex-metrics">
+          <div class="ex-metric"><div class="ex-metric-label" data-i18n="exits.metric.rr"></div><div class="ex-metric-value" id="exMetricRR">-</div></div>
+          <div class="ex-metric"><div class="ex-metric-label" data-i18n="exits.metric.be"></div><div class="ex-metric-value" id="exMetricBE">-</div></div>
+          <div class="ex-metric"><div class="ex-metric-label" data-i18n="exits.metric.cost"></div><div class="ex-metric-value" id="exMetricCost">-</div></div>
+        </div>
+        <p class="text-muted text-sm ex-hint" id="exMetricNote" aria-live="polite"></p>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="exitsReset" data-i18n="exits.reset"></button>
+        <button type="button" class="btn btn-primary" id="exitsDone" data-i18n="exits.done"></button>
+      </div>
+    </div>
+  </div>
+
   <div id="sweepConfirmModal" class="modal-overlay hidden">
     <div class="modal">
       <div class="modal-header">
@@ -260,6 +331,7 @@
   <script src="/js/indicator-picker.js"></script>
   <script src="/js/condition-renderer.js"></script>
   <script src="/js/condition-settings.js"></script>
+  <script src="/js/exits-overlay.js"></script>
   <script src="/js/strategy-form.js"></script>
   <script src="/js/form-validate.js"></script>
   <script src="/js/pages/strategy-editor-page.js"></script>  

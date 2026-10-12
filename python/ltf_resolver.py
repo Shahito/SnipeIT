@@ -91,6 +91,7 @@ class LtfResolver:
         triggers, in the real chronological order found in the data.
 
         Returns:
+          kind                - "sl", "tsl" or "tp": the leg that triggered (None if none).
           exit_price, reason  - None, None if nothing triggered this candle.
                                  reason is "tsl" or "risk" (SL and TP share
                                  "risk" - same convention as the base-candle
@@ -138,7 +139,7 @@ class LtfResolver:
                     gapped.append(("risk", sl_price))
                 if gapped:
                     reason, _ = max(gapped, key=lambda g: g[1])  # higher level = struck first on the way down
-                    return self._outcome(o, reason, th, timeframe, seen_high, seen_low)
+                    return self._outcome(o, reason, th, timeframe, seen_high, seen_low, kind=self._kind(reason))
 
                 # No pre-existing gap: this sub-candle's own high may raise
                 # the trailing stop for the first time - it cannot have been
@@ -158,17 +159,22 @@ class LtfResolver:
                     stop_outs.append(("risk", sl_price))
                 if stop_outs:
                     reason, level = max(stop_outs, key=lambda s: s[1])  # see module docstring, rule 2
-                    return self._outcome(level, reason, th, timeframe, seen_high, seen_low)
+                    return self._outcome(level, reason, th, timeframe, seen_high, seen_low, kind=self._kind(reason))
                 if tp_hit:
-                    return self._outcome(tp_price, "risk", th, timeframe, seen_high, seen_low)  # never better than the level
+                    return self._outcome(tp_price, "risk", th, timeframe, seen_high, seen_low, kind="tp")  # never better than the level
 
             return self._outcome(None, None, th, timeframe, seen_high, seen_low)  # full coverage, nothing hit
 
         return self._outcome(None, None, trailing_high, "none", None, None)
 
     @staticmethod
-    def _outcome(exit_price, reason, trailing_high, resolved_at, seen_high, seen_low) -> dict:
+    def _kind(reason: str) -> str:
+        return "tsl" if reason == "tsl" else "sl"
+
+    @staticmethod
+    def _outcome(exit_price, reason, trailing_high, resolved_at, seen_high, seen_low, kind=None) -> dict:
         return {
+            "kind": kind,
             "exit_price": exit_price,
             "reason": reason,
             "trailing_high": trailing_high,

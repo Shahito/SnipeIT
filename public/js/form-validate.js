@@ -71,27 +71,32 @@ const FIELD_VALIDATORS = {
     if (!values.length || values.some(v => isNaN(v) || v <= 0 || v > 100)) return t('error.POSITION_SIZE_INVALID')
     return null
   },
-  fStopLoss(el) {
-    if (!el.value.trim()) return null
-    const values = _asSweepArray(parseSweepNumber(el.value))
-    if (!values.length || values.some(v => isNaN(v) || v <= 0)) return t('editor.validation.value_positive')
-    return null
-  },
-  fTakeProfit(el) {
-    if (!el.value.trim()) return null
-    const values = _asSweepArray(parseSweepNumber(el.value))
-    if (!values.length || values.some(v => isNaN(v) || v <= 0)) return t('editor.validation.value_positive')
-    return null
-  },
-  fAtrPeriod(el) {
-    if (document.getElementById('atrPeriodGroup').style.display === 'none') return null
+  exSlValue(el)  { return _validateExitLeg(el, 'exSlOn') },
+  exTslValue(el) { return _validateExitLeg(el, 'exTslOn') },
+  exTpValue(el)  { return _validateExitLeg(el, 'exTpOn') },
+  exAtrPeriod(el) {
+    if (document.getElementById('exAtrRow').classList.contains('hidden')) return null
     if (!el.value.trim()) return t('error.ATR_PERIOD_INVALID')
     const values = _asSweepArray(parseSweepNumber(el.value, parseInt))
     if (!values.length || values.some(v => isNaN(v) || v < 1 || v > 200)) return t('error.ATR_PERIOD_INVALID')
     return null
   },
+  fSlippage(el) {
+    if (!el.value.trim()) return null
+    const values = _asSweepArray(parseSweepNumber(el.value))
+    if (!values.length || values.some(v => isNaN(v) || v < 0 || v > 5)) return t('exits.validation.slippage')
+    return null
+  },
   fFeeTaker(el) { return _validateFee(el) },
   fFeeMaker(el) { return _validateFee(el) },
+}
+
+function _validateExitLeg(el, onId) {
+  if (!document.getElementById(onId).checked) return null
+  if (!el.value.trim()) return t('exits.validation.value_required')
+  const values = _asSweepArray(parseSweepNumber(el.value))
+  if (!values.length || values.some(v => isNaN(v) || v <= 0)) return t('editor.validation.value_positive')
+  return null
 }
 
 function _validateDateRange() {
@@ -161,6 +166,9 @@ function validateTradingHours() {
 
 function _focusAndReveal(el) {
   if (!el) return
+  if (el.closest('#exitsModal') && !document.getElementById('exitsModal').classList.contains('open')) {
+    ExitsOverlay.open()
+  }
   if (window.innerWidth <= 1100) {
     const step = el.closest('.mobile-step')
     if (step) goToStep(parseInt(step.dataset.step))
@@ -205,9 +213,10 @@ function _attachLiveValidation() {
     el.addEventListener('change', revalidate)
   })
 
-  document.getElementById('fSlTrailing').addEventListener('change', () => {
-    _touchedFields.add('fStopLoss')
-    _runFieldValidator('fStopLoss')
+  ;[['exSlOn', 'exSlValue'], ['exTslOn', 'exTslValue'], ['exTpOn', 'exTpValue']].forEach(([onId, valueId]) => {
+    document.getElementById(onId).addEventListener('change', () => {
+      if (_touchedFields.has(valueId)) _runFieldValidator(valueId)
+    })
   })
 
   document.getElementById('fBaseCoins').addEventListener('change', () => {
@@ -221,13 +230,6 @@ function _attachLiveValidation() {
   thContainer.addEventListener('input', _debounceValidate(validateTradingHours, 200))
   thContainer.addEventListener('change', validateTradingHours)
   thContainer.addEventListener('click', () => setTimeout(validateTradingHours, 0))
-
-  // Re-check ATR period as soon as its visibility (and therefore requirement) changes.
-  const _origUpdateAtrVisibility = window.updateAtrVisibility
-  window.updateAtrVisibility = function () {
-    _origUpdateAtrVisibility()
-    if (_touchedFields.has('fAtrPeriod')) _runFieldValidator('fAtrPeriod')
-  }
 }
 
 document.addEventListener('header:ready', _attachLiveValidation, { once: true })

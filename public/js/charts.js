@@ -1305,11 +1305,13 @@ class MonthlyPerfChart {
 
   toggleTrades(force) {
     this._showTrades = force ?? !this._showTrades
+    this._layoutPad = this._getPad(this._W)
     this._draw()
   }
 
   toggleDelta(force) {
     this._showDelta = force ?? !this._showDelta
+    this._layoutPad = this._getPad(this._W)
     this._draw()
   }
 

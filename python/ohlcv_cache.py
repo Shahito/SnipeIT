@@ -278,15 +278,20 @@ def get_ohlcv(pair: str, timeframe: str, start_date: str, end_date: str,
         known_start = _load_fetch_start(cache_dir)
         need_before = (known_start is None or start < known_start) and cached_start > start_ts
 
-        # Do not re-download the end if end_date >= today (data still in progress).
-        # Also skip if we already confirmed there is nothing past this end_date
-        # (e.g. a delisted pair that never gets new candles).
+        # Never re-download "today" - its candles are still in progress. But
+        # that must only cap how far forward we fetch, not disable fetching
+        # altogether: if the caller keeps asking for "up to today" (the
+        # common case for a live dashboard), cached_end would otherwise stay
+        # stuck at whatever today was on the FIRST such call forever, even
+        # once yesterday (now fully closed) has new, fetchable candles.
+        # Compare against fetch_until (capped at today), not the raw end_ts,
+        # so a closed day between cached_end and today still gets backfilled.
         today = pd.Timestamp(datetime.now(timezone.utc).date())
+        fetch_until = min(end_ts, today)
         confirmed_end = _load_confirmed_end(cache_dir)
         need_after = (
-            cached_end < end_ts
-            and end_ts < today
-            and (confirmed_end is None or end_ts > confirmed_end)
+            cached_end < fetch_until
+            and (confirmed_end is None or fetch_until > confirmed_end)
         )
 
         # Internal gaps: missing candles anywhere between cached_start and cached_end
@@ -328,16 +333,16 @@ def get_ohlcv(pair: str, timeframe: str, start_date: str, end_date: str,
                 frames.append(patch)
 
         if need_after:
-            suffix = _fetch_from_exchange(exchange, pair, timeframe, cached_end.to_pydatetime(), end)
+            suffix = _fetch_from_exchange(exchange, pair, timeframe, cached_end.to_pydatetime(), fetch_until.to_pydatetime())
             # Same idea as above: cached_end itself will be echoed back, so a
             # suffix that only contains that one candle means nothing new.
             new_candles = suffix[suffix["timestamp"] > cached_end]
             if new_candles.empty:
                 log.warning(
-                    f"No data past {cached_end} for {pair}/{timeframe} up to {end} - "
+                    f"No data past {cached_end} for {pair}/{timeframe} up to {fetch_until} - "
                     f"caching as confirmed end, will not re-check next time."
                 )
-                _save_confirmed_end(cache_dir, end)
+                _save_confirmed_end(cache_dir, fetch_until)
             else:
                 frames.append(new_candles)
 

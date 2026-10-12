@@ -89,12 +89,8 @@ model Strategy {
   endDate        DateTime
   initialCapital Float         @default(1000)
   positionSize   Json          // Float or { sweep: [...] }
-  stopLoss       Json?         // Float or { sweep: [...] }
-  takeProfit     Json?         // Float or { sweep: [...] }
-  trailingStopLoss Json?       // Float or { sweep: [...] }
-  slType         Json?         // "percent"|"atr" or { sweep: [...] }
-  tpType         Json?         // "percent"|"atr" or { sweep: [...] }
-  atrPeriod      Json?         // Int or { sweep: [...] }
+  exits          Json          // { atrPeriod, sl, tsl, tp, signal }, numeric leaves may be { sweep: [...] }
+  execution      Json          // { slippage } in percent
   feeTaker       Float         @default(0.0)
   feeMaker       Float         @default(0.0)
   tradingHours   Json?         // [{start:"08:00", end:"17:00", blockSell:false}]

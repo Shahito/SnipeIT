@@ -14,7 +14,7 @@ const equityChart = new CanvasLineChart('equityChart', {
       prefix:       '',
       dynamic:      true,
       baselineValue: r => r.initialCapital,
-      lineWidth:    2,
+      lineWidth:    1.5,
     },
     // {
     //   key:          'pnl',
@@ -254,6 +254,12 @@ const monthlyChart = new MonthlyPerfChart('monthlyPerfCanvas', {
   // height: 220,
 })
 document.getElementById('mpfToggleDelta').classList.toggle('active', monthlyChart._showDelta)
+
+document.addEventListener('theme:changed', () => {
+  for (const chart of [equityChart, pnlDistributionChart, maeDistributionChart, maeScatterChart, mfeDistributionChart, mfeScatterChart, monthlyChart]) {
+    if (chart._result) chart.render(chart._result)
+  }
+})
 
 // Resize handler - redraw all CanvasLineChart instances
 let _resizeTimer

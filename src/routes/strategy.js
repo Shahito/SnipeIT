@@ -75,8 +75,8 @@ router.get('/:id', authRequired, getController)
  *               endDate: { type: string, format: date }
  *               initialCapital: { type: number }
  *               positionSize: { type: number }
- *               stopLoss: { type: number }
- *               takeProfit: { type: number }
+ *               exits: { type: object, description: "SL / TSL / TP / signal exit config" }
+ *               execution: { type: object, description: "Execution model, e.g. { slippage: 0.05 } (percent)" }
  *               conditions: { type: object }
  *     responses:
  *       201:
@@ -113,8 +113,8 @@ router.post('/', authRequired, createController)
  *               endDate: { type: string, format: date }
  *               initialCapital: { type: number }
  *               positionSize: { type: number }
- *               stopLoss: { type: number }
- *               takeProfit: { type: number }
+ *               exits: { type: object, description: "SL / TSL / TP / signal exit config" }
+ *               execution: { type: object, description: "Execution model, e.g. { slippage: 0.05 } (percent)" }
  *               conditions: { type: object }
  *     responses:
  *       200:

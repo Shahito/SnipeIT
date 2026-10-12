@@ -9,6 +9,7 @@ const KNOWN_CODES = new Set([
   'FEE_INVALID', 'TRADING_HOURS_INVALID', 'RISK_TYPE_INVALID', 'ATR_PERIOD_INVALID',
   'CONDITIONS_INVALID', 'MISSING_FIELDS', 'TRAILING_STOP_INVALID', 'SWEEP_AXIS_EMPTY',
   'JOB_NOT_FOUND', 'SNAPSHOT_NOT_FOUND',
+  'EXITS_INVALID', 'EXIT_VALUE_INVALID', 'EXIT_ORDER_INVALID', 'TP_MODE_INVALID', 'TP_R_NEEDS_STOP', 'SLIPPAGE_INVALID',
 ])
 
 function errorCode(e, fallback = 'UNKNOWN') {
@@ -45,7 +46,7 @@ async function getController(req, res) {
 async function createController(req, res) {
   try {
     const { name, description, pairs, timeframe, startDate, endDate,
-            initialCapital, positionSize, stopLoss, takeProfit, conditions } = req.body
+            initialCapital, positionSize, conditions } = req.body
 
     if (!name || !pairs || !timeframe || !startDate || !endDate || !conditions)
       return res.status(400).json({ error: 'MISSING_FIELDS' })

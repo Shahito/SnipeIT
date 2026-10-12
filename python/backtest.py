@@ -372,7 +372,8 @@ def _resolve_open_position(
     """
     For a position that's open going into candle idx: figures out whether
     SL/TP/TSL closes it THIS candle. Returns (exit_price, reason,
-    resolution) - exit_price is None if nothing closed it
+    resolution, kind) - exit_price is None if nothing closed it. `kind` is
+    "sl", "tsl" or "tp": the leg that closed it
 
     Deliberately not pure: `position`'s trailing_high/highest_high/
     lowest_low are updated in place as part of resolving this, the same
@@ -390,6 +391,7 @@ def _resolve_open_position(
         stop_loss_val,
         take_profit_val,
         position["entry_atr"],
+        tsl_pct=trailing_stop_loss_val,
     )
     # Resolved once, reused everywhere below a "before this candle" bound
     # is needed (entry candle: no prior extreme yet, fall back to entry price)
@@ -408,7 +410,7 @@ def _resolve_open_position(
         prev_ll,
     )
 
-    exit_price, reason, resolution = None, None, "base"
+    exit_price, reason, resolution, kind = None, None, "base", None
     if ambiguous and ltf_resolver is not None:
         log.debug(f"LTF lookup {date} - ambiguous candle ({trigger})")
         outcome = ltf_resolver.resolve(
@@ -420,6 +422,7 @@ def _resolve_open_position(
         )
         exit_price = outcome["exit_price"]
         reason = outcome["reason"]
+        kind = outcome["kind"]
         position["trailing_high"] = outcome["trailing_high"]
         resolution = (
             outcome["resolved_at"] if outcome["resolved_at"] != "none" else "base"
@@ -461,6 +464,7 @@ def _resolve_open_position(
             # a single base candle gives us for free when both a stop-out
             # level and a target sit in its range
             reason, level = max(stop_outs, key=lambda s: s[1])
+            kind = "tsl" if reason == "tsl" else "sl"
             exit_price = min(
                 fill_price, level
             )  # gapped through -> fills at the open, never better
@@ -471,13 +475,14 @@ def _resolve_open_position(
             # applies with its own precisely-walked seen_low)
             position["lowest_low"] = min(prev_ll, exit_price)
         elif tp_price is not None and high >= tp_price:
-            exit_price, reason = (
+            exit_price, reason, kind = (
                 tp_price,
                 "risk",
+                "tp",
             )  # a resting limit never fills better than its own level
             position["highest_high"] = max(prev_hh, exit_price)
 
-    return exit_price, reason, resolution
+    return exit_price, reason, resolution, kind
 
 
 def _uses_cross_operator(conditions: list) -> bool:
@@ -777,25 +782,43 @@ def _precompute_trading_hours(ts_arr, parsed_slots: list):
 
 
 def _stop_target_prices(
-    position: dict, sl_type: str, tp_type: str, stop_loss_val, take_profit_val, atr_val
+    position: dict,
+    sl_type: str,
+    tp_type: str,
+    stop_loss_val,
+    take_profit_val,
+    atr_val,
+    tsl_pct=None,
 ):
-    """SL/TP price levels for the current candle (percent or ATR terms)
+    """SL/TP price levels for the current candle (percent, ATR or R terms)
     `atr_val` must be the ATR known as of the PREVIOUS candle's close (see
     run_backtest's `atr_prev_arr`) - never the current candle's own ATR,
-    which would need that candle's own high/low to exist first."""
+    which would need that candle's own high/low to exist first.
+
+    tp_type "r": the target is a multiple of the risk, i.e. the distance from
+    entry to the SL (or to the TSL's initial level when there is no SL)"""
+    entry = position["entry_price"]
     sl_price = None
     if stop_loss_val is not None:
         if sl_type == "atr" and atr_val:
-            sl_price = position["entry_price"] - stop_loss_val * atr_val
+            sl_price = entry - stop_loss_val * atr_val
         else:
-            sl_price = position["entry_price"] * (1 - stop_loss_val / 100)
+            sl_price = entry * (1 - stop_loss_val / 100)
 
     tp_price = None
     if take_profit_val is not None:
-        if tp_type == "atr" and atr_val:
-            tp_price = position["entry_price"] + take_profit_val * atr_val
+        if tp_type == "r":
+            if sl_price is not None:
+                risk = entry - sl_price
+            elif tsl_pct is not None:
+                risk = entry * tsl_pct / 100
+            else:
+                raise ValueError("A TP in R needs a stop loss or a trailing stop loss")
+            tp_price = entry + take_profit_val * risk
+        elif tp_type == "atr" and atr_val:
+            tp_price = entry + take_profit_val * atr_val
         else:
-            tp_price = position["entry_price"] * (1 + take_profit_val / 100)
+            tp_price = entry * (1 + take_profit_val / 100)
 
     return sl_price, tp_price
 
@@ -899,6 +922,31 @@ def _mfe(position: dict):
     return mfe_pct, mfe_atr
 
 
+def _entry_fill_price(open_price: float, high: float, slippage: float) -> float:
+    """Market buy at the candle's open, with adverse slippage capped at its high"""
+    return min(open_price * (1 + slippage), high)
+
+
+def _exit_fill(
+    order: str,
+    level_price: float,
+    slippage: float,
+    low: float,
+    high: float,
+    fee_taker: float,
+    fee_maker: float,
+):
+    """Fill rule for every exit. Returns (fill_price, fee_rate).
+
+    - "limit": fills at its own level and pays the maker fee
+    - "market" / "stop_market": pays adverse slippage and the taker fee, clamped
+      to the candle's [low, high]. `level_price` is where the order triggered
+    """
+    if order == "limit":
+        return level_price, fee_maker
+    return min(max(level_price * (1 - slippage), low), high), fee_taker
+
+
 def _open_position(
     idx,
     fill_price,
@@ -906,30 +954,37 @@ def _open_position(
     capital,
     position_size,
     fee_taker,
-    sl_type,
-    tp_type,
+    slippage,
+    needs_atr,
+    tsl_type,
+    tsl_val,
     entry_atr,
     low_arr,
     high_arr,
 ):
     """Opens a position sized as a fraction of current capital, filled at
-    `fill_price` (the OPEN of this candle - see module docstring, 4a).
-    Returns (position, capital); position is None (capital unchanged) if
-    the allocation is too small to bother with, OR if an ATR-based SL/TP
-    was requested but no valid ATR is available yet - silently reinterpreting
-    an ATR multiplier as a percentage would change what the strategy's own
-    numbers mean without telling anyone."""
+    `fill_price` (the OPEN of this candle - see module docstring, 4a) plus
+    slippage. Returns (position, capital); position is None (capital
+    unchanged) if the allocation is too small to bother with, OR if an
+    ATR-based SL/TP/TSL was requested but no valid ATR is available yet -
+    silently reinterpreting an ATR multiplier as a percentage would change
+    what the strategy's own numbers mean without telling anyone."""
     # A zero ATR (flat candles) would give zero-width levels, so it is
     # refused like a missing one
-    if (sl_type == "atr" or tp_type == "atr") and (entry_atr is None or entry_atr <= 0):
+    if needs_atr and (entry_atr is None or entry_atr <= 0):
         log.warning(
-            f"{date}: ATR-based SL/TP requested but ATR is missing or zero - entry skipped"
+            f"{date}: ATR-based SL/TP/TSL requested but ATR is missing or zero - entry skipped"
         )
         return None, capital
     allocated = capital * position_size
     if allocated < 1:
         return None, capital
+    fill_price = _entry_fill_price(fill_price, float(high_arr[idx]), slippage)
     qty = allocated / fill_price
+    # An ATR-based TSL is converted once, at entry, to a percent of the trailing high
+    tsl_pct = None
+    if tsl_val is not None:
+        tsl_pct = tsl_val if tsl_type == "percent" else tsl_val * entry_atr / fill_price * 100
     position = {
         "entry_price": fill_price,
         "qty": qty,
@@ -943,6 +998,7 @@ def _open_position(
         "lowest_low": min(fill_price, float(low_arr[idx])),
         "highest_high": max(fill_price, float(high_arr[idx])),
         "entry_atr": entry_atr,
+        "tsl_pct": tsl_pct,
     }
     capital -= allocated * (1 + fee_taker)
     return position, capital
@@ -955,7 +1011,8 @@ def _close_position(
     exit_date,
     reason: str,
     capital: float,
-    fee_taker: float,
+    entry_fee: float,
+    exit_fee: float,
     resolution: str = None,
 ) -> float:
     """
@@ -964,8 +1021,8 @@ def _close_position(
     for signal exits, SL/TP/TSL exits, and the final liquidation alike, so
     those three paths can't quietly drift apart from each other over time
     """
-    buy_fee = position["allocated"] * fee_taker
-    sell_fee = position["qty"] * exit_price * fee_taker
+    buy_fee = position["allocated"] * entry_fee
+    sell_fee = position["qty"] * exit_price * exit_fee
     proceeds = position["qty"] * exit_price - sell_fee
     net_entry = position["allocated"] + buy_fee
     pnl_pct = round((proceeds - net_entry) / net_entry * 100, 2)
@@ -994,6 +1051,7 @@ def _close_position(
         "entryPrice": round(position["entry_price"], 4),
         "allocated": round(position["allocated"], 2),
         "reason": reason,
+        "exitFee": exit_fee,
         "mae": mae_pct,
         "maeAtr": mae_atr,
         "mfe": mfe_pct,
@@ -1004,6 +1062,67 @@ def _close_position(
     trades.append(sell_trade)
 
     return capital + proceeds
+
+# Exit configuration
+
+_LEG_TYPES = {"sl": ("percent", "atr"), "tsl": ("percent", "atr"), "tp": ("percent", "atr", "r")}
+_LEG_ORDERS = {
+    "sl": ("stop_market",),
+    "tsl": ("stop_market",),
+    "tp": ("limit", "market"),
+    "signal": ("market",),
+}
+_DEFAULT_ORDER = {"sl": "stop_market", "tsl": "stop_market", "tp": "limit", "signal": "market"}
+
+
+def _parse_exits(strategy: dict) -> dict:
+    """Reads the resolved `exits` / `execution` blocks into flat, validated values.
+    Anything the engine can't simulate raises instead of being silently ignored.
+
+    Per leg k in sl/tsl/tp: `<k>_val` (None when off), `<k>_type`, `<k>_order`;
+    plus `signal_order`, `atr_period`, `slippage` (a fraction) and `needs_atr`."""
+    exits = strategy.get("exits") or {}
+    execution = strategy.get("execution") or {}
+    out = {"atr_period": int(exits.get("atrPeriod") or 14)}
+
+    for key in ("sl", "tsl", "tp"):
+        raw = exits.get(key) or {}
+        enabled = bool(raw.get("enabled"))
+        ltype = raw.get("type") or "percent"
+        order = raw.get("order") or _DEFAULT_ORDER[key]
+        if key == "tp" and enabled and (raw.get("mode") or "fixed") != "fixed":
+            raise ValueError("Trailing take profit is not supported by the engine yet")
+        val = None
+        if enabled:
+            if ltype not in _LEG_TYPES[key]:
+                raise ValueError(f"Invalid {key} type: {ltype!r}")
+            if order not in _LEG_ORDERS[key]:
+                raise ValueError(f"Unsupported order type for {key}: {order!r}")
+            if raw.get("value") is None:
+                raise ValueError(f"{key} is enabled but has no value")
+            val = float(raw["value"])
+            if val <= 0:
+                raise ValueError(f"{key} value must be > 0")
+        out[f"{key}_val"], out[f"{key}_type"], out[f"{key}_order"] = val, ltype, order
+
+    if out["tp_type"] == "r" and out["tp_val"] is not None:
+        if out["sl_val"] is None and out["tsl_val"] is None:
+            raise ValueError("A TP in R needs a stop loss or a trailing stop loss")
+
+    signal_order = (exits.get("signal") or {}).get("order") or _DEFAULT_ORDER["signal"]
+    if signal_order not in _LEG_ORDERS["signal"]:
+        raise ValueError(f"Unsupported order type for signal exit: {signal_order!r}")
+    out["signal_order"] = signal_order
+
+    slippage_pct = float(execution.get("slippage") or 0.0)
+    if slippage_pct < 0:
+        raise ValueError("Slippage must be >= 0")
+    out["slippage"] = slippage_pct / 100
+
+    out["needs_atr"] = any(
+        out[f"{k}_val"] is not None and out[f"{k}_type"] == "atr" for k in ("sl", "tsl", "tp")
+    )
+    return out
 
 
 # Main entry point
@@ -1020,23 +1139,20 @@ def run_backtest(strategy: dict) -> dict:
     end_date = strategy["endDate"]
     initial_capital = float(strategy["initialCapital"])
     position_size = float(strategy["positionSize"]) / 100
-    stop_loss_val = float(strategy["stopLoss"]) if strategy.get("stopLoss") else None
-    take_profit_val = (
-        float(strategy["takeProfit"]) if strategy.get("takeProfit") else None
-    )
-    trailing_stop_loss_val = (
-        float(strategy["trailingStopLoss"])
-        if strategy.get("trailingStopLoss")
-        else None
-    )
-    sl_type = strategy.get("slType", "percent")
-    tp_type = strategy.get("tpType", "percent")
-    if sl_type not in ("percent", "atr"):
-        sl_type = "percent"
-    if tp_type not in ("percent", "atr"):
-        tp_type = "percent"
-    atr_period = int(strategy.get("atrPeriod") or 14)
+    cfg = _parse_exits(strategy)
+    stop_loss_val, sl_type = cfg["sl_val"], cfg["sl_type"]
+    take_profit_val, tp_type = cfg["tp_val"], cfg["tp_type"]
+    trailing_stop_loss_val, tsl_type = cfg["tsl_val"], cfg["tsl_type"]
+    exit_orders = {
+        "sl": cfg["sl_order"],
+        "tsl": cfg["tsl_order"],
+        "tp": cfg["tp_order"],
+        "signal": cfg["signal_order"],
+    }
+    slippage = cfg["slippage"]
+    atr_period = cfg["atr_period"]
     fee_taker = float(strategy.get("feeTaker", 0.0)) / 100
+    fee_maker = float(strategy.get("feeMaker", 0.0)) / 100
     trading_hours = strategy.get("tradingHours") or []
     conditions = strategy.get("conditions", {})
     entry_conds = conditions.get("entry", [])
@@ -1255,8 +1371,10 @@ def run_backtest(strategy: dict) -> dict:
                     capital,
                     position_size,
                     fee_taker,
-                    sl_type,
-                    tp_type,
+                    slippage,
+                    cfg["needs_atr"],
+                    tsl_type,
+                    trailing_stop_loss_val,
                     atr_prev,
                     low_arr,
                     high_arr,
@@ -1288,10 +1406,19 @@ def run_backtest(strategy: dict) -> dict:
                 # candle belongs to the trade's MAE/MFE
                 position["lowest_low"] = prev_lowest_low
                 position["highest_high"] = prev_highest_high
-                capital = _close_position(
-                    trades, position, fill_price, date, "signal", capital, fee_taker
+                sig_price, sig_fee = _exit_fill(
+                    exit_orders["signal"],
+                    fill_price,
+                    slippage,
+                    float(low_arr[idx]),
+                    float(high_arr[idx]),
+                    fee_taker,
+                    fee_maker,
                 )
-                log.debug(f"SIGNAL {date} @ {fill_price:.4f}")
+                capital = _close_position(
+                    trades, position, sig_price, date, "signal", capital, fee_taker, sig_fee
+                )
+                log.debug(f"SIGNAL {date} @ {sig_price:.4f}")
                 position = None
             else:
                 # A blocked sell signal is dropped, not retried - symmetric
@@ -1323,7 +1450,7 @@ def run_backtest(strategy: dict) -> dict:
             if entry_conds and bool(entry_signal_arr[idx]):
                 pending_entry = True
         else:
-            exit_price, reason, resolution = _resolve_open_position(
+            exit_price, reason, resolution, kind = _resolve_open_position(
                 idx,
                 ts_arr,
                 low_arr,
@@ -1334,13 +1461,22 @@ def run_backtest(strategy: dict) -> dict:
                 tp_type,
                 stop_loss_val,
                 take_profit_val,
-                trailing_stop_loss_val,
+                position["tsl_pct"],
                 ltf_resolver,
                 date,
                 prev_highest_high,
                 prev_lowest_low,
             )
             if exit_price is not None:
+                exit_price, exit_fee = _exit_fill(
+                    exit_orders[kind],
+                    exit_price,
+                    slippage,
+                    float(low_arr[idx]),
+                    float(high_arr[idx]),
+                    fee_taker,
+                    fee_maker,
+                )
                 capital = _close_position(
                     trades,
                     position,
@@ -1349,6 +1485,7 @@ def run_backtest(strategy: dict) -> dict:
                     reason,
                     capital,
                     fee_taker,
+                    exit_fee,
                     resolution=resolution,
                 )
                 log.debug(f"SL/TP  {date} @ {exit_price:.4f}")
@@ -1375,8 +1512,9 @@ def run_backtest(strategy: dict) -> dict:
     # use this same close price for this same still-open position
     if position:
         last_price, last_date = float(close_arr[-1]), str(date_arr[-1])
+        # No slippage on the forced close: it must match the last equity point
         capital = _close_position(
-            trades, position, last_price, last_date, "end", capital, fee_taker
+            trades, position, last_price, last_date, "end", capital, fee_taker, fee_taker
         )
 
     equity_rounded = np.round(np.array(equity_raw, dtype=np.float64), 2)
