@@ -86,6 +86,46 @@ window.addEventListener('touchmove', e => {
   _hideTooltip()
 }, { passive: true })
 
+// Shared touch handling for chart canvases. A touch starting on a chart could
+// mean either "scroll the page" (vertical) or "inspect the chart" (mostly
+// horizontal, tracing across time). We don't know which until the finger has
+// actually moved a few pixels, so: don't preventDefault on touchstart, wait
+// for the first few pixels of movement on touchmove to decide a direction,
+// then commit to it for the rest of that same gesture (never re-decide
+// mid-move - that's what causes jumps/jank, same issue as the drawer swipe).
+function _bindChartTouch(canvas, onMove, onEnd) {
+  const LOCK_THRESHOLD = 6 // px before we commit to a direction
+  let startX = 0
+  let startY = 0
+  let mode = null // null (undecided) | 'scroll' | 'chart'
+
+  canvas.addEventListener('touchstart', e => {
+    const t = e.touches[0]
+    startX = t.clientX
+    startY = t.clientY
+    mode = null
+  }, { passive: true })
+
+  canvas.addEventListener('touchmove', e => {
+    const t = e.touches[0]
+    const dx = t.clientX - startX
+    const dy = t.clientY - startY
+
+    if (mode === null) {
+      if (Math.abs(dx) < LOCK_THRESHOLD && Math.abs(dy) < LOCK_THRESHOLD) return
+      mode = Math.abs(dx) > Math.abs(dy) ? 'chart' : 'scroll'
+    }
+
+    if (mode === 'scroll') return // let the page scroll natively, don't touch it
+
+    e.preventDefault()
+    onMove(t)
+  }, { passive: false })
+
+  canvas.addEventListener('touchend', () => { mode = null; onEnd() })
+  canvas.addEventListener('touchcancel', () => { mode = null })
+}
+
 // Helpers
 // _fmtAdaptive now lives in format.js (shared with trade-chart.js on chart.html)
 function _cssVar(name) {
@@ -341,14 +381,13 @@ class CanvasLineChart {
       })
       canvas.addEventListener('mousemove', e => this._onMouseMove(e))
       canvas.addEventListener('mouseleave', () => this._onMouseLeave())
-      canvas.addEventListener('touchmove', e => {
-        e.preventDefault()
-        canvas.dispatchEvent(new MouseEvent('mousemove', {
-          clientX: e.touches[0].clientX,
-          clientY: e.touches[0].clientY,
-        }))
-      }, { passive: false })
-      canvas.addEventListener('touchend', () => canvas.dispatchEvent(new MouseEvent('mouseleave')))
+      _bindChartTouch(canvas,
+        touch => canvas.dispatchEvent(new MouseEvent('mousemove', {
+          clientX: touch.clientX,
+          clientY: touch.clientY,
+        })),
+        () => canvas.dispatchEvent(new MouseEvent('mouseleave'))
+      )
     }
     document.readyState === 'loading'
       ? document.addEventListener('DOMContentLoaded', bind)
@@ -660,7 +699,7 @@ class BarChart {
 
     const activeKeys = this._sortedKeys(Object.keys(this._data)).filter(k => this._active[k])
     if (!activeKeys.length) {
-      container.innerHTML = `<div class="text-muted text-sm p-sm" style="padding:.75rem 0">${t('common.nothing_to_display')}</div>`
+      container.innerHTML = `<div class="text-muted text-sm p-sm" style="padding:16px 0">${t('common.nothing_to_display')}</div>`
       return
     }
 
@@ -920,15 +959,13 @@ class CanvasHistogram {
         _hideTooltip()
         if (this._hoveredIdx != null) { this._hoveredIdx = null; this._draw() }
       })
-      canvas.addEventListener('touchmove', e => {
-        e.preventDefault()
-        const touch = e.touches[0]
-        canvas.dispatchEvent(new MouseEvent('mousemove', {
+      _bindChartTouch(canvas,
+        touch => canvas.dispatchEvent(new MouseEvent('mousemove', {
           clientX: touch.clientX,
           clientY: touch.clientY,
-        }))
-      }, { passive: false })
-      canvas.addEventListener('touchend', () => canvas.dispatchEvent(new MouseEvent('mouseleave')))
+        })),
+        () => canvas.dispatchEvent(new MouseEvent('mouseleave'))
+      )
     }
     document.readyState === 'loading'
       ? document.addEventListener('DOMContentLoaded', bind)
@@ -1129,14 +1166,15 @@ class CanvasScatter {
 
       // Label pill with a solid background so it's readable over bubbles
       const tag = (text, x, y, alignRight) => {
-        ctx.font = '10px system-ui'
-        const w = ctx.measureText(text).width + 8
+        ctx.font = '12px system-ui'
+        const paddingX = 10
+        const w = ctx.measureText(text).width + paddingX
         const left = alignRight ? x - w : x
         ctx.fillStyle = _cssVar('--bg2') || '#15171F'
-        ctx.fillRect(left, y - 10, w, 14)
+        ctx.fillRect(left, y - 12, w, 18)        
         ctx.fillStyle = _cssVar('--text') || '#F2F3F6'
         ctx.textAlign = 'left'
-        ctx.fillText(text, left + 4, y + 1)
+        ctx.fillText(text, left + (paddingX / 2), y + 3.5)
       }
       const medLabel = t('results.scatter.median')
       const nearRight = mx > pad.left + cW - 90
@@ -1249,15 +1287,13 @@ class CanvasScatter {
         _hideTooltip()
         if (this._hoveredIdx != null) { this._hoveredIdx = null; this._draw() }
       })
-      canvas.addEventListener('touchmove', e => {
-        e.preventDefault()
-        const touch = e.touches[0]
-        canvas.dispatchEvent(new MouseEvent('mousemove', {
+      _bindChartTouch(canvas,
+        touch => canvas.dispatchEvent(new MouseEvent('mousemove', {
           clientX: touch.clientX,
           clientY: touch.clientY,
-        }))
-      }, { passive: false })
-      canvas.addEventListener('touchend', () => canvas.dispatchEvent(new MouseEvent('mouseleave')))
+        })),
+        () => canvas.dispatchEvent(new MouseEvent('mouseleave'))
+      )
     }
     document.readyState === 'loading'
       ? document.addEventListener('DOMContentLoaded', bind)
@@ -1678,15 +1714,13 @@ class MonthlyPerfChart {
         _hideTooltip()
         this._draw()
       })
-      canvas.addEventListener('touchmove', e => {
-        e.preventDefault()
-        const touch = e.touches[0]
-        canvas.dispatchEvent(new MouseEvent('mousemove', {
+      _bindChartTouch(canvas,
+        touch => canvas.dispatchEvent(new MouseEvent('mousemove', {
           clientX: touch.clientX,
           clientY: touch.clientY,
-        }))
-      }, { passive: false })
-      canvas.addEventListener('touchend', () => canvas.dispatchEvent(new MouseEvent('mouseleave')))
+        })),
+        () => canvas.dispatchEvent(new MouseEvent('mouseleave'))
+      )
     }
     document.readyState === 'loading'
       ? document.addEventListener('DOMContentLoaded', bind)

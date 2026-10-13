@@ -203,7 +203,10 @@
     <div class="modal exits-modal" role="dialog" aria-modal="true" aria-labelledby="exitsTitle">
       <div class="modal-header">
         <div class="modal-title" id="exitsTitle" data-i18n="exits.title"></div>
-        <button type="button" class="modal-close" id="exitsClose" data-i18n-attr="aria-label" data-i18n="exits.close"><i data-icon="cross"></i></button>
+          <div class="cs-header-actions">
+            <button type="button" class="modal-close" id="exitsReset" data-i18n-attr="aria-label" data-i18n="exits.reset"><i data-icon="brush"></i></button>
+            <button type="button" class="modal-close" id="exitsClose" data-i18n-attr="aria-label" data-i18n="exits.close"><i data-icon="cross"></i></button>
+          </div>
       </div>
 
       <div class="exits-modal-content">
@@ -279,14 +282,12 @@
             <label for="fFeeTaker"><span data-i18n="editor.field.fee_taker"></span></label>
             <div class="input-with-select">
               <input type="number" id="fFeeTaker" value="0.1" min="0" max="10" step="0.01" placeholder="0.1">
-              <span class="input-addon">%</span>
             </div>
           </div>
           <div class="form-group fee-group">
             <label for="fFeeMaker"><span data-i18n="editor.field.fee_maker"></span></label>
             <div class="input-with-select">
               <input type="number" id="fFeeMaker" value="0.1" min="0" max="10" step="0.01" placeholder="0.1">
-              <span class="input-addon">%</span>
             </div>
           </div>
         </div>
@@ -301,7 +302,6 @@
       </div>
 
       <div class="modal-footer">
-        <button type="button" class="btn btn-ghost" id="exitsReset" data-i18n="exits.reset"></button>
         <button type="button" class="btn btn-primary" id="exitsDone" data-i18n="exits.done"></button>
       </div>
     </div>

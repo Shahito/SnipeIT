@@ -17,11 +17,17 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
+    icon: '/images/icons/push-notifications-no-icon.png',
     badge: '/images/icons/72.png',
     data: {
       url: data.url || '/'
     }
   };
+
+  if (data.tag) {
+    options.tag = data.tag;
+    options.renotify = true;
+  }
 
   event.waitUntil(
     self.registration.showNotification(data.title, options)

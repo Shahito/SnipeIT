@@ -56,10 +56,37 @@ async function enablePushNotifications() {
 }
 
 // If permission was already granted in a previous session, resubscribe
-// silently on load so the backend always has an up to date subscription.
-document.addEventListener('DOMContentLoaded', () => {
-  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-    enablePushNotifications();
+// silently so the backend always has an up to date subscription - but only
+// do the actual network round trip (fetch + POST + DB upsert)
+const PUSH_RESYNC_TTL_MS = 24 * 60 * 60 * 1000; // force a resync at least once a day, regardless
+
+document.addEventListener('header:ready', async (e) => {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const existing = await registration.pushManager.getSubscription();
+    const lang = typeof window.i18nCurrentLang === 'function' ? window.i18nCurrentLang() : 'en';
+    const userId = e.detail?.user?.id ?? 'anon';
+    const cacheKey = `${userId}:${existing ? existing.endpoint : ''}:${lang}`;
+
+    const lastSyncedKey = localStorage.getItem('pushSyncedKey');
+    const lastSyncedAt = Number(localStorage.getItem('pushSyncedAt') || 0);
+    const stillFresh = lastSyncedKey === cacheKey && (Date.now() - lastSyncedAt) < PUSH_RESYNC_TTL_MS;
+
+    if (existing && stillFresh) {
+      return; // same endpoint/user/lang as last time, and recently confirmed - skip it
+    }
+
+    await enablePushNotifications();
+    const after = await registration.pushManager.getSubscription();
+    if (after) {
+      localStorage.setItem('pushSyncedKey', `${userId}:${after.endpoint}:${lang}`);
+      localStorage.setItem('pushSyncedAt', String(Date.now()));
+    }
+  } catch (error) {
+    console.error('Push resync check failed:', error);
   }
 });
 

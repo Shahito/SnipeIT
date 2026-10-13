@@ -101,7 +101,7 @@ function _buildReasonLabels() {
   return { risk: 'TP/SL', signal: 'Signal', tsl: 'Trailing SL', end: t('results.exit_reasons.label_end'), unknown: t('results.exit_reasons.label_unknown') }
 }
 let REASON_LABELS = _buildReasonLabels()
-const DEFAULT_POINT_COLOR = _cssVar('--primary') || '#6c8eff'
+const DEFAULT_POINT_COLOR = _cssVar('--primary') || '#7893CC'
 
 function _renderReasonLegend(containerId) {
   const el = document.getElementById(containerId)

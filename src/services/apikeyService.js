@@ -78,10 +78,34 @@ async function notifyDisconnectedWorkers() {
       titleKey: 'push.worker_disconnected.title',
       bodyKey: 'push.worker_disconnected.body',
       vars: { name: key.name },
-    }, '/jobs.html').catch((err) => {
+    }, '/jobs.html', `worker-${key.id}`).catch((err) => {
       console.error('Push notification failed:', err)
     })
   ))
 }
 
-module.exports = { createApiKey, listApiKeys, deleteApiKey, notifyDisconnectedWorkers }
+// Heartbeat/poll entry point. The conditional updateMany only matches when the
+// disconnect push was sent, so exactly one call per outage sends the reconnect
+// push, which replaces the disconnect one (same tag).
+async function recordWorkerHeartbeat(apiKeyId, extra = {}) {
+  const now = new Date()
+  const { count } = await prisma.apiKey.updateMany({
+    where: { id: apiKeyId, disconnectedNotified: true },
+    data: { lastHeartbeat: now, disconnectedNotified: false, ...extra },
+  })
+  if (count === 0) {
+    await prisma.apiKey.update({ where: { id: apiKeyId }, data: { lastHeartbeat: now, ...extra } })
+    return
+  }
+  const key = await prisma.apiKey.findUnique({ where: { id: apiKeyId }, select: { userId: true, name: true } })
+  if (!key) return
+  sendLocalizedNotificationToUser(key.userId, {
+    titleKey: 'push.worker_reconnected.title',
+    bodyKey: 'push.worker_reconnected.body',
+    vars: { name: key.name },
+  }, '/jobs.html', `worker-${apiKeyId}`).catch((err) => {
+    console.error('Push notification failed:', err)
+  })
+}
+
+module.exports = { createApiKey, listApiKeys, deleteApiKey, notifyDisconnectedWorkers, recordWorkerHeartbeat }

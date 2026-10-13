@@ -127,7 +127,7 @@ function bindTooltips() {
       const vh = window.innerHeight
       const offset = 12
 
-      const isMobileWidth = vw <= 850 // 32 = 2rem
+      const isMobileWidth = vw <= 850
       const margin = 8
       const left = isMobileWidth
         ? (vw - tw) / 2

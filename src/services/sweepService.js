@@ -358,7 +358,7 @@ async function notifySweepHalfway(g, jobs) {
     titleKey: 'push.sweep_halfway.title',
     bodyKey: 'push.sweep_halfway.body',
     vars: { name: g.name || 'Strategy', done: terminalCount, total: g.totalRuns },
-  }, `/sweep-results.html?id=${g.id}`).catch((err) => {
+  }, `/sweep-results.html?id=${g.id}`, `sweep-${g.id}`).catch((err) => {
     console.error('Push notification failed:', err)
   })
 }
@@ -385,7 +385,7 @@ function notifySweepGroupCompletion(g, jobs) {
     titleKey: `push.${topicKey}.title`,
     bodyKey: `push.${topicKey}.body`,
     vars,
-  }, url).catch((err) => {
+  }, url, `sweep-${g.id}`).catch((err) => {
     console.error('Push notification failed:', err)
   })
 }

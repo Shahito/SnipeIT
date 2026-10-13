@@ -1,4 +1,5 @@
 const { claimPendingJobs, submitResult, reconcileInFlightJob } = require('../services/jobService')
+const { recordWorkerHeartbeat } = require('../services/apikeyService')
 const prisma = require('../utils/prisma')
 const { WORKER_DISCONNECT_THRESHOLD_MS } = require('../config/worker')
 
@@ -9,10 +10,7 @@ function parseReportedJobId(raw) {
 
 async function heartbeatController(req, res) {
   try {
-    await prisma.apiKey.update({
-      where: { id: req.apiKey.id },
-      data:  { lastHeartbeat: new Date(), disconnectedNotified: false },
-    })
+    await recordWorkerHeartbeat(req.apiKey.id)
     const reportedJobId = parseReportedJobId(req.body && req.body.jobId)
     await reconcileInFlightJob(req.apiKey.id, reportedJobId)
     res.json({ ok: true })
@@ -24,10 +22,7 @@ async function heartbeatController(req, res) {
 async function pollController(req, res) {
   try {
     // The poll also counts as a heartbeat
-    await prisma.apiKey.update({
-      where: { id: req.apiKey.id },
-      data:  { lastHeartbeat: new Date(), lastUsedAt: new Date(), disconnectedNotified: false },
-    })
+    await recordWorkerHeartbeat(req.apiKey.id, { lastUsedAt: new Date() })
     const reportedJobId = parseReportedJobId(req.query.jobId)
     await reconcileInFlightJob(req.apiKey.id, reportedJobId)
     const jobs = await claimPendingJobs(req.apiKey.id, req.workerUser.id)

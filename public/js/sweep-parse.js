@@ -21,7 +21,7 @@
 
 function parseSweepNumber(raw, parser = parseFloat) {
   const parts = String(raw ?? '').split(',').map(s => s.trim()).filter(s => s !== '')
-  const nums = parts.map(p => parser(p)).filter(n => !isNaN(n))
+  const nums = [...new Set(parts.map(p => parser(p)).filter(n => !isNaN(n)))]
   if (nums.length === 0) return null
   return nums.length === 1 ? nums[0] : { sweep: nums }
 }

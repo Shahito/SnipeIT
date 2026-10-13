@@ -39,7 +39,7 @@ function findSweepAxes(node, path = '') {
 
   if (isSweepMarker(node)) {
     if (node.sweep.length === 0) throw new Error('SWEEP_AXIS_EMPTY')
-    axes.push({ path, values: node.sweep })
+    axes.push({ path, values: [...new Set(node.sweep)] })
     return axes
   }
 

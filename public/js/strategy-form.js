@@ -273,12 +273,17 @@ function countCombinationsClientSide(payload) {
 function updateRunsBadge(payload) {
   const n = countCombinationsClientSide(payload)
   const badge = document.getElementById('sweepRunsBadge')
+  const saveAndRunBtn = document.getElementById('saveAndRunBtn')
   if (n > 1) {
     badge.style.display = ''
-    badge.className = 'tag ' + (n > SWEEP_WARNING_THRESHOLD_CLIENT ? 'tag-warning' : 'tag-primary')
+    badge.className = 'tag ' + (n > SWEEP_WARNING_THRESHOLD_CLIENT ? 'tag-warning' : 'tag-secondary')
     badge.textContent = t('editor.sweep_runs_badge', { n })
+    saveAndRunBtn.classList.add('btn-secondary')
+    saveAndRunBtn.classList.remove('btn-primary')
   } else {
     badge.style.display = 'none'
+    saveAndRunBtn.classList.add('btn-primary')
+    saveAndRunBtn.classList.remove('btn-secondary')
   }
 }
 
@@ -293,8 +298,12 @@ function updatePreview() {
 async function loadStrategy(id) {
   try {
     const { strategy: s } = await api(`/strategies/${id}`)
-    document.getElementById('fName').value = s.name
-    document.getElementById('fDescription').value = s.description || ''
+    const nameEl = document.getElementById('fName')
+    const descEl = document.getElementById('fDescription')
+    nameEl.value = s.name
+    descEl.value = s.description || ''
+    nameEl.dispatchEvent(new Event('input'))
+    descEl.dispatchEvent(new Event('input'))
     document.getElementById('fBaseCoins').setSilent([...new Set(s.pairs.map(p => p.split('/')[0]))])
     document.getElementById('fQuoteCoins').setSilent([...new Set(s.pairs.map(p => p.split('/')[1]))])
     _currentPairs = s.pairs

@@ -94,7 +94,7 @@
                 <button class="exp-fmt-btn" data-fmt="text">${t('export.format.text')}</button>
                 </div>
 
-                <div class="exp-section-label" style="margin-top:.9rem">${t('export.section.include')}</div>
+                <div class="exp-section-label" style="margin-top:18px">${t('export.section.include')}</div>
                 <div id="expIncludeList"></div>
             </div>
 
