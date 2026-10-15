@@ -60,42 +60,42 @@
     --text-muted: #979CA6;
     --text-dim: #696E78;
 
-    --radius-sm: 4px;
-    --radius: 8px;
-    --radius-md: 12px;
-    --radius-lg: 20px;
+    --radius-sm: 3px;
+    --radius: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
     
-    --space-1: 4px;
-    --space-2: 8px;
-    --space-3: 12px;
-    --space-4: 16px;
-    --space-5: 20px;
-    --space-6: 24px;
-    --space-7: 32px;
-    --space-8: 40px;
-    --space-9: 48px;
-    --space-10: 64px;
-    --space-11: 80px;
+    --space-1: 3px;
+    --space-2: 6px;
+    --space-3: 10px;
+    --space-4: 13px;
+    --space-5: 16px;
+    --space-6: 19px;
+    --space-7: 26px;
+    --space-8: 32px;
+    --space-9: 38px;
+    --space-10: 51px;
+    --space-11: 64px;
 
-    --fs-xs: 0.75rem;
-    --fs-sm: 0.875rem;
-    --fs-base: 1rem;
-    --fs-md: 1.125rem;
-    --fs-lg: 1.25rem;
-    --fs-xl: 1.375rem;
-    --fs-2xl: 1.5rem;
-    --fs-3xl: 1.875rem;
+    --fs-xs: 0.6rem;
+    --fs-sm: 0.7rem;
+    --fs-base: 0.8rem;
+    --fs-md: 0.9rem;
+    --fs-lg: 1rem;
+    --fs-xl: 1.1rem;
+    --fs-2xl: 1.2rem;
+    --fs-3xl: 1.5rem;
 
-    --size-1: 8px;
-    --size-2: 12px;
-    --size-3: 16px;
-    --size-4: 20px;
-    --size-5: 24px;
-    --size-6: 32px;
-    --size-7: 36px;
-    --size-8: 40px;
-    --size-9: 48px;
-    --size-10: 72px;
+    --size-1: 6px;
+    --size-2: 10px;
+    --size-3: 13px;
+    --size-4: 16px;
+    --size-5: 19px;
+    --size-6: 26px;
+    --size-7: 29px;
+    --size-8: 32px;
+    --size-9: 38px;
+    --size-10: 58px;
 
     --len-1: 80px;
     --len-2: 120px;
@@ -110,8 +110,8 @@
     --len-11: 1100px;
     --len-12: 1380px;
 
-    --header-h: 56px;
-    --tabbar-h: 68px;
+    --header-h: 45px;
+    --tabbar-h: 54px;
 
     --z-dropdown: 60;
     --z-nav: calc(var(--z-header) - 1);
