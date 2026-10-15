@@ -113,6 +113,16 @@
     --header-h: 56px;
     --tabbar-h: 68px;
 
+    --z-dropdown: 60;
+    --z-nav: calc(var(--z-header) - 1);
+    --z-header: 100;
+    --z-menu: 200;
+    --z-popover: 600;
+    --z-fixed: 1000;
+    --z-modal: 1100;
+    --z-toast: 1200;
+    --z-tooltip: 9999;
+
     --radius-round: 50%;
     
     --shadow: 0 4px 24px rgba(0, 0, 0, .4);
@@ -353,7 +363,6 @@ input[type="checkbox"]:disabled {
 }
 
 .glow-card:hover::before {
-    box-shadow: inset 0 0 0 2px #686b8214, inset 0 2px var(--primary-dim-strong);
     box-shadow: inset 0 0 0 1px var(--primary-dim), inset 0 1px var(--primary-dim);
 }
 
@@ -404,18 +413,6 @@ textarea {
 .input-ghost {
     color: var(--text-muted) !important;
     background: var(--surface) !important;
-}
-
-.btn-ghost {
-    background: transparent;
-    color: var(--text-muted);
-    border: 1px solid var(--border);
-}
-
-.btn-ghost:hover {
-    background: var(--surface2);
-    color: var(--text);
-    border-color: var(--border);
 }
 
 select option {
@@ -507,7 +504,7 @@ select.field-invalid {
 }
 
 .field-char-counter.char-counter-warning {
-    color: var(--warning, #d97706);
+    color: var(--warning);
 }
 
 .field-char-counter.char-counter-danger {
@@ -1037,7 +1034,7 @@ select.field-invalid {
     border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
-    z-index: 100;
+    z-index: var(--z-header);
     flex-shrink: 0;
     flex-wrap: wrap;
 }
@@ -1118,7 +1115,7 @@ select.field-invalid {
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    z-index: 200;
+    z-index: var(--z-menu);
     min-width: var(--len-5);
     padding: var(--space-1);
     display: flex;
@@ -1245,9 +1242,9 @@ select.field-invalid {
     inset: var(--header-h) 0 0 0;
     background: var(--surface);
     border-top: 1px solid var(--border);
-    z-index: 99;
+    z-index: var(--z-nav);
     flex-direction: column;
-    padding: var(--space-5);
+    padding: var(--space-5) var(--space-5) calc(var(--tabbar-h) + var(--space-5));
     gap: var(--space-3);
     overflow-y: auto;
 }
@@ -1290,7 +1287,7 @@ select.field-invalid {
     bottom: 0;
     background: var(--surface);
     border-top: 1px solid var(--border);
-    z-index: 1000;
+    z-index: var(--z-fixed);
     padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
@@ -1300,10 +1297,15 @@ select.field-invalid {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: var(--space-1);
+    gap: var(--space-2);
     padding: var(--space-3) 0 var(--space-2);
     color: var(--text-muted);
     text-decoration: none;
+}
+
+.tab-icon {
+    width: var(--size-5);
+    height: var(--size-5);
 }
 
 .tab-icon svg {
@@ -1418,9 +1420,8 @@ select.field-invalid {
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-1) var(--space-3);
-    border-radius: var(--radius-lg);
     border-radius: var(--radius);
-    font-size: var(--fs-base);
+    font-size: var(--fs-sm);
     font-weight: 600;
     height: var(--size-6);
     line-height: 1;
@@ -1474,18 +1475,17 @@ select.field-invalid {
 .ctx-tooltip {
     position: fixed;
     pointer-events: none;
-    z-index: 9999;
+    z-index: var(--z-tooltip);
     
     background: color-mix(
         in srgb, 
         color-mix(in srgb, var(--success) 20%, var(--bg)) 90%,
         transparent
     );
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
 
     color: var(--text);
-    backdrop-filter: blur(2px);
     border: 1px solid var(--success);
     border-radius: var(--radius);
     padding: var(--space-3) var(--space-4);
@@ -1574,7 +1574,7 @@ select.field-invalid {
     position: fixed;
     top: 0;
     left: 0;
-    z-index: 9999;
+    z-index: var(--z-tooltip);
     max-width: min(var(--len-7), calc(100vw - var(--space-5)));
     padding: var(--space-3) var(--space-4);
     
@@ -1656,7 +1656,7 @@ select.field-invalid {
     flex-direction: column;
     gap: var(--space-2);
     margin: var(--space-5);
-    z-index: 1000;
+    z-index: var(--z-toast);
 }
 
 .toast {
@@ -1729,7 +1729,7 @@ select.field-invalid {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1100;
+    z-index: var(--z-modal);
     padding: var(--space-5);
     backdrop-filter: blur(2px);
     opacity: 0;
@@ -1748,7 +1748,6 @@ select.field-invalid {
 .modal {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow);
     width: 100%;
@@ -2615,7 +2614,6 @@ select.field-invalid {
 .strategy-card {
     background: var(--surface);
     border-radius: var(--radius-lg);
-    padding: var(--space-4) var(--space-3) var(--space-3);
     padding: var(--space-3);
     display: flex;
     flex-direction: column;
@@ -2673,7 +2671,7 @@ select.field-invalid {
 #descTooltip {
     position: fixed;
     pointer-events: none;
-    z-index: 9999;
+    z-index: var(--z-tooltip);
     background: var(--surface);
     color: var(--text);
     backdrop-filter: blur(2px);
@@ -2705,6 +2703,7 @@ select.field-invalid {
     padding: var(--space-1) var(--space-3);
     border-radius: var(--radius-sm);
     font-size: var(--fs-base);
+    font-size: var(--fs-sm);
     font-weight: 600;
     letter-spacing: .02em;
     background: var(--surface2);
@@ -2968,7 +2967,7 @@ tbody td {
     position: absolute;
     top: calc(100% + var(--space-2));
     left: 0;
-    z-index: 60;
+    z-index: var(--z-dropdown);
     min-width: 100%;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -3077,9 +3076,12 @@ tbody td {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
+    display: block;
+    min-width: 0;
+}
+
+.job-strategy-name svg {
+    vertical-align: -.15em;
 }
 
 .job-strategy-name:hover {
@@ -3232,7 +3234,7 @@ input[type="color"] {
 
 .tag-palette-dropdown {
     position: fixed;
-    z-index: 9999;
+    z-index: var(--z-tooltip);
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
@@ -3351,7 +3353,7 @@ input[type="color"] {
 
 .anchor-popover {
     position: absolute;
-    z-index: 600;
+    z-index: var(--z-popover);
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -5005,7 +5007,6 @@ table::-webkit-scrollbar-track,
     line-height: 1.5;
     color: var(--text);
     pointer-events: none;
-    background: var(--border);
     background: var(--infographic-neutral-dim);
     padding: var(--space-1) var(--space-3);
     border-radius: var(--radius-sm);
@@ -5098,7 +5099,7 @@ table::-webkit-scrollbar-track,
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    z-index: 200;
+    z-index: var(--z-menu);
     padding: var(--space-3);
 }
 
@@ -5180,7 +5181,7 @@ table::-webkit-scrollbar-track,
 .chart-tooltip {
     position: fixed;
     pointer-events: none;
-    z-index: 9999;
+    z-index: var(--z-tooltip);
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -6134,7 +6135,6 @@ table::-webkit-scrollbar-track,
     }
 
     .strategy-card-actions .btn {
-        padding: var(--space-3);
         height: auto;
     }
 
@@ -6153,7 +6153,8 @@ table::-webkit-scrollbar-track,
 
     .job-row-main {
         flex-direction: column;
-        align-items: start;
+        flex-wrap: nowrap;
+        align-items: stretch;
     }
 
     .job-row-metrics {
