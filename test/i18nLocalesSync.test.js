@@ -104,6 +104,29 @@ function main() {
     }
   }
 
+  const placeholders = v => [...String(v).matchAll(/\{(\w+)\}/g)].map(m => m[1]).sort().join(',')
+  for (const other of others) {
+    const diffs = ref.keys.filter(k => k in other.values && placeholders(ref.values[k]) !== placeholders(other.values[k]))
+    if (diffs.length) {
+      errors.push(
+        `Placeholder mismatch between ${ref.filename} and ${other.filename} (${diffs.length}):\n` +
+        diffs.map(k => `    - ${k}`).join('\n')
+      )
+    }
+  }
+
+  for (const locale of [ref, ...others]) {
+    const doubles = Object.entries(locale.values)
+      .filter(([, v]) => /\{\{|\}\}/.test(v))
+      .map(([k]) => k)
+    if (doubles.length) {
+      errors.push(
+        `Double braces in ${locale.filename} (${doubles.length}):\n` +
+        doubles.map(k => `    - ${k}`).join('\n')
+      )
+    }
+  }
+
   if (errors.length) {
     console.error(`❌ i18n locale sync FAILED - ${errors.length} issue(s):\n`)
     errors.forEach(e => console.error('  ' + e + '\n'))

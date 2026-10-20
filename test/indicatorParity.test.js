@@ -95,7 +95,7 @@ function main() {
     process.exit(1)
   }
 
-  console.log(`✅ JS/Python parity OK - ${Object.keys(results).length} indicators, ${candles.length} candles, tolerance ${ABS_TOL}`)
+  console.log(`✅ JS/Python parity OK - ${Object.keys(results).length} columns, ${candles.length} candles, tolerance ${ABS_TOL}`)
 }
 
 main()

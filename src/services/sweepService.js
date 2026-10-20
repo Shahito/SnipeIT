@@ -1,10 +1,12 @@
 const crypto = require('crypto')
+const { Prisma } = require('@prisma/client')
 const prisma = require('../utils/prisma')
 const { resolveSweep } = require('../utils/sweepEngine')
 const { usesTrailingTp } = require('../utils/exitsModel')
 const { SWEEP_WARNING_THRESHOLD, SWEEP_ALL_RUNS_THRESHOLD } = require('../config/sweep')
 const { CATEGORIES, categoryOf } = require('../config/coinCategories')
 const { emitToUser } = require('../utils/eventBus')
+const { computeSweepDsr } = require('../utils/deflatedSharpe')
 const { sendLocalizedNotificationToUser } = require('./pushService')
 
 function stableStringify(value) {
@@ -149,6 +151,7 @@ async function launchSweep(strategyId, userId, { confirmLarge = false } = {}) {
           sharpeRatio:      existing.sharpeRatio,
           durationDays:     existing.durationDays,
           profitFactor:     existing.profitFactor,
+          returnStats:      existing.returnStats ?? Prisma.DbNull,
         }
       }
       return {
@@ -220,6 +223,7 @@ async function getSweepGroup(id, userId) {
           winRate: true,
           maxDrawdown: true,
           sharpeRatio: true,
+          returnStats: true,
           errorMessage: true,
           jobTags: { include: { tag: true } },
         },
@@ -280,8 +284,12 @@ async function getSweepGroup(id, userId) {
     }
   })
 
+  // DSR needs the whole sweep
+  const dsrByJob = computeSweepDsr(done)
+  const doneRows = done.map(({ returnStats, ...j }) => ({ ...j, dsr: dsrByJob.get(j.id) ?? null }))
+
   const byPnl = (a, b) => (b.pnlPercent ?? -Infinity) - (a.pnlPercent ?? -Infinity)
-  const smallSweep = done.length <= SWEEP_ALL_RUNS_THRESHOLD
+  const smallSweep = doneRows.length <= SWEEP_ALL_RUNS_THRESHOLD
 
   return {
     id: group.id,
@@ -303,8 +311,8 @@ async function getSweepGroup(id, userId) {
     byCategory,
     sensitivity,
     ...(smallSweep
-      ? { all: [...done].sort(byPnl) }
-      : { best: [...done].sort(byPnl).slice(0, 10), worst: [...done].sort(byPnl).slice(-10).reverse() }),
+      ? { all: [...doneRows].sort(byPnl) }
+      : { best: [...doneRows].sort(byPnl).slice(0, 10), worst: [...doneRows].sort(byPnl).slice(-10).reverse() }),
   }
 }
 

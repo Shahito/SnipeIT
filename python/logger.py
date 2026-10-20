@@ -86,10 +86,10 @@ def get_logger(name: str) -> logging.Logger:
 
 # Startup banner
 
-def print_banner(base_url: str = "", poll: int = 10, heartbeat: int = 20, cache_dir: str = "./cache") -> None:
+def print_banner(base_url: str = "", poll: int = 10, heartbeat: int = 20, cache_dir: str = "./cache", version: str = "") -> None:
     now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     console.print(
-        f"[accent]🎯 SnipeIT Worker[/accent]  "
+        f"[accent]🎯 SnipeIT Worker[/accent] [muted]v{escape(version)}[/muted]  "
         f"[muted]{escape(base_url)}  poll={poll}s  hb={heartbeat}s  cache={escape(cache_dir)}  {now}  (Q to quit)[/muted]"
     )
 
@@ -190,6 +190,18 @@ def log_server_unreachable(retry: int) -> None:
 
 def log_heartbeat() -> None:
     pass  # silence
+
+def log_update_available(current: str, latest: str, url: str = "") -> None:
+    console.print(
+        f"[bold yellow]⬆️  Update available: v{escape(latest)}[/bold yellow] "
+        f"[muted](you run v{escape(current)}){escape(' - ' + url) if url else ''}[/muted]"
+    )
+
+def log_update_required(current: str, minimum: str) -> None:
+    console.print(
+        f"[bold red]⛔ Worker v{escape(current)} is too old for this server "
+        f"(minimum v{escape(minimum)}). Download the latest version and restart.[/bold red]"
+    )
 
 def log_stopped() -> None:
     console.print("[bold red]👋 SnipeIT worker stopped by user.[/bold red]")

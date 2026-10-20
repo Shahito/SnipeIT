@@ -15,11 +15,12 @@ function renderMetrics(r) {
     { key: 'results.metric.pnl_pct', value: r.pnlPercent, fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, cls: v => v >= 0 ? 'positive' : 'negative' },
     { key: 'results.metric.pnl_cumul', value: r.cumulativePnl, fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, cls: v => v >= 0 ? 'positive' : 'negative' },
     { key: 'results.metric.buy_hold_pct', value: r.buyHoldPercent, fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, cls: v => v >= 0 ? 'positive' : 'negative' },
-    { key: 'results.metric.capital', value: r.finalCapital, fmt: v => `$${_fmtAdaptive(v)}`, cls: () => 'neutral' },
+    { key: 'results.metric.capital', value: r.finalCapital, fmt: v => _fmtAdaptive(v), unit: r._quote, cls: () => 'neutral' },
     { key: 'results.metric.trades', value: r.totalTrades, fmt: v => v, cls: () => 'neutral' },
     { key: 'results.metric.winrate', value: hasTrades ? r.winRate : null, fmt: v => `${v.toFixed(1)}%`, cls: v => v >= 50 ? 'positive' : 'negative' },
     { key: 'results.metric.maxdd', value: hasTrades ? r.maxDrawdown : null, fmt: v => `-${v.toFixed(2)}%`, cls: () => 'negative' },
     { key: 'results.metric.sharpe', info: 'info.metric.sharpe', value: r.sharpeRatio, fmt: v => v.toFixed(2), cls: v => v >= 1.5 ? 'positive' : v >= 0 ? 'neutral' : 'negative' },
+    { key: 'results.metric.psr', info: 'info.metric.psr', value: r.psr, fmt: v => `${(v * 100).toFixed(0)}%`, cls: v => v >= 0.95 ? 'positive' : v >= 0.5 ? 'neutral' : 'negative' },
     { key: 'results.metric.profit_factor', value: r.profitFactor, fmt: v => v.toFixed(2), cls: v => v >= 1.75 ? 'positive' : v >= 1 ? 'neutral' : 'negative' },
     { key: 'results.metric.exposure', value: r.exposurePct, fmt: v => `${v.toFixed(1)}%`, cls: () => 'neutral' },
     { key: 'results.metric.max_mae', value: r.maxMae, fmt: v => `${v.toFixed(2)}%`, cls: () => 'negative' },
@@ -31,7 +32,7 @@ function renderMetrics(r) {
     const cls = m.value != null ? m.cls(m.value) : 'neutral'
     const { cls: interCls, attrs } = metricCardInteractiveAttrs(m.key, METRIC_TARGET_CARD, false)
     return `<div class="metric-card${interCls}" ${attrs}>
-      <div class="metric-label">${t(m.key)}${m.info ? `<span class="info-tip" data-info="${m.info}"></span>` : ''}</div>
+      <div class="metric-label">${t(m.key)}${m.unit ? ` (${m.unit})` : ''}${m.info ? `<span class="info-tip" data-info="${m.info}"></span>` : ''}</div>
       <div class="metric-value ${cls}">${formatted}</div>
     </div>`
   }).join('')
@@ -60,9 +61,9 @@ function renderTrades(r, trades, totalTrades) {
     return `<div class="trade-row trade-${tr.side}">
       <span class="tag ${tr.side === 'buy' ? 'tag-success' : 'tag-danger'}">${t('results.trade.' + tr.side)}</span>
       <span class="text-muted text-sm">${fmtDateTime(tr.date)}</span>
-      <span class="trade-price">$${tr.price != null ? _fmtAdaptive(tr.price) : '-'}</span>
+      <span class="trade-price">${_fmtQuote(tr.price, r._quote)}</span>
       <span class="trade-qty text-muted text-sm">${tr.quantity != null ? _fmtAdaptive(tr.quantity) : '-'}</span>
-      <span class="trade-value">$${tr.value != null ? _fmtAdaptive(tr.value) : '-'}</span>
+      <span class="trade-value">${_fmtQuote(tr.value, r._quote)}</span>
       <span class="${pnlClass} trade-pnl">${pnlStr}</span>
     </div>`
   }).join('')

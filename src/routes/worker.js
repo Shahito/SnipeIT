@@ -1,6 +1,7 @@
 const express = require('express')
 const router  = express.Router()
 const workerAuth = require('../middleware/workerAuth')
+const workerVersionGate = require('../middleware/workerVersionGate')
 const authRequired = require('../middleware/auth')
 const { heartbeatController, pollController, resultController, statusController } = require('../controllers/workerController')
 
@@ -30,7 +31,7 @@ const { heartbeatController, pollController, resultController, statusController 
  *       200:
  *         description: OK
  */
-router.post('/heartbeat', workerAuth, heartbeatController)
+router.post('/heartbeat', workerAuth, workerVersionGate, heartbeatController)
 
 /**
  * @openapi
@@ -51,7 +52,7 @@ router.post('/heartbeat', workerAuth, heartbeatController)
  *       200:
  *         description: OK. The jobs array holds at most one job.
  */
-router.get('/jobs', workerAuth, pollController)
+router.get('/jobs', workerAuth, workerVersionGate, pollController)
 
 /**
  * @openapi
@@ -84,7 +85,7 @@ router.get('/jobs', workerAuth, pollController)
  *       404:
  *         description: JOB_NOT_FOUND
  */
-router.post('/jobs/:id/result', workerAuth, resultController)
+router.post('/jobs/:id/result', workerAuth, workerVersionGate, resultController)
 
 /**
  * @openapi

@@ -1,6 +1,7 @@
 const { Prisma } = require('@prisma/client')
 const prisma = require('../utils/prisma')
 const { refreshSweepGroupStatus } = require('./sweepService')
+const { psr } = require('../utils/deflatedSharpe')
 
 const JOB_TAGS_INCLUDE = { jobTags: { include: { tag: true } } }
 
@@ -147,7 +148,9 @@ async function getJob(id, userId) {
     },
   })
   if (!job) throw new Error('JOB_NOT_FOUND')
-  return job
+
+  const s = job.returnStats
+  return { ...job, psr: s ? psr(s.sharpe, s.skew, s.kurtosis, s.obs) : null }
 }
 
 async function cancelJob(id, userId) {
@@ -237,6 +240,7 @@ async function submitResult(jobId, apiKeyId, userId, payload) {
         sharpeRatio: result.sharpeRatio ?? null,
         durationDays: result.durationDays ?? null,
         profitFactor: result.profitFactor ?? null,
+        returnStats: result.returnStats ?? Prisma.DbNull,
       } : {}),
     },
   })

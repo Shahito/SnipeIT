@@ -1,4 +1,6 @@
 const { createApiKey, listApiKeys, deleteApiKey } = require('../services/apikeyService')
+const { getLatestWorkerRelease } = require('../services/workerReleaseService')
+const { compareVersions } = require('../utils/version')
 
 const KNOWN_CODES = new Set(['NAME_REQUIRED', 'API_KEY_NOT_FOUND', 'MISSING_FIELDS', 'API_KEY_LIMIT_REACHED'])
 
@@ -20,8 +22,12 @@ async function createController(req, res) {
 
 async function listController(req, res) {
   try {
-    const apiKeys = await listApiKeys(req.user.id)
-    res.json({ apiKeys })
+    const [keys, latestWorker] = await Promise.all([listApiKeys(req.user.id), getLatestWorkerRelease()])
+    const apiKeys = keys.map(k => ({
+      ...k,
+      updateAvailable: !!(latestWorker && k.workerVersion && compareVersions(latestWorker.version, k.workerVersion) > 0),
+    }))
+    res.json({ apiKeys, latestWorker })
   } catch (e) {
     res.status(500).json({ error: errorCode(e) })
   }

@@ -41,7 +41,7 @@ async function listApiKeys(userId) {
     where: { userId },
     orderBy: { createdAt: 'desc' },
     select: {
-      id: true, name: true, keyPrefix: true, lastUsedAt: true, createdAt: true,
+      id: true, name: true, keyPrefix: true, lastUsedAt: true, createdAt: true, workerVersion: true,
     },
   })
 }

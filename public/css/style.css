@@ -498,6 +498,11 @@ select.field-invalid {
     font-size: var(--fs-base);
 }
 
+.field-warn-msg {
+    color: var(--warning);
+    font-size: var(--fs-base);
+}
+
 .field-char-counter {
     text-align: right;
     margin: var(--space-1) 0 0;
@@ -1482,8 +1487,8 @@ select.field-invalid {
         color-mix(in srgb, var(--success) 20%, var(--bg)) 90%,
         transparent
     );
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 
     color: var(--text);
     border: 1px solid var(--success);
@@ -4793,6 +4798,11 @@ table::-webkit-scrollbar-track,
     font-size: var(--fs-base);
     color: var(--text-muted);
     margin-top: var(--space-1);
+}
+
+.apikey-update {
+    margin-left: var(--space-2);
+    text-decoration: none;
 }
 
 .key-reveal {

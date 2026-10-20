@@ -9,6 +9,7 @@
     "dev": "concurrently \"npm:server\" \"npm:sync\"",
     "start": "node app.js",
     "test:parity": "node test/indicatorParity.test.js",
+    "test:dsr": "node test/deflatedSharpe.test.js",
     "test:i18n-sync": "node test/i18nLocalesSync.test.js",
     "test:i18n-keys": "node test/i18nKeysUsage.test.js",
     "test:i18n": "npm run test:i18n-sync && npm run test:i18n-keys"

@@ -41,15 +41,17 @@ from logger import (
     log_server_unreachable,
     log_heartbeat,
     log_stopped,
+    log_update_available,
+    log_update_required,
 )
 
 __version__ = "1.0.0"
 
 load_dotenv()
 
-BASE_URL           = os.getenv("SNIPEIT_BASE_URL", "http://localhost:4000")
-API_KEY            = os.getenv("SNIPEIT_API_KEY", "")
-POLL_INTERVAL      = int(os.getenv("POLL_INTERVAL", "10"))
+BASE_URL = os.getenv("SNIPEIT_BASE_URL", "http://localhost:4000")
+API_KEY = os.getenv("SNIPEIT_API_KEY", "")
+POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "10"))
 HEARTBEAT_INTERVAL = int(os.getenv("HEARTBEAT_INTERVAL", "20"))
 
 log = get_logger("snipeit")
@@ -95,13 +97,42 @@ def _get_current_job():
         return _current_job_id
 
 
+# Update notice
+
+_announced_version = None
+
+def _version_tuple(version):
+    try:
+        parts = tuple(int(p) for p in str(version).split("."))
+    except ValueError:
+        return None
+    return parts if len(parts) == 3 else None
+
+def _check_update(data: dict):
+    """Announces a newer worker version once, from the heartbeat response"""
+    global _announced_version
+    latest = (data or {}).get("latestWorkerVersion")
+    current, newest = _version_tuple(__version__), _version_tuple(latest)
+    if not current or not newest or newest <= current or latest == _announced_version:
+        return
+    _announced_version = latest
+    log_update_available(__version__, latest, data.get("updateUrl") or "")
+
+
+def _min_version(response) -> str:
+    try:
+        return response.json().get("minVersion", "?")
+    except ValueError:
+        return "?"
+
+
 # Heartbeat (separate thread)
 
 def _heartbeat_loop():
     while True:
         time.sleep(HEARTBEAT_INTERVAL)
         try:
-            _post("/api/worker/heartbeat", {"jobId": _get_current_job()})
+            _check_update(_post("/api/worker/heartbeat", {"jobId": _get_current_job()}))
             log_heartbeat()
         except requests.exceptions.ConnectionError:
             log.warning(f"Server unreachable - heartbeat failed")
@@ -114,7 +145,7 @@ def _heartbeat_loop():
 def _process_job(job: dict):
     from backtest import run_backtest
 
-    job_id   = job["id"]
+    job_id = job["id"]
     _set_current_job(job_id)  # set first so a heartbeat never sees this job as lost
     strategy = job["strategy"]
     log.info(f"Job #{job_id} - {strategy['name']} ({strategy['pair']} {strategy['timeframe']})")
@@ -178,6 +209,7 @@ def main():
         poll=POLL_INTERVAL,
         heartbeat=HEARTBEAT_INTERVAL,
         cache_dir=os.getenv("OHLCV_CACHE_DIR", "./cache"),
+        version=__version__,
     )
 
     # Start heartbeat in background
@@ -186,10 +218,11 @@ def main():
 
     # Send an immediate heartbeat on startup
     try:
-        _post("/api/worker/heartbeat", {"jobId": None})
+        _check_update(_post("/api/worker/heartbeat", {"jobId": None}))
     except Exception:
         pass
 
+    update_required = False
     try:
         while not stop_event.is_set():
             try:
@@ -207,6 +240,10 @@ def main():
             except requests.exceptions.ConnectionError:
                 log_server_unreachable(POLL_INTERVAL)
             except requests.exceptions.HTTPError as e:
+                if e.response is not None and e.response.status_code == 426:
+                    log_update_required(__version__, _min_version(e.response))
+                    update_required = True
+                    break
                 log.error(f"HTTP error: {e}")
             except Exception as e:
                 log.error(f"Unexpected error: {e}")
@@ -217,6 +254,8 @@ def main():
         # Clean stop event
         stop_event.set()
     
+    if update_required:
+        sys.exit(1)
     log_stopped()
 
 

@@ -223,7 +223,7 @@ def _price_curve_ds(ts_arr, close_arr: np.ndarray) -> list:
     return [
         {
             "t": int(pd.Timestamp(ts_arr[i]).timestamp()),
-            "c": round(float(close_arr[i]), 4),
+            "c": float(f"{close_arr[i]:.8g}"),
         }
         for i in idx
     ]
@@ -419,6 +419,28 @@ def _pack_trades(sell_trades: list, max_bytes: int = 90_000) -> dict:
     }
 
 
+def _return_stats(equity_raw: np.ndarray, tf_minutes: int) -> dict | None:
+    """Per-bar return stats behind the Sharpe ratio and the deflated Sharpe ratio."""
+    if len(equity_raw) < 2:
+        return None
+    ret = pd.Series(equity_raw).pct_change().dropna()
+    std = ret.std()
+    if not std > 0:
+        return None
+
+    skew, kurt = ret.skew(), ret.kurt() + 3.0  # raw kurtosis, 3 for a normal
+    if not (np.isfinite(skew) and np.isfinite(kurt)):
+        skew, kurt = 0.0, 3.0
+
+    return {
+        "sharpe": float(ret.mean() / std),
+        "skew": float(skew),
+        "kurtosis": float(kurt),
+        "obs": int(len(ret)),
+        "periodsPerYear": (365 * 1440) / tf_minutes,
+    }
+
+
 # Scalar metrics
 def _scalar_metrics(
     sell_trades: list,
@@ -440,8 +462,9 @@ def _scalar_metrics(
     )
     profit_factor = round(gross_profit / gross_loss, 2) if gross_loss else None
 
-    pnl_abs = round(final_capital - initial_capital, 2)
-    pnl_pct = round(pnl_abs / initial_capital * 100, 2)
+    pnl_raw = final_capital - initial_capital
+    pnl_abs = float(f"{pnl_raw:.8g}")
+    pnl_pct = round(pnl_raw / initial_capital * 100, 2)
     cumul_pnl = round(sum(t["pnl"] for t in sell_trades if t.get("pnl") is not None), 2)
     bh_pct = round((float(close_arr[-1]) / float(close_arr[0]) - 1) * 100, 2)
 
@@ -454,12 +477,12 @@ def _scalar_metrics(
             max_dd = dd
     max_dd = round(max_dd, 2)
 
+    return_stats = _return_stats(equity_raw, tf_minutes)
     sharpe = 0.0
-    if len(equity_raw) > 1:
-        ret = pd.Series(equity_raw).pct_change().dropna()
-        if ret.std() > 0:
-            periods_per_year = (365 * 1440) / tf_minutes
-            sharpe = round(ret.mean() / ret.std() * math.sqrt(periods_per_year), 2)
+    if return_stats:
+        sharpe = round(
+            return_stats["sharpe"] * math.sqrt(return_stats["periodsPerYear"]), 2
+        )
 
     duration_days = (pd.Timestamp(end_date[:10]) - pd.Timestamp(start_date[:10])).days
 
@@ -482,13 +505,14 @@ def _scalar_metrics(
         "pnlPercent": pnl_pct,
         "pnlAbsolute": pnl_abs,
         "initialCapital": initial_capital,
-        "finalCapital": round(final_capital, 2),
+        "finalCapital": float(f"{final_capital:.8g}"),
         "totalTrades": total_trades,
         "cumulativePnl": cumul_pnl,
         "buyHoldPercent": bh_pct,
         "winRate": win_rate,
         "maxDrawdown": max_dd,
         "sharpeRatio": sharpe,
+        "returnStats": return_stats,
         "profitFactor": profit_factor,
         "durationDays": duration_days,
         "maxMae": max_mae,

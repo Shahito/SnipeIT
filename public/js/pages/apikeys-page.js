@@ -9,10 +9,19 @@ function openCreateModal() {
   openModal('createModal', 'keyName')
 }
 
+function renderWorkerDownload(latestWorker) {
+  const btn = document.getElementById('downloadWorkerBtn')
+  btn.classList.toggle('hidden', !latestWorker)
+  if (!latestWorker) return
+  btn.href = latestWorker.url
+  document.getElementById('downloadWorkerLabel').textContent = t('apikeys.download_btn', { version: latestWorker.version })
+}
+
 async function loadKeys() {
   try {
-    const { apiKeys } = await api('/apikeys')
+    const { apiKeys, latestWorker } = await api('/apikeys')
     document.getElementById('loadingState').classList.add('hidden')
+    renderWorkerDownload(latestWorker)
     if (!apiKeys.length) {
       document.getElementById('emptyState').classList.remove('hidden')
       document.getElementById('keysList').classList.add('hidden')
@@ -28,7 +37,9 @@ async function loadKeys() {
           <div class="apikey-meta">
             ${t('apikeys.item.prefix')} <code>${k.keyPrefix}...</code> ·
             ${t('apikeys.item.created')} ${fmtDate(k.createdAt)} ·
-            ${k.lastUsedAt ? t('apikeys.item.last_used') + ' ' + fmtDate(k.lastUsedAt) : t('apikeys.item.never_used')}
+            ${k.lastUsedAt ? t('apikeys.item.last_used') + ' ' + fmtDate(k.lastUsedAt) : t('apikeys.item.never_used')} ·
+            ${k.workerVersion ? t('apikeys.item.worker_version', { version: k.workerVersion }) : t('apikeys.item.no_worker')}
+            ${k.updateAvailable ? `<a class="tag tag-warning apikey-update" href="${escHtml(latestWorker.url)}">${t('apikeys.item.update_available', { version: latestWorker.version })}</a>` : ''}
           </div>
         </div>
         <button class="btn btn-danger btn-sm delete-key-btn" data-id="${k.id}">${ICONS.cross}${t('apikeys.item.delete_btn')}</button>

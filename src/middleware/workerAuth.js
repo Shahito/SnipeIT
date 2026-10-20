@@ -1,11 +1,13 @@
 const prisma = require('../utils/prisma')
 const crypto = require('crypto')
+const { parseWorkerVersion } = require('../utils/version')
 
 const tokenCache = new Map()
 const CACHE_TTL = 2 * 60 * 1000 // Valid key 2mins in cache
 
 async function workerAuthRequired(req, res, next) {
   try {
+    req.workerVersion = parseWorkerVersion(req.headers['user-agent'])
     const authHeader = req.headers.authorization || ''
     if (!authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'MISSING_API_KEY' })

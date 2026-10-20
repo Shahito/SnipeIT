@@ -230,6 +230,7 @@
                 winRate: r.winRate,
                 maxDrawdown: r.maxDrawdown,
                 sharpeRatio: r.sharpeRatio,
+                psr: r.psr,
                 profitFactor: r.profitFactor,
                 durationDays: r.durationDays,
                 exposurePct: r.exposurePct,
@@ -286,17 +287,18 @@
 
         if (_opts.includeSummary) {
             lines.push(`  ${t('export.text.section.perf')}`)
-            lines.push(row(t('export.text.label.pnl'), `${sign(r.pnlPercent)}${fmt(r.pnlPercent)}% (${sign(r.pnlAbsolute)}$${_fmtAdaptive(r.pnlAbsolute)})`))
+            lines.push(row(t('export.text.label.pnl'), `${sign(r.pnlPercent)}${fmt(r.pnlPercent)}% (${sign(r.pnlAbsolute)}${_fmtQuote(r.pnlAbsolute, r._quote)})`))
             lines.push(row(t('export.text.label.pnl_cumul'), `${sign(r.cumulativePnl)}${fmt(r.cumulativePnl)}%`))
             lines.push(row(t('export.text.label.buyhold'), `${sign(r.buyHoldPercent)}${fmt(r.buyHoldPercent)}%`))
-            lines.push(row(t('export.text.label.capital_initial'), `$${_fmtAdaptive(r.initialCapital)}`))
-            lines.push(row(t('export.text.label.capital_final'), `$${_fmtAdaptive(r.finalCapital)}`))
+            lines.push(row(t('export.text.label.capital_initial'), _fmtQuote(r.initialCapital, r._quote)))
+            lines.push(row(t('export.text.label.capital_final'), _fmtQuote(r.finalCapital, r._quote)))
             lines.push('')
             lines.push(`  ${t('export.text.section.stats')}`)
             lines.push(row(t('export.text.label.trades'), `${r.totalTrades}`))
             lines.push(row(t('export.text.label.winrate'), `${fmt(r.winRate)}%`))
             lines.push(row(t('export.text.label.maxdd'), `-${fmt(r.maxDrawdown)}%`))
             lines.push(row(t('export.text.label.sharpe'), `${fmt(r.sharpeRatio)}`))
+            lines.push(row(t('export.text.label.psr'), r.psr != null ? `${fmt(r.psr * 100, 0)}%` : 'N/A'))
             lines.push(row(t('export.text.label.profit_factor'), `${fmt(r.profitFactor)}`))
             lines.push(row(t('export.text.label.duration'), `${r.durationDays} days`))
             lines.push(row(t('export.text.label.exposure'), `${fmt(r.exposurePct)}%`))
@@ -322,22 +324,22 @@
         if (_opts.includeTrades && r.trades?.length) {
             lines.push(`  ${t('export.text.section.trades')}`)
             const sells = r.trades.filter(tr => tr.side === 'sell')
-            const header = `  ${t('export.text.trades.date').padEnd(18)} ${t('export.text.trades.price').padEnd(12)} ${t('export.text.trades.value').padEnd(12)} ${t('export.text.trades.pnl')}`
+            const header = `  ${t('export.text.trades.date').padEnd(18)} ${t('export.text.trades.price').padEnd(16)} ${t('export.text.trades.value').padEnd(16)} ${t('export.text.trades.pnl')}`
             lines.push(header)
             lines.push('  ' + '─'.repeat(header.length - 2))
             sells.forEach(tr => {
                 const pnlStr = tr.pnl != null ? `${sign(tr.pnl)}${fmt(tr.pnl)}%` : '-'
-                lines.push(`  ${_safeDate(tr.date).padEnd(18)} $${fmt(tr.price).padEnd(11)} $${fmt(tr.value).padEnd(11)} ${pnlStr}`)
+                lines.push(`  ${_safeDate(tr.date).padEnd(18)} ${_fmtQuote(tr.price, r._quote).padEnd(16)} ${_fmtQuote(tr.value, r._quote).padEnd(16)} ${pnlStr}`)
             })
             lines.push('')
         }
 
         if (_opts.includeEquity && r.equityCurve?.length) {
             lines.push(`  ${t('export.text.section.equity')}`)
-            lines.push(`  ${t('export.text.equity_range', { count: r.equityCurve.length, from: fmt(r.equityCurve[0]?.e), to: fmt(r.equityCurve[r.equityCurve.length - 1]?.e) })}`)
+            lines.push(`  ${t('export.text.equity_range', { count: r.equityCurve.length, from: _fmtQuote(r.equityCurve[0]?.e, r._quote), to: _fmtQuote(r.equityCurve[r.equityCurve.length - 1]?.e, r._quote) })}`)
             r.equityCurve.forEach(p => {
                 const d = new Date(p.t * 1000).toISOString().slice(0, 10)
-                lines.push(`  ${d.padEnd(COL)}$${fmt(p.e)}`)
+                lines.push(`  ${d.padEnd(COL)}${_fmtQuote(p.e, r._quote)}`)
             })
             lines.push('')
         }
@@ -376,6 +378,7 @@
             winRate: j.winRate,
             maxDrawdown: j.maxDrawdown,
             sharpeRatio: j.sharpeRatio,
+            dsr: j.dsr,
             profitFactor: j.profitFactor,
             durationDays: j.durationDays,
         }
@@ -506,7 +509,7 @@
                 const params = Object.entries(j.paramValues || {})
                     .map(([k, v]) => _describeValue(k, v, r.definition))
                     .join(', ') || '-'
-                lines.push(`  ${(j.pair || '-').padEnd(12)} ${params.padEnd(28)} pnl=${sign(j.pnlPercent)}${fmt(j.pnlPercent)}%  sharpe=${fmt(j.sharpeRatio)}  winrate=${fmt(j.winRate, 1)}%  maxdd=-${fmt(j.maxDrawdown)}%`)
+                lines.push(`  ${(j.pair || '-').padEnd(12)} ${params.padEnd(28)} pnl=${sign(j.pnlPercent)}${fmt(j.pnlPercent)}%  sharpe=${fmt(j.sharpeRatio)}  dsr=${j.dsr != null ? fmt(j.dsr * 100, 0) + '%' : 'N/A'}  winrate=${fmt(j.winRate, 1)}%  maxdd=-${fmt(j.maxDrawdown)}%`)
             })
             lines.push('')
         }
@@ -865,7 +868,7 @@
     // Shared helpers
     const _ROUND2_KEYS = new Set([
         'pnlPercent', 'pnlAbsolute', 'buyHoldPercent', 'winRate', 'maxDrawdown',
-        'sharpeRatio', 'profitFactor', 'exposurePct', 'cumulativePnl',
+        'sharpeRatio', 'psr', 'dsr', 'profitFactor', 'exposurePct', 'cumulativePnl',
         'avgPnlPercent', 'medianPnlPercent', 'stdPnlPercent', 'pctProfitable',
         'bestPnlPercent', 'worstPnlPercent',
     ])

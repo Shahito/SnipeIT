@@ -287,10 +287,19 @@ function updateRunsBadge(payload) {
   }
 }
 
+function updateCapitalQuoteWarn() {
+  const quotes = [...new Set(_currentPairs.map(p => p.split('/')[1]))]
+  const el = document.getElementById('capitalQuoteWarn')
+  const multi = quotes.length > 1
+  el.textContent = multi ? t('editor.capital_multi_quote', { quotes: quotes.join(', ') }) : ''
+  el.classList.toggle('hidden', !multi)
+}
+
 function updatePreview() {
   const payload = buildPayload()
   document.getElementById('jsonPreview').textContent = JSON.stringify(payload, null, 2)
   updateRunsBadge(payload)
+  updateCapitalQuoteWarn()
 }
 
 // Load existing strategy

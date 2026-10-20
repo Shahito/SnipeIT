@@ -1,0 +1,38 @@
+name: Release worker
+
+on:
+  push:
+    tags: ['worker-v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches __version__
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#worker-v}"
+          CODE_VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' python/snipeit_worker.py)
+          if [ "$TAG_VERSION" != "$CODE_VERSION" ]; then
+            echo "Tag $TAG_VERSION does not match __version__ $CODE_VERSION"
+            exit 1
+          fi
+
+      - name: Build archive
+        run: |
+          mkdir snipeit-worker
+          cp python/*.py python/requirements.txt python/.env.example snipeit-worker/
+          rm snipeit-worker/parity_export.py
+          zip -r snipeit-worker.zip snipeit-worker
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" snipeit-worker.zip \
+            --title "Worker ${GITHUB_REF_NAME#worker-v}" \
+            --generate-notes

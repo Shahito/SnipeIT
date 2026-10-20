@@ -59,6 +59,7 @@ model ApiKey {
   keyPrefix     String
   lastUsedAt    DateTime?
   lastHeartbeat DateTime?   // updated by the worker every N seconds
+  workerVersion String?     @db.VarChar(20) // from the worker's User-Agent
   createdAt     DateTime  @default(now())
   disconnectedNotified Boolean @default(false) // set once the disconnect push is sent, reset on next heartbeat
 
@@ -137,6 +138,7 @@ model BacktestJob {
   sharpeRatio    Float?
   durationDays   Int?
   profitFactor   Float?
+  returnStats    Json?     // sharpe, skew, kurtosis, obs, periodsPerYear
 
   createdAt      DateTime  @default(now())
   strategy       Strategy   @relation(fields: [strategyId], references: [id], onDelete: Cascade)

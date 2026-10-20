@@ -1,5 +1,6 @@
 const { claimPendingJobs, submitResult, reconcileInFlightJob } = require('../services/jobService')
 const { recordWorkerHeartbeat } = require('../services/apikeyService')
+const { getLatestWorkerRelease } = require('../services/workerReleaseService')
 const prisma = require('../utils/prisma')
 const { WORKER_DISCONNECT_THRESHOLD_MS } = require('../config/worker')
 
@@ -8,12 +9,17 @@ function parseReportedJobId(raw) {
   return Number.isInteger(n) && n > 0 ? n : null
 }
 
+function workerVersionField(req) {
+  return req.workerVersion ? { workerVersion: req.workerVersion } : {}
+}
+
 async function heartbeatController(req, res) {
   try {
-    await recordWorkerHeartbeat(req.apiKey.id)
+    await recordWorkerHeartbeat(req.apiKey.id, workerVersionField(req))
     const reportedJobId = parseReportedJobId(req.body && req.body.jobId)
     await reconcileInFlightJob(req.apiKey.id, reportedJobId)
-    res.json({ ok: true })
+    const latest = await getLatestWorkerRelease()
+    res.json({ ok: true, latestWorkerVersion: latest ? latest.version : null, updateUrl: latest ? latest.url : null })
   } catch (e) {
     res.status(500).json({ error: 'UNKNOWN' })
   }
@@ -22,7 +28,7 @@ async function heartbeatController(req, res) {
 async function pollController(req, res) {
   try {
     // The poll also counts as a heartbeat
-    await recordWorkerHeartbeat(req.apiKey.id, { lastUsedAt: new Date() })
+    await recordWorkerHeartbeat(req.apiKey.id, { lastUsedAt: new Date(), ...workerVersionField(req) })
     const reportedJobId = parseReportedJobId(req.query.jobId)
     await reconcileInFlightJob(req.apiKey.id, reportedJobId)
     const jobs = await claimPendingJobs(req.apiKey.id, req.workerUser.id)

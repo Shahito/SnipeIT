@@ -25,10 +25,16 @@
           <h1 data-i18n="apikeys.title"></h1>
           <p data-i18n="apikeys.subtitle"></p>
         </div>
-        <button class="btn btn-primary" id="createKeyBtn">
-          <i data-icon="plus"></i>
-          <span data-i18n="apikeys.create_btn"></span>
-        </button>
+        <div class="page-header-actions">
+          <a class="btn btn-ghost hidden" id="downloadWorkerBtn" href="#">
+            <i data-icon="export"></i>
+            <span id="downloadWorkerLabel"></span>
+          </a>
+          <button class="btn btn-primary" id="createKeyBtn">
+            <i data-icon="plus"></i>
+            <span data-i18n="apikeys.create_btn"></span>
+          </button>
+        </div>
       </div>
 
       <div class="card card--info mb-xl api-tips">

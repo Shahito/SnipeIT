@@ -9,7 +9,7 @@ SnipeIT has **two independent implementations of every indicator**:
 
 Beyond the two math implementations, a *usable* indicator also needs to be: registered for input validation (backend), selectable in the strategy editor (frontend), translated (i18n), and optionally drawn on the chart. None of this is handled by a single file - this guide walks through every touchpoint in order, with the exact anchors to edit.
 
-The *only* JS indicator implementation that matters is `src/utils/indicatorEngine.js` - it's the one used by `candleController.js` (the route actually mounted in `app.js`), and the one `indicatorParity.test.js` checks against Python.
+The *only* JS indicator implementation that matters is `src/utils/indicatorEngine.js` - it's the one used by `candleController.js` (mounted via `routes/job.js` as `GET /api/jobs/:id/candles`), and the one `indicatorParity.test.js` checks against Python.
 
 ## 0. Pick your identifiers
 
@@ -46,7 +46,7 @@ The worked example used throughout this guide is **ROC** (Rate of Change, period
    - `col_tpl` is a `str.format()` template; `column_name()` fills in `period` (and, for `extra_params` indicators, the extra kwargs - see MACD below).
    - `periods` is not read anywhere in the code. It exists purely as documentation of "sensible values", for a possible future dropdown of common periods, and has no functional effect.
 
-3. **If your indicator takes a `source`** (like `EMA`/`SMA` - "RSI of volume" style): add `"col_tpl_src": "{name}_{{source}}_{{period}}".format(...)` equivalent (see `EMA`'s `col_tpl_src`) and `"sources": [...]` to the registry entry. `SOURCE_SERIES` at the top of the file already maps `CLOSE/VOLUME/HIGH/LOW/OPEN` to DataFrame columns - you won't need to touch it unless you're adding a genuinely new source type.
+3. **If your indicator takes a `source`** (like `EMA`/`SMA` computed on volume): add `"col_tpl_src": "ROC_{source}_{period}"` (a plain `str.format()` template, see `EMA`'s `"EMA_{source}_{period}"`) and `"sources": [...]` to the registry entry. `SOURCE_SERIES` at the top of the file already maps `CLOSE/VOLUME/HIGH/LOW/OPEN` to DataFrame columns - you won't need to touch it unless you're adding a genuinely new source type.
 
 4. **If your indicator takes extra params beyond period/source** (like `MACD`'s `fast`/`slow`/`signal`): add `"extra_params": {...}` with defaults. `column_name()` merges `extra_params` with any per-condition `settings` override automatically - no extra code needed there.
 
@@ -91,7 +91,7 @@ Add `sources: [...]` if it takes a source, matching step 1.3 above.
    }
    ```
 
-Note on `ewm()`: the JS helper resets its running state to `NaN` whenever it hits a `NaN` input, whereas pandas' `.ewm(adjust=False)` keeps smoothing through internal `NaN`s using the last valid value. The two disagree only when a series has `NaN`s in the middle, not just a leading gap. If your input series can have internal gaps, account for this difference explicitly rather than assuming the two implementations match.
+Note on `ewm()`: on a `NaN` input the JS helper outputs `NaN` for that index and keeps its running state, then resumes from the last valid value. Pandas' `.ewm(adjust=False)` instead carries the last value through the gap and decays the old weight over the missing positions, so the values after the gap differ too (alpha 0.5 on `[1, 2, 3, NaN, NaN, 6, 7]` gives `5.53, 6.27` in pandas vs `4.13, 5.56` in JS). The two disagree only when a series has `NaN`s in the middle, not just a leading gap. If your input series can have internal gaps, account for this difference explicitly rather than assuming the two implementations match.
 
 5. **Wire it into the actual dispatcher - `computeColumns()`.** This is the step the automated parity test *cannot* catch (see §5) and is the single easiest thing to forget:
 
@@ -130,7 +130,7 @@ For a multi-column indicator, add a dedicated `if ([...].includes(indicator))` b
    npm run test:parity
    ```
 
-It should print `✅ JS/Python parity OK - N indicators, ...` with `N` incremented by one (or more, for multi-column indicators).
+It should print `✅ JS/Python parity OK - N columns, ...` with `N` incremented by one (or more, for multi-column indicators).
 
 This script shells out to a plain `python3` on `PATH` (see `execFileSync('python3', ...)` in `test/indicatorParity.test.js`) - it does not activate any virtual environment itself. Run it with the project's Python environment active (the one `python/requirements.txt` was installed into), so `pandas`/`numpy` are present and at the versions the rest of the project uses. A different `python3` on `PATH` - missing dependencies, or a different `pandas`/`numpy` version - can make the test fail to run at all, or pass/fail based on behavior that differs from the environment the backtest worker actually runs in.
 
@@ -167,9 +167,11 @@ Indicators need "warm-up" candles fetched *before* the requested start date so t
   - plain rolling-window indicators (SMA, Bollinger, VWAP, raw CLOSE/VOLUME/HIGH/LOW/OPEN) -> `2 * period`,
   - standard EMA -> `4 * period` (`_EMA_FACTOR`),
   - MACD -> `4 * (slow + signal)` (two EMA convergences stack),
-  - **Wilder-smoothed indicators** (EWM with `alpha = 1/period`, which converges much slower than a standard EMA) -> `8 * period` (`_WILDER_FACTOR`). `RSI`, `ATR`, `STOCH_RSI_K`, `STOCH_RSI_D` are listed in `_WILDER_INDICATORS` for this reason.
+  - **Wilder-smoothed indicators** (EWM with `alpha = 1/period`, which converges much slower than a standard EMA) -> `8 * period` (`_WILDER_FACTOR`). `RSI`, `ATR`, `STOCH_RSI_K`, `STOCH_RSI_D` are listed in `_WILDER_INDICATORS` for this reason; `STOCH_RSI_K`/`_D` also have their own branch (`8 * period + 3 + 3`, the two fixed smoothing windows).
 
 If your new indicator uses `.ewm(alpha=1/period, adjust=False)` (Wilder-style smoothing) rather than `.ewm(span=period)` (standard EMA), **add its key to `_WILDER_INDICATORS`** - otherwise the backtest will under-warm it and produce measurably wrong values on the first simulated candles. If it's a plain rolling-window indicator (like ROC above), it falls into the default branch and needs no change.
+
+If it uses a standard EMA (`.ewm(span=period)`) it is **not** covered by `_WILDER_INDICATORS`: `_warmup_candles()` only applies `_EMA_FACTOR` to `indicator == "EMA"` and to MACD, so add a branch there, otherwise it falls to the default `2 * period` and is under-warmed.
 
 ## 5. Higher-timeframe (HTF) support - nothing to do
 

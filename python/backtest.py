@@ -947,6 +947,10 @@ def _exit_fill(
     return min(max(level_price * (1 - slippage), low), high), fee_taker
 
 
+def _sig(x, digits=8):
+    return float(f"{x:.{digits}g}")
+
+
 def _open_position(
     idx,
     fill_price,
@@ -1031,9 +1035,9 @@ def _close_position(
         {
             "side": "buy",
             "date": position["entry_date"],
-            "price": round(position["entry_price"], 4),
-            "quantity": round(position["qty"], 6),
-            "value": round(position["allocated"], 2),
+            "price": _sig(position["entry_price"]),
+            "quantity": _sig(position["qty"]),
+            "value": _sig(position["allocated"]),
             "pnl": None,
         }
     )
@@ -1043,13 +1047,13 @@ def _close_position(
     sell_trade = {
         "side": "sell",
         "date": exit_date,
-        "price": round(exit_price, 4),
-        "quantity": round(position["qty"], 6),
-        "value": round(proceeds, 2),
+        "price": _sig(exit_price),
+        "quantity": _sig(position["qty"]),
+        "value": _sig(proceeds),
         "pnl": pnl_pct,
         "entryDate": position["entry_date"],
-        "entryPrice": round(position["entry_price"], 4),
-        "allocated": round(position["allocated"], 2),
+        "entryPrice": _sig(position["entry_price"]),
+        "allocated": _sig(position["allocated"]),
         "reason": reason,
         "exitFee": exit_fee,
         "mae": mae_pct,
@@ -1517,7 +1521,7 @@ def run_backtest(strategy: dict) -> dict:
             trades, position, last_price, last_date, "end", capital, fee_taker, fee_taker
         )
 
-    equity_rounded = np.round(np.array(equity_raw, dtype=np.float64), 2)
+    equity_rounded = np.round(np.array(equity_raw, dtype=np.float64), 2 if initial_capital >= 100 else 8)
 
     # 5. Aggregation & serialization
     result = build_result(

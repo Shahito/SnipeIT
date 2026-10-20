@@ -105,10 +105,13 @@ npm run dev
 | `MAIL_FROM` | - | From address used for outgoing email |
 | `RESEND_WEBHOOK_SECRET` | - | Signing secret for the Resend delivery webhook |
 | `ALLOW_EMAIL_ALIASES` | - | Accept `+tag`/dot Gmail-style aliases as the same account (default `true`) |
+| `WORKER_RELEASE_REPO` | - | GitHub repo (`owner/name`) whose releases ship the worker. Empty disables the download button and update checks |
+| `MIN_WORKER_VERSION` | - | Refuse workers older than this version (HTTP 426). Empty = no minimum |
 
 ### Run your own worker
 
 Backtests are executed by a separate Python worker, not the Node app. Generate an API key from the UI first (**Account → API Keys**).
+Once a release exists, the API Keys page offers the worker as a download and flags workers that are out of date.
 
 ```bash
 cd python
@@ -125,6 +128,18 @@ python snipeit_worker.py
 | `POLL_INTERVAL` | - | Seconds between each job poll (default `10`) |
 | `HEARTBEAT_INTERVAL` | - | Seconds between each heartbeat (default `20`) |
 | `OHLCV_CONFIRMED_GAP_TTL_DAYS` | - | Days before a confirmed gap in cached candle data is re-checked (default `7`) |
+
+
+### Releasing the worker
+
+Workers are published as GitHub releases tagged `worker-vX.Y.Z`. Bump `__version__` in `python/snipeit_worker.py`, then:
+
+```bash
+git tag worker-v1.1.0
+git push origin worker-v1.1.0
+```
+
+The `Release worker` workflow checks that the tag matches `__version__`, builds `snipeit-worker.zip` and publishes the release. Set `WORKER_RELEASE_REPO` on the server so the API Keys page can link to it.
 
 <br/>
 

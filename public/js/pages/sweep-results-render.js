@@ -128,7 +128,7 @@ function renderSensitivity(sensitivity) {
 function renderCombosTable(bodyId, jobs) {
   const body = document.getElementById(bodyId)
   if (!jobs || !jobs.length) {
-    body.innerHTML = `<tr><td colspan="7" class="text-muted text-sm">${t('sweep.no_results_yet')}</td></tr>`
+    body.innerHTML = `<tr><td colspan="8" class="text-muted text-sm">${t('sweep.no_results_yet')}</td></tr>`
     return
   }
   body.innerHTML = jobs.map(j => {
@@ -149,6 +149,7 @@ function renderCombosTable(bodyId, jobs) {
       </td>
       <td class="${j.pnlPercent >= 0 ? 'pnl-positive' : 'pnl-negative'}">${fmtPct(j.pnlPercent)}</td>
       <td>${j.sharpeRatio != null ? j.sharpeRatio.toFixed(2) : '-'}</td>
+      <td>${j.dsr != null ? (j.dsr * 100).toFixed(0) + '%' : '-'}</td>
       <td>${j.winRate != null ? j.winRate.toFixed(1) + '%' : '-'}</td>
       <td style="color:var(--danger)">${j.maxDrawdown != null ? '-' + j.maxDrawdown.toFixed(2) + '%' : '-'}</td>
       <td class="td-actions">

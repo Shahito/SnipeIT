@@ -1,5 +1,5 @@
 // Adaptive decimals by magnitude - more decimals for small values (e.g. a
-// $0.00001234 altcoin) and fewer for large ones (e.g. $65,000 BTC), instead
+// 0.00001234 altcoin) and fewer for large ones (e.g. 65,000 BTC), instead
 // of a single fixed .toFixed(n) that's wrong at one end of that range
 // Shared by charts.js (results.html) and trade-chart.js (chart.html)
 function _fmtAdaptive(v) {
@@ -11,4 +11,13 @@ function _fmtAdaptive(v) {
   if (av >= 0.01) return v.toFixed(4)
   if (av >= 0.0001) return v.toFixed(6)
   return v.toFixed(8)
+}
+
+function _quoteOf(pair) {
+  return String(pair || '').split('/')[1] || ''
+}
+
+function _fmtQuote(v, quote) {
+  const s = _fmtAdaptive(v)
+  return quote && s !== '-' ? `${s} ${quote}` : s
 }

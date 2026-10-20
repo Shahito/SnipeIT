@@ -67,6 +67,7 @@ async function loadJob() {
     const r   = job.result
     r._tradeSampled = r.trades?.sampled
     r._tradeRate    = r.trades?.rate
+    r.psr           = job.psr
     
     r.trades = unpackTrades(r.trades, snap)
     
@@ -82,6 +83,8 @@ async function loadJob() {
     // Warning divergence
     renderSnapshotWarning(snap, cur, job)
     renderWarningsPill(r.warnings)
+
+    r._quote = _quoteOf(snap.pair)
 
     renderMetrics(r)
     equityChart.config.referenceLines = [
