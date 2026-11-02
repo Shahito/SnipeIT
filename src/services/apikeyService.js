@@ -68,12 +68,17 @@ async function notifyDisconnectedWorkers() {
   })
   if (staleKeys.length === 0) return
 
-  await prisma.apiKey.updateMany({
-    where: { id: { in: staleKeys.map(k => k.id) } },
-    data: { disconnectedNotified: true },
-  })
+  // Claim each key atomically: only the call that flips the flag sends the push
+  const claimed = []
+  for (const key of staleKeys) {
+    const r = await prisma.apiKey.updateMany({
+      where: { id: key.id, disconnectedNotified: false },
+      data: { disconnectedNotified: true },
+    })
+    if (r.count === 1) claimed.push(key)
+  }
 
-  await Promise.all(staleKeys.map((key) =>
+  await Promise.all(claimed.map((key) =>
     sendLocalizedNotificationToUser(key.userId, {
       titleKey: 'push.worker_disconnected.title',
       bodyKey: 'push.worker_disconnected.body',

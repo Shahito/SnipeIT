@@ -51,7 +51,7 @@ function renderStrategyCard(s) {
     : ''
 
   const pnl = lastJob?.status === 'done' && lastJob.pnlPercent != null
-    ? `<span class="tag ${lastJob.pnlPercent >= 0 ? 'tag-success' : 'tag-danger'}">${lastJob.pnlPercent >= 0 ? '+' : ''}${lastJob.pnlPercent.toFixed(2)}%</span>`
+    ? `<span class="status-badge ${lastJob.pnlPercent >= 0 ? 'status-done' : 'status-error'}">${ICONS.momentum} ${lastJob.pnlPercent >= 0 ? '+' : ''}${lastJob.pnlPercent.toFixed(2)}%</span>`
     : ''
 
   const pairsLabel = s.pairs.length > 1
@@ -68,6 +68,8 @@ function renderStrategyCard(s) {
           <button class="btn btn-danger btn-sm delete-btn" data-id="${s.id}">${ICONS.cross}</button>
           <span class="status-group">
             ${statusHtml}
+            ${lastJob && badgeCss !== 'error' ? `<div class="sep"></div>` : ''}
+            ${pnl}
             ${sweepTag}
           </span>
         </div>
@@ -78,28 +80,37 @@ function renderStrategyCard(s) {
       : `<div class="strategy-card-desc">${t("strategies.no_desc")}</div>`
     }
       <div class="strategy-tags">
-        <span class="tag tag-primary">${pairsLabel}</span>
-        <span class="tag">${timeframeLabel}</span>
-        <span class="tag">${fmtDate(s.startDate)} - ${fmtDate(s.endDate)}</span>
-        ${pnl}
+          <span class="tag tag-primary">${pairsLabel}</span>
+          <span class="tag">${ICONS.clock} ${timeframeLabel}</span>
+          <span class="tag">${ICONS.calendar} ${fmtDate(s.startDate)} - ${fmtDate(s.endDate)}</span>
       </div>
       <div class="strategy-card-actions">
-        ${lastJob?.status != 'pending' && lastJob?.status != 'running' ?
-      `<button class="btn btn-sm launch-btn
-          ${lastJob?.status === 'done' ? 'btn-ghost' : ' btn-surface'}" data-id="${s.id}">
-            ${lastJob?.status === 'done' ?
-        `${ICONS.replay}<span>${t('strategies.btn.relaunch')}</span>` :
-        `${ICONS.play}<span>${t('strategies.btn.launch')}</span>`
-      }</button>` :
-      ''
-    }
-        <a href="/strategy-editor.html?id=${s.id}" class="btn btn-ghost btn-sm">${ICONS.pencil}<span>${t('strategies.btn.edit')}</span></a>
-        <button class="btn btn-ghost btn-sm clone-btn" data-id="${s.id}">${ICONS.copy}<span>${t('strategies.btn.clone')}</span></button>
-        ${lastJob?.status === 'done' ?
-      (isSweep
-        ? `<a href="/sweep-results.html?id=${lastJob.sweepGroup.id}" class="btn btn-ghost btn-sm">${ICONS.chart}<span>${t('strategies.btn.sweep_results')}</span></a>`
-        : `<a href="/results.html?jobId=${lastJob.id}" class="btn btn-ghost btn-sm">${ICONS.chart}<span>${t('strategies.btn.results')}</span></a>`)
-      : ''}
+        ${(() => {
+      const canLaunch = lastJob?.status != 'pending' && lastJob?.status != 'running'
+      const launchBtn = canLaunch
+        ? `<button class="btn btn-sm btn-icon-action launch-btn" data-id="${s.id}" data-label="${lastJob?.status === 'done' ? t('strategies.btn.relaunch') : t('strategies.btn.launch')}">
+            ${lastJob?.status === 'done' ? ICONS.replay : ICONS.play}<span>${lastJob?.status === 'done' ? t('strategies.btn.relaunch') : t('strategies.btn.launch')}</span>
+          </button>`
+        : ''
+
+      const editBtn = `<a href="/strategy-editor.html?id=${s.id}" class="btn btn-sm btn-icon-action" data-label="${t('strategies.btn.edit')}">${ICONS.pencil}<span>${t('strategies.btn.edit')}</span></a>`
+      const cloneBtn = `<button class="btn btn-sm btn-icon-action clone-btn" data-id="${s.id}" data-label="${t('strategies.btn.clone')}">${ICONS.copy}<span>${t('strategies.btn.clone')}</span></button>`
+
+      const resultsLabel = isSweep ? t('strategies.btn.sweep_results') : t('strategies.btn.results')
+      const resultsBtn = lastJob?.status === 'done'
+        ? (isSweep
+          ? `<a href="/sweep-results.html?id=${lastJob.sweepGroup.id}" class="btn btn-sm btn-primary-action btn-surface">${ICONS.chart}<span>${resultsLabel}</span></a>`
+          : `<a href="/results.html?jobId=${lastJob.id}" class="btn btn-sm btn-primary-action btn-surface">${ICONS.chart}<span>${resultsLabel}</span></a>`)
+        : (lastJob?.status === 'pending' || lastJob?.status === 'running')
+          ? `<button class="btn btn-sm btn-primary-action btn-surface" disabled>${ICONS.chart}<span>${resultsLabel}</span></button>`
+          : ''
+
+      // primary = Results when a run is done or in progress, else Launch/Relaunch; the rest become icon-only secondary actions
+      if (resultsBtn) {
+        return `${resultsBtn}${launchBtn.replace('btn-icon-action launch-btn', 'btn-icon-action launch-btn')}${editBtn}${cloneBtn}`
+      }
+      return `${launchBtn.replace('btn-icon-action launch-btn', 'btn-primary-action btn-surface launch-btn')}${editBtn}${cloneBtn}`
+    })()}
       </div>
     </div>`
 }

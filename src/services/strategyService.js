@@ -2,8 +2,10 @@ const prisma = require('../utils/prisma')
 const { isSweepMarker } = require('../utils/sweepEngine')
 const { validateExits, normalizeExits, normalizeExecution } = require('../utils/exitsModel')
 const { STRATEGY_NAME_MAX_LENGTH, STRATEGY_DESCRIPTION_MAX_LENGTH } = require('../config/strategy')
+const { MAX_STRATEGIES, MAX_STRATEGIES_PER_HOUR } = require('../config/quotas')
+const { refreshSweepGroupStatus } = require('./sweepService')
 
-// Appends a suffix (" (copie)", " (snapshot)") to a base name while guaranteeing the
+// Appends a suffix (" (copy)", " (snapshot)") to a base name while guaranteeing the
 // result never exceeds STRATEGY_NAME_MAX_LENGTH. Trims the *base* name rather than the
 // suffix
 function appendSuffixTruncated(base, suffix) {
@@ -58,6 +60,8 @@ async function listDeletedStrategies(userId) {
   })
 }
 
+const VALID_TIMEFRAMES = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '3d', '1w']
+
 function validateConditions(conditions) {
   if (!conditions || typeof conditions !== 'object') throw new Error('CONDITIONS_INVALID')
   if (!Array.isArray(conditions.entry)) throw new Error('CONDITIONS_INVALID')
@@ -90,6 +94,16 @@ function validateConditions(conditions) {
         const n = parseInt(p)
         if (isNaN(n) || n < 1 || n > 500) throw new Error('CONDITIONS_INVALID')
       })
+    }
+
+    // Rule timeframes end up in cache directory names: whitelist only
+    for (const field of ['timeframe', 'valueIndicatorTimeframe']) {
+      const v = rule[field]
+      if (v !== undefined && v !== null && v !== '') {
+        sweepValues(v).forEach(tf => {
+          if (!VALID_TIMEFRAMES.includes(tf)) throw new Error('CONDITIONS_INVALID')
+        })
+      }
     }
 
     if (rule.source !== undefined && rule.source !== null) {
@@ -150,10 +164,10 @@ function validateStrategy(data) {
   // just like the others (see sweepEngine).
   if (!Array.isArray(pairs) || pairs.length === 0) throw new Error('PAIRS_INVALID')
   pairs.forEach(p => {
-    if (typeof p !== 'string' || !/^[A-Z0-9]+\/[A-Z0-9]+$/.test(p)) throw new Error('PAIRS_INVALID')
+    if (typeof p !== 'string' || !/^[A-Z0-9]{1,20}\/[A-Z0-9]{1,20}$/.test(p)) throw new Error('PAIRS_INVALID')
   })
 
-  const validTimeframes = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d', '3d', '1w']
+  const validTimeframes = VALID_TIMEFRAMES
   sweepValues(timeframe).forEach(tf => {
     if (!validTimeframes.includes(tf)) throw new Error('TIMEFRAME_INVALID')
   })
@@ -166,9 +180,14 @@ function validateStrategy(data) {
   if (isNaN(start.getTime())) throw new Error('DATE_INVALID')
   if (isNaN(end.getTime())) throw new Error('DATE_INVALID')
   if (end <= start) throw new Error('DATE_RANGE_INVALID')
+  // Binance spot starts in July 2017, end date at most tomorrow
+  if (start < new Date('2017-07-01T00:00:00Z')) throw new Error('DATE_RANGE_INVALID')
+  if (end > new Date(Date.now() + 24 * 60 * 60 * 1000)) throw new Error('DATE_RANGE_INVALID')
 
   // Not sweepable: fixed starting capital.
-  if (typeof initialCapital === 'object' || !initialCapital || initialCapital <= 0)
+  // Finite number only: a string like "abc" used to slip through and become NaN
+  const capital = typeof initialCapital === 'string' ? Number(initialCapital) : initialCapital
+  if (typeof capital !== 'number' || !Number.isFinite(capital) || capital <= 0 || capital > 1_000_000)
     throw new Error('CAPITAL_INVALID')
 
   sweepValues(positionSize).forEach(ps => {
@@ -190,9 +209,9 @@ function validateStrategy(data) {
   }
   if (data.tradingHours !== undefined && data.tradingHours !== null) {
     if (!Array.isArray(data.tradingHours)) throw new Error('TRADING_HOURS_INVALID')
-    const timeRe = /^\d{2}:\d{2}$/
+    const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/
     for (const slot of data.tradingHours) {
-      if (!slot.start || !slot.end) throw new Error('TRADING_HOURS_INVALID')
+      if (!slot || typeof slot.start !== 'string' || typeof slot.end !== 'string') throw new Error('TRADING_HOURS_INVALID')
       if (!timeRe.test(slot.start) || !timeRe.test(slot.end)) throw new Error('TRADING_HOURS_INVALID')
       if (slot.start >= slot.end) throw new Error('TRADING_HOURS_INVALID')
       if (slot.blockSell !== undefined && typeof slot.blockSell !== 'boolean') throw new Error('TRADING_HOURS_INVALID')
@@ -201,8 +220,20 @@ function validateStrategy(data) {
   validateConditions(conditions)
 }
 
+// Total cap and hourly creation rate, shared by create and both clones
+async function assertStrategyQuota(userId) {
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000)
+  const [total, lastHour] = await Promise.all([
+    prisma.strategy.count({ where: { userId, deletedAt: null } }),
+    prisma.strategy.count({ where: { userId, createdAt: { gt: hourAgo } } }),
+  ])
+  if (total >= MAX_STRATEGIES) throw new Error('QUOTA_EXCEEDED')
+  if (lastHour >= MAX_STRATEGIES_PER_HOUR) throw new Error('RATE_LIMIT_EXCEEDED')
+}
+
 async function createStrategy(userId, data) {
   validateStrategy(data)
+  await assertStrategyQuota(userId)
 
   return prisma.strategy.create({
     data: {
@@ -255,13 +286,14 @@ async function updateStrategy(id, userId, data) {
 async function cloneStrategy(id, userId) {
   const original = await prisma.strategy.findFirst({ where: { id, userId, deletedAt: null } })
   if (!original) throw new Error('STRATEGY_NOT_FOUND')
+  await assertStrategyQuota(userId)
 
   const { id: _id, createdAt: _c, updatedAt: _u, deletedAt: _d, ...rest } = original
 
   return prisma.strategy.create({
     data: {
       ...rest,
-      name: `${original.name} (copy)`,
+      name: appendSuffixTruncated(original.name, ' (copy)'),
       clonedFrom: original.id,
     },
   })
@@ -269,12 +301,13 @@ async function cloneStrategy(id, userId) {
 
 async function cloneFromSnapshot(jobId, userId) {
   const job = await prisma.backtestJob.findFirst({
-    where: { id: jobId, strategy: { userId } },
+    where: { id: jobId, strategy: { userId, deletedAt: null } },
     include: { strategy: { select: { id: true } } },
   })
 
   if (!job) throw new Error('JOB_NOT_FOUND')
   if (!job.strategySnapshot) throw new Error('SNAPSHOT_NOT_FOUND')
+  await assertStrategyQuota(userId)
 
   const snap = job.strategySnapshot
   // A job snapshot is ALWAYS a resolved run (single pair, no sweep marker).
@@ -297,7 +330,22 @@ const STRATEGY_TRASH_GRACE_MS = 24 * 60 * 60 * 1000
 async function deleteStrategy(id, userId) {
   const existing = await prisma.strategy.findFirst({ where: { id, userId, deletedAt: null } })
   if (!existing) throw new Error('STRATEGY_NOT_FOUND')
-  await prisma.strategy.update({ where: { id }, data: { deletedAt: new Date() } })
+  // Cancel pending jobs so their sweeps do not hang in "pending" while the strategy is in the trash
+  // The row lock keeps a concurrent launchSweep from adding jobs in between
+  const groupIds = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM Strategy WHERE id = ${id} FOR UPDATE`
+    const pending = await tx.backtestJob.findMany({
+      where: { strategyId: id, status: 'pending' },
+      select: { sweepGroupId: true },
+    })
+    await tx.backtestJob.updateMany({
+      where: { strategyId: id, status: 'pending' },
+      data: { status: 'error', completedAt: new Date(), lastApiKeyId: null, errorMessage: 'Strategy deleted' },
+    })
+    await tx.strategy.update({ where: { id }, data: { deletedAt: new Date() } })
+    return [...new Set(pending.map(j => j.sweepGroupId))]
+  })
+  await Promise.all(groupIds.map(gid => refreshSweepGroupStatus(gid, { silent: true })))
   return true
 }
 
@@ -308,12 +356,15 @@ async function restoreStrategy(id, userId) {
   return true
 }
 
-// Cron-driven (app.js, daily): hard-deletes anything past its grace period.
+// Cron-driven (app.js, hourly): hard-deletes anything past its grace period.
 // Cascades to BacktestJob/SweepGroup via the schema's onDelete: Cascade,
 // same end result as the old immediate hard-delete, just deferred.
 async function purgeSoftDeletedStrategies() {
   const cutoff = new Date(Date.now() - STRATEGY_TRASH_GRACE_MS)
-  await prisma.strategy.deleteMany({ where: { deletedAt: { lt: cutoff } } })
+  // Leave a strategy alone while a worker is still computing one of its jobs
+  await prisma.strategy.deleteMany({
+    where: { deletedAt: { lt: cutoff }, jobs: { none: { status: 'running' } } },
+  })
 }
 
 module.exports = {

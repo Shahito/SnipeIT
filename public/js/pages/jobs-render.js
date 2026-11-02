@@ -138,18 +138,27 @@ function renderSweepRow(s) {
 
   return `<div class="job-row" data-sweep-id="${s.id}">
     <div class="job-row-main">
-      <div class="job-row-left">
-      <span class="status-badge status-${s.status === 'partial_error' ? 'error' : s.status} ${sweepHasDuration ? 'has-duration' : ''}"
-          ${s.status === 'partial_error' ? `data-partial-error="1"` : ''}
-          ${sweepHasDuration ? `data-duration="${escAttr(fmtDuration(new Date(s.completedAt) - new Date(s.startedAt)))}"` : ''}>
-          <span class="status-dot"></span>${t('sweep.status.' + s.status)}
-        </span>
-        <div class="job-row-meta">
-          <a href="/strategy-editor.html?id=${s.strategy.id}" class="job-strategy-name">${ICONS.shuffle} ${escHtml(s.strategy.name)}</a>
-          <div class="job-row-sub">
-            <span class="tag tag-primary">${t('jobs.sweep.runs_count', { n: s.totalRuns })}</span>
-            <span class="text-muted text-sm">${fmtDateTime(s.createdAt)}</span>
+      <div class="job-row-head">
+        <div class="job-row-left">
+          <span class="status-badge status-${s.status === 'partial_error' ? 'error' : s.status} ${sweepHasDuration ? 'has-duration' : ''}"
+              ${s.status === 'partial_error' ? `data-partial-error="1"` : ''}
+              ${sweepHasDuration ? `data-duration="${escAttr(fmtDuration(new Date(s.completedAt) - new Date(s.startedAt)))}"` : ''}>
+              <span class="status-dot"></span>${t('sweep.status.' + s.status)}
+            </span>
+          <div class="job-row-meta">
+            <a href="/strategy-editor.html?id=${s.strategy.id}" class="job-strategy-name">${ICONS.shuffle} ${escHtml(s.strategy.name)}</a>
+            <div class="job-row-sub">
+              <span class="tag tag-secondary">${t('jobs.sweep.runs_count', { n: s.totalRuns })}</span>
+              <span class="text-muted text-sm">${fmtDateTime(s.createdAt)}</span>
+            </div>
           </div>
+        </div>
+        <div class="job-row-pnl" data-toggle-metrics>
+          <div class="job-row-pnl-value">
+            <div class="job-metric-label">${t('jobs.metric.pnl')} ${t('jobs.sweep.avg')}</div>
+            ${pnlHtml}
+          </div>
+          <span class="job-row-pnl-chevron">${ICONS.chevron_down}</span>
         </div>
       </div>
       <div class="job-row-metrics">
@@ -158,10 +167,12 @@ function renderSweepRow(s) {
         <div class="job-metric"><div class="job-metric-label">${t('jobs.metric.winrate')}</div><div class="text-sm">${winHtml}</div></div>
         <div class="job-metric"><div class="job-metric-label">${t('jobs.metric.maxdd')}</div><div class="text-sm" style="color:var(--danger)">${ddHtml}</div></div>
       </div>
-      <div class="job-row-actions">
-        <a href="/sweep-results.html?id=${s.id}" class="btn btn-ghost btn-sm">
-          ${ICONS.chart_pie}${t('jobs.sweep.view')}
-        </a>
+      <div class="job-row-footer">
+        <div class="job-row-actions">
+          <a href="/sweep-results.html?id=${s.id}" class="btn btn-ghost btn-sm">
+            ${ICONS.chart_pie}${t('jobs.sweep.view')}
+          </a>
+        </div>
       </div>
     </div>
   </div>`
@@ -182,23 +193,32 @@ function renderJobRow(j) {
 
   return `<div class="job-row" data-id="${j.id}">
     <div class="job-row-main">
-      <div class="job-row-left">
-        ${(() => {
-          const hasErrorMsg = j.status === 'error' && !!j.errorMessage
-          const hasDuration = !hasErrorMsg && j.startedAt && j.completedAt
-          return `<span class="status-badge status-${j.status} ${hasErrorMsg ? 'has-error-msg' : ''} ${hasDuration ? 'has-duration' : ''}"
-          data-error-msg="${hasErrorMsg ? `${j.id}: ${escAttr(j.errorMessage)}` : ''}"
-          data-duration="${hasDuration ? escAttr(fmtDuration(new Date(j.completedAt) - new Date(j.startedAt))) : ''}">
-          <span class="status-dot"></span>${t('status.' + j.status)}`
-        })()}
-        </span>
-        <div class="job-row-meta">
-          <a href="/strategy-editor.html?id=${j.strategy.id}" class="job-strategy-name">${escHtml(j.strategySnapshot?.name ?? j.strategy.name)}</a>
-          <div class="job-row-sub">
-            <span class="tag tag-primary">${j.strategySnapshot?.pair ?? j.strategy.pair ?? '?'}</span>
-            <span class="tag">${j.strategySnapshot?.timeframe ?? '?'}</span>
-            <span class="text-muted text-sm">${fmtDateTime(j.createdAt)}</span>
+      <div class="job-row-head" data-toggle-metrics>
+        <div class="job-row-left">
+          ${(() => {
+            const hasErrorMsg = j.status === 'error' && !!j.errorMessage
+            const hasDuration = !hasErrorMsg && j.startedAt && j.completedAt
+            return `<span class="status-badge status-${j.status} ${hasErrorMsg ? 'has-error-msg' : ''} ${hasDuration ? 'has-duration' : ''}"
+            data-error-msg="${hasErrorMsg ? `${j.id}: ${escAttr(j.errorMessage)}` : ''}"
+            data-duration="${hasDuration ? escAttr(fmtDuration(new Date(j.completedAt) - new Date(j.startedAt))) : ''}">
+            <span class="status-dot"></span>${t('status.' + j.status)}`
+          })()}
+          </span>
+          <div class="job-row-meta">
+            <a href="/strategy-editor.html?id=${j.strategy.id}" class="job-strategy-name">${escHtml(j.strategySnapshot?.name ?? j.strategy.name)}</a>
+            <div class="job-row-sub">
+              <span class="tag tag-primary">${j.strategySnapshot?.pair ?? j.strategy.pair ?? '?'}</span>
+              <span class="tag">${j.strategySnapshot?.timeframe ?? '?'}</span>
+              <span class="text-muted text-sm">${fmtDateTime(j.createdAt)}</span>
+            </div>
           </div>
+        </div>
+        <div class="job-row-pnl">
+          <div class="job-row-pnl-value">
+            <div class="job-metric-label">${t('jobs.metric.pnl')}</div>
+            ${pnlHtml}
+          </div>
+          <span class="job-row-pnl-chevron">${ICONS.chevron_down}</span>
         </div>
       </div>
       <div class="job-row-metrics">
@@ -207,15 +227,17 @@ function renderJobRow(j) {
         <div class="job-metric"><div class="job-metric-label">${t('jobs.metric.winrate')}</div><div class="text-sm">${winHtml}</div></div>
         <div class="job-metric"><div class="job-metric-label">${t('jobs.metric.maxdd')}</div><div class="text-sm" style="color:var(--danger)">${ddHtml}</div></div>
       </div>
-      <div class="job-row-actions">
-        ${j.status === 'done' ? `
-          <a href="/results.html?jobId=${j.id}" class="btn btn-ghost btn-sm">
-            ${ICONS.chart}
-            <span>${t('jobs.btn.results')}</span>
-          </a>
-          ` : ''}
-        ${j.status === 'pending' ? `<button class="btn btn-danger btn-sm cancel-btn" data-id="${j.id}">${ICONS.cross}</button>` : ''}
-        <button class="btn btn-ghost btn-sm assign-tags-btn" data-id="${j.id}" title="Tags">${ICONS.tag}</button>
+      <div class="job-row-footer">
+        <div class="job-row-actions">
+          ${j.status === 'done' ? `
+            <a href="/results.html?jobId=${j.id}" class="btn btn-ghost btn-sm">
+              ${ICONS.chart}
+              <span>${t('jobs.btn.results')}</span>
+            </a>
+            ` : ''}
+          ${j.status === 'pending' ? `<button class="btn btn-danger btn-sm cancel-btn" data-id="${j.id}">${ICONS.cross}</button>` : ''}
+          <button class="btn btn-ghost btn-sm assign-tags-btn" data-id="${j.id}" title="Tags">${ICONS.tag}</button>
+        </div>
       </div>
     </div>
     ${tags.length ? `<div class="job-row-tags">${tagsHtml}</div>` : ''}
@@ -243,6 +265,7 @@ function bindJobActions() {
     badge.addEventListener('mouseenter', e => _showTooltip(e, msg, 'danger'))
     badge.addEventListener('mousemove',  e => _showTooltip(e, msg, 'danger'))
     badge.addEventListener('mouseleave', () => _hideTooltip())
+    badge.addEventListener('click',      e => { e.stopPropagation(); _showTooltip(e, msg, 'danger') })
   })
   document.querySelectorAll('.has-error-msg').forEach(badge => {
     badge.addEventListener('mouseenter', e => _showTooltip(e, `<span>${badge.dataset.errorMsg}</span>`, 'danger'))
@@ -255,6 +278,17 @@ function bindJobActions() {
     badge.addEventListener('mouseenter', e => _showTooltip(e, msg))
     badge.addEventListener('mousemove',  e => _showTooltip(e, msg))
     badge.addEventListener('mouseleave', () => _hideTooltip())
+    badge.addEventListener('click',      e => { e.stopPropagation(); _showTooltip(e, msg) })
+  })
+  document.querySelectorAll('.job-row').forEach(row => {
+    const head = row.querySelector('[data-toggle-metrics]')
+    if (!head) return
+    head.addEventListener('click', () => {
+      const metrics = row.querySelector('.job-row-metrics')
+      const chevron = row.querySelector('.job-row-pnl-chevron')
+      const isOpen = metrics.classList.toggle('open')
+      chevron?.classList.toggle('open', isOpen)
+    })
   })
 }
 

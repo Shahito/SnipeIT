@@ -62,6 +62,7 @@ model ApiKey {
   workerVersion String?     @db.VarChar(20) // from the worker's User-Agent
   createdAt     DateTime  @default(now())
   disconnectedNotified Boolean @default(false) // set once the disconnect push is sent, reset on next heartbeat
+  instanceId    String?   @db.VarChar(64) // worker instance currently holding this key
 
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobs          BacktestJob[]
@@ -114,6 +115,7 @@ model BacktestJob {
   id             Int       @id @default(autoincrement())
   strategyId     Int
   apiKeyId       Int?
+  lastApiKeyId   Int?      // key that held the job when it was reset to pending, null otherwise
   sweepGroupId   Int?
   pair           String?   // resolved pair for this specific run (real column, for sort/filter)
   paramValues    Json?     // resolved sweep-axis values for this run (excluding pair)

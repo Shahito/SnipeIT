@@ -2,7 +2,7 @@ const MIN_LENGTH = 8
 const MAX_LENGTH = 72 // bcrypt truncates/errors past 72 bytes
 
 const RULES = {
-  length: (pw) => pw.length >= MIN_LENGTH && pw.length <= MAX_LENGTH,
+  length: (pw) => pw.length >= MIN_LENGTH && Buffer.byteLength(pw, 'utf8') <= MAX_LENGTH,
   lowercase: (pw) => /[a-z]/.test(pw),
   uppercase: (pw) => /[A-Z]/.test(pw),
   digit: (pw) => /\d/.test(pw),

@@ -5,8 +5,8 @@ const PROTECTED_PAGES = [
   '/jobs.html',
   '/strategy-editor.html',
   '/apikeys.html',
-  "sweep-results.html",
-  "results.html",
+  "/sweep-results.html",
+  "/results.html",
 ]
 
 function requireAuthPage(req, res, next) {

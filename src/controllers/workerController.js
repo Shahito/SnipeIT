@@ -46,6 +46,7 @@ async function resultController(req, res) {
     const job = await submitResult(jobId, req.apiKey.id, req.workerUser.id, { success, result, errorMessage })
     res.json({ job })
   } catch (e) {
+    if (e.message === 'INVALID_RESULT') return res.status(400).json({ error: 'INVALID_RESULT' })
     const code = e.message === 'JOB_NOT_FOUND' ? 'JOB_NOT_FOUND' : 'UNKNOWN'
     res.status(code === 'JOB_NOT_FOUND' ? 404 : 500).json({ error: code })
   }

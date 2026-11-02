@@ -160,6 +160,22 @@ async function verifyEmail(token) {
     // This token confirms a NEW address (from changeEmail()), not the
     // original one - swap it in now that ownership is proven.
     const canonicalEmail = canonicalizeEmail(user.pendingEmail)
+    // Address may have been taken since changeEmail(): drop the pending change
+    const taken = await prisma.user.findUnique({ where: { normalizedEmail: canonicalEmail } })
+    if (taken && taken.id !== user.id) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          pendingEmail: null,
+          emailVerificationToken: null,
+          emailVerificationExpires: null,
+          pendingEmailDeliveryFailed: false,
+          pendingEmailDeliveryFailedReason: null,
+          pendingEmailDeliveryFailedAt: null,
+        },
+      })
+      throw new Error('EMAIL_TAKEN')
+    }
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -246,6 +262,9 @@ async function changeEmail(userId, currentPassword, newEmail) {
 
   const taken = await prisma.user.findUnique({ where: { normalizedEmail: canonicalEmail } })
   if (taken) throw new Error('EMAIL_TAKEN')
+  // Another account may already hold this address as its pending change
+  const pendingTaken = await prisma.user.findUnique({ where: { pendingEmail: normalizedEmail } })
+  if (pendingTaken && pendingTaken.id !== user.id) throw new Error('EMAIL_TAKEN')
 
   const verificationToken = generateVerificationToken()
   await prisma.user.update({
@@ -335,19 +354,21 @@ async function changePassword(userId, oldPassword, newPassword) {
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) throw new Error('USER_NOT_FOUND')
 
-  assertStrongPassword(newPassword, { username: user.username, email: user.email })
-
   const ok = await bcrypt.compare(oldPassword, user.password)
   if (!ok) throw new Error('INVALID_OLD_PASSWORD')
+
+  assertStrongPassword(newPassword, { username: user.username, email: user.email })
+
   const hash = await bcrypt.hash(newPassword, 12)
-  await prisma.user.update({
+  const updated = await prisma.user.update({
     where: { id: userId },
     data: {
       password: hash,
       tokenVersion: { increment: 1 }
     },
   })
-  return true
+  // Fresh token keeps this device logged in, other sessions are revoked
+  return { token: signToken({ id: updated.id, tokenVersion: updated.tokenVersion }) }
 }
 
 async function logoutAll(userId) {

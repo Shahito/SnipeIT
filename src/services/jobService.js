@@ -2,6 +2,8 @@ const { Prisma } = require('@prisma/client')
 const prisma = require('../utils/prisma')
 const { refreshSweepGroupStatus } = require('./sweepService')
 const { psr } = require('../utils/deflatedSharpe')
+const { validateResultPayload, MAX_ERROR_LEN } = require('../utils/resultValidation')
+const { MAX_JOB_DURATION_MS, STALE_JOB_CUTOFF_MS } = require('../config/worker')
 
 const JOB_TAGS_INCLUDE = { jobTags: { include: { tag: true } } }
 
@@ -45,7 +47,7 @@ async function listJobs(userId, { page = 1, limit = 20, sort = 'createdAt', orde
       ...(statusFilter ? { status: statusFilter } : {}),
     }
     const [jobs, total] = await Promise.all([
-      prisma.backtestJob.findMany({ where, orderBy: { [sortField]: sortOrder }, take, skip, select: JOB_SELECT }),
+      prisma.backtestJob.findMany({ where, orderBy: [{ [sortField]: sortOrder }, { id: sortOrder }], take, skip, select: JOB_SELECT }),
       prisma.backtestJob.count({ where }),
     ])
     return { jobs, total, page: Math.max(parseInt(page) || 1, 1), totalPages: Math.ceil(total / take) }
@@ -82,7 +84,7 @@ async function listJobs(userId, { page = 1, limit = 20, sort = 'createdAt', orde
 
   const [countRow, pageRows] = await Promise.all([
     prisma.$queryRaw`SELECT COUNT(*) AS total FROM (${unionSql}) c`,
-    prisma.$queryRaw`${unionSql} ORDER BY sortVal ${orderSql} LIMIT ${take} OFFSET ${skip}`,
+    prisma.$queryRaw`${unionSql} ORDER BY sortVal ${orderSql}, itemType, id ${orderSql} LIMIT ${take} OFFSET ${skip}`,
   ])
 
   const total = Number(countRow[0]?.total ?? 0)
@@ -160,10 +162,14 @@ async function cancelJob(id, userId) {
   if (!job) throw new Error('JOB_NOT_FOUND')
   if (job.status !== 'pending') throw new Error('JOB_NOT_CANCELABLE')
 
-  const updated = await prisma.backtestJob.update({
-    where: { id },
+  // Conditional write: a worker may have claimed the job since the check above
+  const cancelled = await prisma.backtestJob.updateMany({
+    where: { id, status: 'pending' },
     data: { status: 'error', errorMessage: 'Cancelled by user' },
   })
+  if (cancelled.count === 0) throw new Error('JOB_NOT_CANCELABLE')
+
+  const updated = await prisma.backtestJob.findUnique({ where: { id } })
   await refreshSweepGroupStatus(job.sweepGroupId)
   return updated
 }
@@ -192,6 +198,7 @@ async function claimPendingJobs(apiKeyId, userId) {
         claimedAt: new Date(),
         startedAt: new Date(),
         apiKeyId,
+        lastApiKeyId: null,
       },
     })
 
@@ -206,29 +213,54 @@ async function claimPendingJobs(apiKeyId, userId) {
 }
 
 async function submitResult(jobId, apiKeyId, userId, payload) {
-  // Accept a running job of this key, or one reverted to pending and not reclaimed yet
+  // Accept a running job of this key, or one reset from this key and not reclaimed yet
   const job = await prisma.backtestJob.findFirst({
     where: {
       id: jobId,
       strategy: { userId },
       OR: [
         { status: 'running', apiKeyId },
-        { status: 'pending', apiKeyId: null },
+        { status: 'pending', lastApiKeyId: apiKeyId },
       ],
     },
   })
   if (!job) throw new Error('JOB_NOT_FOUND')
 
+  // A malformed result is deterministic: fail the job now instead of looping on resets
+  const invalidReason = validateResultPayload(payload)
+  if (invalidReason) {
+    await prisma.backtestJob.update({
+      where: { id: jobId },
+      data: {
+        status: 'error',
+        apiKeyId,
+        completedAt: new Date(),
+        result: null,
+        errorMessage: `Invalid result: ${invalidReason}`,
+      },
+    })
+    await refreshSweepGroupStatus(job.sweepGroupId)
+    throw new Error('INVALID_RESULT')
+  }
+
   const { success, result, errorMessage } = payload
 
-  const updated = await prisma.backtestJob.update({
-    where: { id: jobId },
+  // Conditional write: a concurrent reset or completion must not be overwritten
+  const written = await prisma.backtestJob.updateMany({
+    where: {
+      id: jobId,
+      OR: [
+        { status: 'running', apiKeyId },
+        { status: 'pending', lastApiKeyId: apiKeyId },
+      ],
+    },
     data: {
       status: success ? 'done' : 'error',
+      lastApiKeyId: null,
       apiKeyId,
       completedAt: new Date(),
       result: success ? result : null,
-      errorMessage: success ? null : (errorMessage || 'Worker error'),
+      errorMessage: success ? null : String(errorMessage || 'Worker error').slice(0, MAX_ERROR_LEN),
       ...(success && result ? {
         pnlPercent: result.pnlPercent ?? null,
         pnlAbsolute: result.pnlAbsolute ?? null,
@@ -244,6 +276,8 @@ async function submitResult(jobId, apiKeyId, userId, payload) {
       } : {}),
     },
   })
+  if (written.count === 0) throw new Error('JOB_NOT_FOUND')
+  const updated = await prisma.backtestJob.findUnique({ where: { id: jobId } })
 
   await refreshSweepGroupStatus(job.sweepGroupId)
   return updated
@@ -262,21 +296,31 @@ async function reviveOrFailJobs(jobs, errorMessage) {
   const toFail = jobs.filter(j => j.resetCount >= MAX_JOB_RESET_ATTEMPTS)
 
   if (toRetry.length) {
-    await prisma.backtestJob.updateMany({
-      where: { id: { in: toRetry.map(j => j.id) } },
-      data: {
-        status: 'pending',
-        claimedAt: null,
-        startedAt: null,
-        apiKeyId: null,
-        resetCount: { increment: 1 },
-      },
-    })
+    // Group by previous key so each job remembers who held it
+    const idsByKey = new Map()
+    for (const j of toRetry) {
+      const key = j.apiKeyId ?? null
+      if (!idsByKey.has(key)) idsByKey.set(key, [])
+      idsByKey.get(key).push(j.id)
+    }
+    await Promise.all([...idsByKey].map(([lastApiKeyId, ids]) =>
+      prisma.backtestJob.updateMany({
+        where: { id: { in: ids }, status: 'running' },
+        data: {
+          status: 'pending',
+          claimedAt: null,
+          startedAt: null,
+          apiKeyId: null,
+          lastApiKeyId,
+          resetCount: { increment: 1 },
+        },
+      })
+    ))
   }
 
   if (toFail.length) {
     await prisma.backtestJob.updateMany({
-      where: { id: { in: toFail.map(j => j.id) } },
+      where: { id: { in: toFail.map(j => j.id) }, status: 'running' },
       data: {
         status: 'error',
         completedAt: new Date(),
@@ -298,7 +342,7 @@ async function reconcileInFlightJob(apiKeyId, reportedJobId) {
       apiKeyId,
       ...(reportedJobId ? { id: { not: reportedJobId } } : {}),
     },
-    select: { id: true, sweepGroupId: true, resetCount: true },
+    select: { id: true, sweepGroupId: true, resetCount: true, apiKeyId: true },
   })
   await reviveOrFailJobs(orphaned, 'Worker lost track of this job')
 }
@@ -306,7 +350,7 @@ async function reconcileInFlightJob(apiKeyId, reportedJobId) {
 // Secondary safety net for a different scenario than reconcileInFlightJob:
 // the worker process is stuck/hung and has stopped heartbeating entirely
 async function timeoutStaleJobs() {
-  const cutoff = new Date(Date.now() - 60 * 1000)
+  const cutoff = new Date(Date.now() - STALE_JOB_CUTOFF_MS)
   const stale = await prisma.backtestJob.findMany({
     where: {
       status: 'running',
@@ -316,9 +360,31 @@ async function timeoutStaleJobs() {
         { apiKey: { lastHeartbeat: null } },
       ],
     },
-    select: { id: true, sweepGroupId: true, resetCount: true },
+    select: { id: true, sweepGroupId: true, resetCount: true, apiKeyId: true },
   })
   await reviveOrFailJobs(stale, 'Worker disconnected')
+
+  // Jobs that keep heartbeating but never finish: fail them, a retry would loop the same way
+  const tooLong = await prisma.backtestJob.findMany({
+    where: {
+      status: 'running',
+      startedAt: { lt: new Date(Date.now() - MAX_JOB_DURATION_MS) },
+    },
+    select: { id: true, sweepGroupId: true },
+  })
+  if (tooLong.length === 0) return
+
+  await prisma.backtestJob.updateMany({
+    where: { id: { in: tooLong.map(j => j.id) }, status: 'running' },
+    data: {
+      status: 'error',
+      completedAt: new Date(),
+      lastApiKeyId: null,
+      errorMessage: `Exceeded max duration (${Math.round(MAX_JOB_DURATION_MS / 60000)} min)`,
+    },
+  })
+  const groupIds = [...new Set(tooLong.map(j => j.sweepGroupId))]
+  await Promise.all(groupIds.map(refreshSweepGroupStatus))
 }
 
 module.exports = {

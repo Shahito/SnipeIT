@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma')
+const { MAX_TAGS } = require('../config/quotas')
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/
 
@@ -18,6 +19,7 @@ async function listTags(userId) {
 
 async function createTag(userId, name, color = '#6c8eff') {
   validate(name, color)
+  if (await prisma.tag.count({ where: { userId } }) >= MAX_TAGS) throw new Error('QUOTA_EXCEEDED')
   return prisma.tag.create({
     data: { userId, name: name.trim(), color },
   })
@@ -47,21 +49,24 @@ async function deleteTag(id, userId) {
 async function setJobTags(jobId, userId, tagIds) {
   // Check that the job belongs to the user
   const job = await prisma.backtestJob.findFirst({
-    where: { id: jobId, strategy: { userId } },
+    where: { id: jobId, strategy: { userId, deletedAt: null } },
   })
   if (!job) throw new Error('JOB_NOT_FOUND')
 
-  // Check that all tagIds belong to the user
-  const tags = await prisma.tag.findMany({ where: { id: { in: tagIds }, userId } })
-  if (tags.length !== tagIds.length) throw new Error('TAG_NOT_FOUND')
+  // Positive integers only, duplicates collapsed
+  if (!tagIds.every(id => Number.isInteger(id) && id > 0)) throw new Error('TAG_NOT_FOUND')
+  const ids = [...new Set(tagIds)]
 
-  // Replace all the job's tags
-  await prisma.jobTag.deleteMany({ where: { jobId } })
-  if (tagIds.length) {
-    await prisma.jobTag.createMany({
-      data: tagIds.map(tagId => ({ jobId, tagId })),
-    })
+  // Check that all tagIds belong to the user
+  const tags = await prisma.tag.findMany({ where: { id: { in: ids }, userId } })
+  if (tags.length !== ids.length) throw new Error('TAG_NOT_FOUND')
+
+  // Replace all the job's tags in one transaction
+  const ops = [prisma.jobTag.deleteMany({ where: { jobId } })]
+  if (ids.length) {
+    ops.push(prisma.jobTag.createMany({ data: ids.map(tagId => ({ jobId, tagId })) }))
   }
+  await prisma.$transaction(ops)
   return prisma.backtestJob.findUnique({
     where: { id: jobId },
     include: { jobTags: { include: { tag: true } } },

@@ -28,6 +28,8 @@ const PORT = process.env.PORT || 4000
 
 // Keep the raw body around (needed to verify the Resend/Svix webhook
 // signature, computed over the exact bytes received).
+// Larger body only for job results, registered first so it parses before the global limit
+app.use('/api/worker/jobs/:id/result', express.json({ limit: '512kb' }))
 app.use(express.json({
   verify: (req, _res, buf) => { req.rawBody = buf }
 }))
@@ -81,6 +83,7 @@ if (isProd) {
   app.use('/api/auth/login', authLimiter)
   app.use('/api/auth/register', authLimiter)
   app.use('/api/auth/resend-verification', authLimiter)
+  app.use('/api/auth/correct-pending-email', authLimiter)
   app.use('/api/auth/verify-email', verifyEmailLimiter)
   app.post('/api/auth/change-password', authLimiter)
   app.post('/api/auth/change-email', authLimiter)
@@ -110,18 +113,24 @@ if (!isProd) {
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
 
 const { timeoutStaleJobs } = require('./src/services/jobService')
+// Skip a tick when the previous run of the same task is still going
+function guarded(name, fn) {
+  let running = false
+  return async () => {
+    if (running) return
+    running = true
+    try { await fn() }
+    catch (e) { console.error(`[SnipeIT] ${name} error:`, e.message) }
+    finally { running = false }
+  }
+}
+
 // 30s
-cron.schedule('*/30 * * * * *', async () => {
-  try { await timeoutStaleJobs() }
-  catch (e) { console.error('[SnipeIT] timeoutStaleJobs error:', e.message) }
-})
+cron.schedule('*/30 * * * * *', guarded('timeoutStaleJobs', timeoutStaleJobs))
 
 const { notifyDisconnectedWorkers } = require('./src/services/apikeyService')
 // 30s
-cron.schedule('*/30 * * * * *', async () => {
-  try { await notifyDisconnectedWorkers() }
-  catch (e) { console.error('[SnipeIT] notifyDisconnectedWorkers error:', e.message) }
-})
+cron.schedule('*/30 * * * * *', guarded('notifyDisconnectedWorkers', notifyDisconnectedWorkers))
 
 const { cleanupStaleCandleCache } = require('./src/utils/candleCache')
 // 3AM
@@ -132,10 +141,7 @@ cron.schedule('0 3 * * *', () => {
 
 const { purgeSoftDeletedStrategies } = require('./src/services/strategyService')
 // Hourly
-cron.schedule('0 * * * *', async () => {
-  try { await purgeSoftDeletedStrategies() }
-  catch (e) { console.error('[SnipeIT] purgeSoftDeletedStrategies error:', e.message) }
-})
+cron.schedule('0 * * * *', guarded('purgeSoftDeletedStrategies', purgeSoftDeletedStrategies))
 
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`[SnipeIT] Server running at http://localhost:${PORT}`)

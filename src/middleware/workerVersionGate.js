@@ -2,6 +2,8 @@ const { MIN_WORKER_VERSION } = require('../config/worker')
 const { compareVersions } = require('../utils/version')
 
 // Refuses workers older than MIN_WORKER_VERSION (a worker whose version can't be read counts as too old)
+// Compatibility guard only: the version comes from the User-Agent, so it is not a security control
+// Also applies to /result: raising the minimum mid-job resets that job
 function workerVersionGate(req, res, next) {
   if (!MIN_WORKER_VERSION) return next()
   const cmp = req.workerVersion ? compareVersions(req.workerVersion, MIN_WORKER_VERSION) : null

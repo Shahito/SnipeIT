@@ -2,7 +2,9 @@ const { getVapidPublicKey, subscribePush } = require('../services/pushService')
 
 const KNOWN_CODES = new Set([
   'MISSING_FIELDS',
+  'INVALID_ENDPOINT',
   'VAPID_NOT_CONFIGURED',
+  'QUOTA_EXCEEDED',
   'UNAUTHORIZED',
 ])
 

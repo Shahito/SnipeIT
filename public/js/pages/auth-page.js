@@ -294,7 +294,6 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
   try {
     const res = await api('/auth/register', { method: 'POST', body: { username: u, email, password: p, lang: window.i18nCurrentLang() } })
     pendingRegistration = {
-      registrationEditToken: res.registrationEditToken,
       username: res.username,
       email: res.email,
     }
@@ -346,12 +345,11 @@ document.getElementById('pendingCorrectBtn').addEventListener('click', async () 
   try {
     const res = await api('/auth/correct-pending-email', {
       method: 'POST',
-      body: { registrationEditToken: pendingRegistration.registrationEditToken, newEmail },
+      body: { newEmail },
     })
     pendingRegistration = {
       ...pendingRegistration,
       email: res.email,
-      registrationEditToken: res.registrationEditToken,
     }
     savePendingRegistration(pendingRegistration)
     renderPendingSection()

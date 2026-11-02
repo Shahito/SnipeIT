@@ -4,6 +4,7 @@ const prisma = require('../utils/prisma')
 const { resolveSweep } = require('../utils/sweepEngine')
 const { usesTrailingTp } = require('../utils/exitsModel')
 const { SWEEP_WARNING_THRESHOLD, SWEEP_ALL_RUNS_THRESHOLD } = require('../config/sweep')
+const { MAX_ACTIVE_JOBS, MAX_STORED_JOBS, MAX_SWEEPS_PER_HOUR } = require('../config/quotas')
 const { CATEGORIES, categoryOf } = require('../config/coinCategories')
 const { emitToUser } = require('../utils/eventBus')
 const { computeSweepDsr } = require('../utils/deflatedSharpe')
@@ -78,10 +79,23 @@ async function previewSweep(strategyId, userId) {
 }
 
 async function launchSweep(strategyId, userId, { confirmLarge = false } = {}) {
-  const strategy = await prisma.strategy.findFirst({ where: { id: strategyId, userId, deletedAt: null } })
-  if (!strategy) throw new Error('STRATEGY_NOT_FOUND')
+  const sweepGroupId = await prisma.$transaction(
+    (tx) => createSweepTx(tx, strategyId, userId, confirmLarge),
+    { timeout: 60_000, maxWait: 10_000 },
+  )
 
-  const active = await prisma.backtestJob.findFirst({
+  await refreshSweepGroupStatus(sweepGroupId)
+  return prisma.sweepGroup.findUnique({ where: { id: sweepGroupId }, include: { jobs: true } })
+}
+
+// Everything that writes runs in one transaction: no empty group left behind on failure
+async function createSweepTx(tx, strategyId, userId, confirmLarge) {
+  // Row lock: concurrent launches on the same strategy run one after the other
+  const locked = await tx.$queryRaw`SELECT id FROM Strategy WHERE id = ${strategyId} AND userId = ${userId} AND deletedAt IS NULL FOR UPDATE`
+  if (locked.length === 0) throw new Error('STRATEGY_NOT_FOUND')
+  const strategy = await tx.strategy.findFirst({ where: { id: strategyId, userId, deletedAt: null } })
+
+  const active = await tx.backtestJob.findFirst({
     where: { strategyId, status: { in: ['pending', 'running'] } },
   })
   if (active) throw new Error('JOB_ALREADY_RUNNING')
@@ -98,7 +112,22 @@ async function launchSweep(strategyId, userId, { confirmLarge = false } = {}) {
     throw err
   }
 
-  const sweepGroup = await prisma.sweepGroup.create({
+  // Quotas, checked before anything is written
+  const [activeJobs, storedJobs, recentSweeps] = await Promise.all([
+    tx.backtestJob.count({ where: { strategy: { userId }, status: { in: ['pending', 'running'] } } }),
+    tx.backtestJob.count({ where: { strategy: { userId } } }),
+    totalRuns > 1
+      ? tx.sweepGroup.count({
+          where: { userId, totalRuns: { gt: 1 }, createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) } },
+        })
+      : 0,
+  ])
+  if (activeJobs + totalRuns > MAX_ACTIVE_JOBS || storedJobs + totalRuns > MAX_STORED_JOBS) {
+    throw new Error('QUOTA_EXCEEDED')
+  }
+  if (recentSweeps >= MAX_SWEEPS_PER_HOUR) throw new Error('RATE_LIMIT_EXCEEDED')
+
+  const sweepGroup = await tx.sweepGroup.create({
     data: {
       strategyId,
       userId,
@@ -117,7 +146,7 @@ async function launchSweep(strategyId, userId, { confirmLarge = false } = {}) {
     return { combo, snapshot, hash }
   })
 
-  const reusableJobs = await prisma.backtestJob.findMany({
+  const reusableJobs = await tx.backtestJob.findMany({
     where: { strategyId, status: 'done', resultHash: { in: [...resolvedByHash.keys()] } },
     orderBy: { completedAt: 'desc' },
   })
@@ -126,7 +155,7 @@ async function launchSweep(strategyId, userId, { confirmLarge = false } = {}) {
     if (!reuseByHash.has(job.resultHash)) reuseByHash.set(job.resultHash, job)
   }
 
-  await prisma.backtestJob.createMany({
+  await tx.backtestJob.createMany({
     data: snapshots.map(({ combo, snapshot, hash }) => {
       const existing = reuseByHash.get(hash)
       if (existing) {
@@ -166,14 +195,12 @@ async function launchSweep(strategyId, userId, { confirmLarge = false } = {}) {
     }),
   })
 
-  await refreshSweepGroupStatus(sweepGroup.id)
-
-  return prisma.sweepGroup.findUnique({ where: { id: sweepGroup.id }, include: { jobs: true } })
+  return sweepGroup.id
 }
 
 async function listSweeps(userId) {
   return prisma.sweepGroup.findMany({
-    where: { userId },
+    where: { userId, strategy: { deletedAt: null } },
     orderBy: { createdAt: 'desc' },
     select: {
       id: true, name: true, totalRuns: true, status: true, createdAt: true, completedAt: true,
@@ -206,7 +233,7 @@ function statsFor(jobs) {
 
 async function getSweepGroup(id, userId) {
   const group = await prisma.sweepGroup.findFirst({
-    where: { id, userId },
+    where: { id, userId, strategy: { deletedAt: null } },
     include: {
       jobs: {
         select: {
@@ -316,52 +343,79 @@ async function getSweepGroup(id, userId) {
   }
 }
 
+const TERMINAL_SWEEP_STATUSES = ['done', 'partial_error', 'error']
+
 // Called after every status transition of a BacktestJob attached to a sweep
-async function refreshSweepGroupStatus(sweepGroupId) {
+async function refreshSweepGroupStatus(sweepGroupId, { silent = false } = {}) {
   if (!sweepGroupId) return
-  const jobs = await prisma.backtestJob.findMany({ where: { sweepGroupId }, select: { id: true, status: true } })
-  const allTerminal = jobs.every(j => j.status === 'done' || j.status === 'error')
 
-  if (!allTerminal) {
-    // Only report 'running' when a worker has claimed one of the jobs
-    const anyRunning = jobs.some(j => j.status === 'running')
-    const g = await prisma.sweepGroup.update({
+  // Row lock: concurrent refreshes of one group run one after the other,
+  // so a stale reader can never overwrite a newer status
+  const outcome = await prisma.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw`SELECT id FROM SweepGroup WHERE id = ${sweepGroupId} FOR UPDATE`
+    if (locked.length === 0) return null
+
+    const group = await tx.sweepGroup.findUnique({
       where: { id: sweepGroupId },
-      data: { status: anyRunning ? 'running' : 'pending' },
-      select: { id: true, userId: true, status: true, name: true, totalRuns: true, halfwayNotified: true },
+      select: { id: true, userId: true, name: true, totalRuns: true, status: true, halfwayNotified: true },
     })
-    emitToUser(g.userId, 'sweep:update', { sweepGroupId: g.id, status: g.status })
-    await notifySweepHalfway(g, jobs)
-    return
-  }
+    const rows = await tx.backtestJob.groupBy({
+      by: ['status'],
+      where: { sweepGroupId },
+      _count: { _all: true },
+    })
+    const count = (s) => rows.find(r => r.status === s)?._count._all ?? 0
+    const done = count('done')
+    const failed = count('error')
+    const total = rows.reduce((n, r) => n + r._count._all, 0)
+    if (total === 0) return null
 
-  const anyDone = jobs.some(j => j.status === 'done')
-  const allDone = jobs.every(j => j.status === 'done')
-  const g = await prisma.sweepGroup.update({
-    where: { id: sweepGroupId },
-    data: {
-      status: allDone ? 'done' : (anyDone ? 'partial_error' : 'error'),
-      completedAt: new Date(),
-    },
-    select: { id: true, userId: true, status: true, name: true, totalRuns: true },
+    const terminalCount = done + failed
+    const allTerminal = terminalCount === total
+    const wasTerminal = TERMINAL_SWEEP_STATUSES.includes(group.status)
+
+    // Only report 'running' when a worker has claimed one of the jobs
+    let status
+    if (!allTerminal) status = count('running') > 0 ? 'running' : 'pending'
+    else status = failed === 0 ? 'done' : (done > 0 ? 'partial_error' : 'error')
+
+    const sendHalfway = !allTerminal && group.totalRuns > 1 && !group.halfwayNotified
+      && terminalCount / group.totalRuns >= 0.5
+    const sendCompletion = allTerminal && !wasTerminal
+
+    await tx.sweepGroup.update({
+      where: { id: sweepGroupId },
+      data: {
+        status,
+        // Keep the first completion time, clear it if the sweep is running again
+        completedAt: allTerminal ? (wasTerminal ? undefined : new Date()) : null,
+        ...(sendHalfway ? { halfwayNotified: true } : {}),
+      },
+    })
+
+    let singleJobId = null
+    if (sendCompletion && group.totalRuns === 1) {
+      const job = await tx.backtestJob.findFirst({ where: { sweepGroupId }, select: { id: true } })
+      singleJobId = job ? job.id : null
+    }
+    return { group, status, terminalCount, failed, sendHalfway, sendCompletion, singleJobId }
   })
-  emitToUser(g.userId, 'sweep:update', { sweepGroupId: g.id, status: g.status })
-  notifySweepGroupCompletion(g, jobs)
+  if (!outcome) return
+
+  // SSE and push go out after the commit
+  const { group, status } = outcome
+  emitToUser(group.userId, 'sweep:update', { sweepGroupId: group.id, status })
+  if (silent) return
+  if (outcome.sendHalfway) notifySweepHalfway(group, outcome.terminalCount)
+  if (outcome.sendCompletion) {
+    notifySweepGroupCompletion({ ...group, status }, { singleJobId: outcome.singleJobId, failed: outcome.failed })
+  }
 }
 
 // Sends a one-time push once a multi-run sweep crosses 50 percent done.
 // Single runs, totalRuns equal to 1, are skipped, there is no halfway point.
-async function notifySweepHalfway(g, jobs) {
-  if (g.totalRuns <= 1 || g.halfwayNotified) return
-
-  const terminalCount = jobs.filter(j => j.status === 'done' || j.status === 'error').length
-  if (terminalCount / g.totalRuns < 0.5) return
-
-  await prisma.sweepGroup.update({
-    where: { id: g.id },
-    data: { halfwayNotified: true },
-  })
-
+// The once-only flag is flipped under the group lock in refreshSweepGroupStatus
+function notifySweepHalfway(g, terminalCount) {
   sendLocalizedNotificationToUser(g.userId, {
     titleKey: 'push.sweep_halfway.title',
     bodyKey: 'push.sweep_halfway.body',
@@ -374,9 +428,9 @@ async function notifySweepHalfway(g, jobs) {
 // Fire and forget. A failed push must not break job or sweep finalization.
 // Text is translated per subscription by sendLocalizedNotificationToUser.
 // Push keys live in public/locales, lookup logic is in src/i18n/push.js.
-function notifySweepGroupCompletion(g, jobs) {
+function notifySweepGroupCompletion(g, { singleJobId, failed }) {
   const isSingleRun = g.totalRuns === 1
-  const url = isSingleRun ? `/results.html?jobId=${jobs[0].id}` : `/sweep-results.html?id=${g.id}`
+  const url = isSingleRun ? `/results.html?jobId=${singleJobId}` : `/sweep-results.html?id=${g.id}`
   const vars = { name: g.name || 'Strategy', total: g.totalRuns }
 
   let topicKey
@@ -384,7 +438,7 @@ function notifySweepGroupCompletion(g, jobs) {
     topicKey = isSingleRun ? 'backtest_done' : 'sweep_done'
   } else if (g.status === 'partial_error') {
     topicKey = 'sweep_partial'
-    vars.failed = jobs.filter(j => j.status === 'error').length
+    vars.failed = failed
   } else {
     topicKey = isSingleRun ? 'backtest_failed' : 'sweep_failed'
   }

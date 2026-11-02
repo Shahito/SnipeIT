@@ -3,7 +3,7 @@
 //                                   column's technical ceiling, not a sane limit for a
 //                                   short label on a card). Also used to truncate the
 //                                   generated name in cloneStrategy/cloneFromSnapshot so
-//                                   their suffix (" (copie)", " (snapshot)") can't push a
+//                                   their suffix (" (copy)", " (snapshot)") can't push a
 //                                   name that was already near the cap over it.
 // STRATEGY_DESCRIPTION_MAX_LENGTH : description now has a hard cap too, don't leave it
 //                                   open-ended.

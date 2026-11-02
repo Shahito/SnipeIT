@@ -1,6 +1,6 @@
 const { listTags, createTag, updateTag, deleteTag, setJobTags } = require('../services/tagService')
 
-const KNOWN = new Set(['TAG_NAME_REQUIRED','TAG_NAME_TOO_LONG','TAG_COLOR_INVALID','TAG_NOT_FOUND','JOB_NOT_FOUND','MISSING_FIELDS'])
+const KNOWN = new Set(['TAG_NAME_REQUIRED','TAG_NAME_TOO_LONG','TAG_COLOR_INVALID','TAG_NOT_FOUND','JOB_NOT_FOUND','MISSING_FIELDS','QUOTA_EXCEEDED'])
 const code  = (e, fb = 'UNKNOWN') => KNOWN.has(e.message) ? e.message : fb
 
 async function listController(req, res) {

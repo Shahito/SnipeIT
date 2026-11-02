@@ -35,7 +35,12 @@ async function authRequired(req, res, next) {
 
     next()
   } catch (e) {
-    return res.status(401).json({ error: 'Invalid token' })
+    // Only JWT errors mean a bad session, anything else is a server fault
+    if (e && (e.name === 'JsonWebTokenError' || e.name === 'TokenExpiredError' || e.name === 'NotBeforeError')) {
+      return res.status(401).json({ error: 'Invalid token' })
+    }
+    console.error('authRequired error:', e)
+    return res.status(503).json({ error: 'Service unavailable' })
   }
 }
 

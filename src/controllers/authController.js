@@ -9,6 +9,16 @@ const COOKIE_OPTS = (isProd) => ({
   path: '/',
 })
 
+// Registration edit token lives in an httpOnly cookie, sent only to the correction route
+const EDIT_COOKIE = 'reg_edit'
+const EDIT_COOKIE_OPTS = (isProd) => ({
+  httpOnly: true,
+  secure: isProd,
+  sameSite: 'Strict',
+  maxAge: 1000 * 60 * 60 * 24,
+  path: '/api/auth/correct-pending-email',
+})
+
 // Known error codes - the front end translates them via i18n (error.CODE)
 const KNOWN_CODES = new Set([
   'USERNAME_TAKEN',
@@ -25,8 +35,6 @@ const KNOWN_CODES = new Set([
   'PASSWORD_NEEDS_UPPERCASE',
   'PASSWORD_NEEDS_DIGIT',
   'PASSWORD_NEEDS_SPECIAL',
-  'PASSWORD_TOO_COMMON',
-  'PASSWORD_CONTAINS_PERSONAL_INFO',
   'PASSWORD_MISMATCH',
   'INVALID_CREDENTIALS',
   'INVALID_OLD_PASSWORD',
@@ -55,9 +63,9 @@ async function registerController(req, res) {
       return res.status(400).json({ error: 'MISSING_FIELDS' })
 
     const user = await register(username, password, email, resolveLang(lang))
+    res.cookie(EDIT_COOKIE, user.registrationEditToken, EDIT_COOKIE_OPTS(isProd))
     res.json({
       success: true,
-      registrationEditToken: user.registrationEditToken,
       username: user.username,
       email: user.email,
     })
@@ -94,7 +102,8 @@ async function changePasswordController(req, res) {
     if (!oldPassword || !newPassword)
       return res.status(400).json({ error: 'MISSING_FIELDS' })
 
-    await changePassword(req.user.id, oldPassword, newPassword)
+    const { token } = await changePassword(req.user.id, oldPassword, newPassword)
+    res.cookie('token', token, COOKIE_OPTS(isProd))
     res.json({ success: true })
   } catch (e) {
     res.status(400).json({ error: errorCode(e) })
@@ -119,12 +128,14 @@ async function changeEmailController(req, res) {
 
 async function correctPendingEmailController(req, res) {
   try {
-    const { registrationEditToken, newEmail } = req.body
-    if (!registrationEditToken || !newEmail)
-      return res.status(400).json({ error: 'MISSING_FIELDS' })
+    const { newEmail } = req.body
+    if (!newEmail) return res.status(400).json({ error: 'MISSING_FIELDS' })
+    const registrationEditToken = req.cookies && req.cookies[EDIT_COOKIE]
+    if (!registrationEditToken) return res.status(400).json({ error: 'TOKEN_INVALID' })
 
     const result = await correctPendingEmail(registrationEditToken, newEmail)
-    res.json({ success: true, ...result })
+    res.cookie(EDIT_COOKIE, result.registrationEditToken, EDIT_COOKIE_OPTS(isProd))
+    res.json({ success: true, email: result.email })
   } catch (e) {
     if (e.message === 'VERIFICATION_COOLDOWN_ACTIVE') {
       return res.status(429).json({ error: e.message, retryAfter: e.retryAfter })

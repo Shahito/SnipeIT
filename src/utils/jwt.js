@@ -8,11 +8,11 @@ if (!SECRET) {
 }
 
 function signToken(payload) {
-  return jwt.sign(payload, SECRET, { expiresIn: '30d' })
+  return jwt.sign(payload, SECRET, { expiresIn: '30d', algorithm: 'HS256' })
 }
 
 function verifyToken(token) {
-  return jwt.verify(token, SECRET)
+  return jwt.verify(token, SECRET, { algorithms: ['HS256'] })
 }
 
 module.exports = { signToken, verifyToken }

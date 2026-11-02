@@ -28,7 +28,7 @@ async function workerAuthRequired(req, res, next) {
 
     const apiKeyRecord = await prisma.apiKey.findUnique({
       where: { keyHash: hash },
-      include: { user: true },
+      include: { user: { select: { id: true } } },
     })
 
     if (!apiKeyRecord) {
@@ -52,7 +52,9 @@ async function workerAuthRequired(req, res, next) {
     req.workerUser = apiKeyRecord.user
     next()
   } catch (e) {
-    return res.status(401).json({ error: 'INVALID_API_KEY' })
+    // Lookup failed (DB down), not an auth failure: let the worker retry
+    console.error('workerAuth error:', e)
+    return res.status(503).json({ error: 'SERVICE_UNAVAILABLE' })
   }
 }
 

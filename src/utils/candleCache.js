@@ -25,8 +25,14 @@ const CACHE_DIR = process.env.CANDLE_CACHE_DIR || path.join(__dirname, '..', '..
 const ACCESS_MARKER = '.last_access'
 const DEFAULT_MAX_AGE_MS = (Number(process.env.CANDLE_CACHE_MAX_AGE_DAYS) || 30) * 24 * 60 * 60 * 1000
 
+// Path segments must be plain names: no separators, no leading dot ("." and "..")
+const SAFE_SEGMENT = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/
+
 function cacheDir(exchange, pair, timeframe) {
     const safePair = String(pair).replace('/', '_')
+    for (const part of [exchange, safePair, timeframe]) {
+        if (!SAFE_SEGMENT.test(String(part))) throw new Error('INVALID_CACHE_KEY')
+    }
     return path.join(CACHE_DIR, exchange, safePair, timeframe)
 }
 

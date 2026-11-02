@@ -52,8 +52,8 @@ function renderGlobalMetrics(g) {
     { key: 'sweep.metric.count', value: g.count, cls: 'neutral' },
     { key: 'sweep.metric.avg_pnl', value: fmtPct(g.avgPnlPercent), cls: g.avgPnlPercent >= 0 ? 'positive' : 'negative' },
     { key: 'sweep.metric.median_pnl', value: fmtPct(g.medianPnlPercent), cls: g.medianPnlPercent >= 0 ? 'positive' : 'negative' },
-    { key: 'sweep.metric.std_pnl', value: g.stdPnlPercent.toFixed(2) + '%', cls: 'neutral' },
     { key: 'sweep.metric.pct_profitable', value: g.pctProfitable.toFixed(1) + '%', cls: g.pctProfitable >= 50 ? 'positive' : 'negative' },
+    { key: 'sweep.metric.std_pnl', value: g.stdPnlPercent.toFixed(2) + '%', cls: 'neutral' },
     { key: 'sweep.metric.best', value: fmtPct(g.bestPnlPercent), cls: g.bestPnlPercent >= 0 ? 'positive' : 'negative' },
     { key: 'sweep.metric.worst', value: fmtPct(g.worstPnlPercent), cls: g.worstPnlPercent >= 0 ? 'positive' : 'negative' },
   ]

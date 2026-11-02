@@ -1,6 +1,7 @@
 const webpush = require('web-push')
 const prisma = require('../utils/prisma')
 const { t: translate, SUPPORTED_LANGS, DEFAULT_LANG } = require('../i18n/push')
+const { MAX_PUSH_SUBSCRIPTIONS } = require('../config/quotas')
 
 // Webpush config. Both keys are required - without a private key web-push
 // has nothing to sign with, so a public key alone is still "not configured".
@@ -32,6 +33,25 @@ function getVapidPublicKey() {
   return process.env.VAPID_PUBLIC_KEY
 }
 
+// The server POSTs to the subscription endpoint, so only the browser vendors' push
+// services are accepted (blocks requests to internal hosts)
+const PUSH_HOST_SUFFIXES = [
+  'fcm.googleapis.com',
+  'push.services.mozilla.com',
+  'notify.windows.com',
+  'push.apple.com',
+]
+
+function isAllowedPushEndpoint(endpoint) {
+  if (typeof endpoint !== 'string' || endpoint.length > 500) return false
+  let url
+  try { url = new URL(endpoint) } catch { return false }
+  if (url.protocol !== 'https:' || url.username || url.password) return false
+  if (url.port && url.port !== '443') return false
+  const host = url.hostname.toLowerCase()
+  return PUSH_HOST_SUFFIXES.some(s => host === s || host.endsWith(`.${s}`))
+}
+
 async function subscribePush(userId, subscription) {
   if (!subscription || !subscription.endpoint || !subscription.keys) {
     throw new Error('MISSING_FIELDS')
@@ -39,6 +59,18 @@ async function subscribePush(userId, subscription) {
   if (!userId) {
     throw new Error('UNAUTHORIZED')
   }
+  if (!isAllowedPushEndpoint(subscription.endpoint)) {
+    throw new Error('INVALID_ENDPOINT')
+  }
+  if (typeof subscription.keys.p256dh !== 'string' || typeof subscription.keys.auth !== 'string') {
+    throw new Error('MISSING_FIELDS')
+  }
+
+  // Re-subscribing the same device never counts against the cap
+  const others = await prisma.pushSubscription.count({
+    where: { userId, NOT: { endpoint: subscription.endpoint } },
+  })
+  if (others >= MAX_PUSH_SUBSCRIPTIONS) throw new Error('QUOTA_EXCEEDED')
 
   const lang = SUPPORTED_LANGS.includes(subscription.lang) ? subscription.lang : DEFAULT_LANG
 

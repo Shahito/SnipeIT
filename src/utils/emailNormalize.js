@@ -1,10 +1,14 @@
+// Domains where "+tag" is a real alias of the same mailbox
+// Yahoo is excluded on purpose: it does not support "+" (aliases use "-")
 const ALIAS_TAG_DOMAINS = new Set([
   'gmail.com', 'googlemail.com',
-  'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
-  'yahoo.com', 'yahoo.fr',
-  'icloud.com', 'me.com', 'mac.com',
-  'protonmail.com', 'proton.me',
-  'fastmail.com',
+  'outlook.com', 'outlook.fr', 'outlook.de', 'outlook.es', 'outlook.it',
+  'hotmail.com', 'hotmail.fr', 'hotmail.co.uk', 'hotmail.de', 'hotmail.es', 'hotmail.it',
+  'live.com', 'live.fr', 'live.co.uk', 'live.de', 'live.it',
+  'msn.com',
+  'icloud.com', 'icloud.fr', 'me.com', 'mac.com',
+  'protonmail.com', 'protonmail.ch', 'proton.me', 'pm.me',
+  'fastmail.com', 'fastmail.fm',
 ])
 
 const DOT_INSENSITIVE_DOMAINS = new Set(['gmail.com', 'googlemail.com'])
